@@ -351,3 +351,195 @@ theorem quant12
   exact (h x) px
 
 end QuantifierLogic
+
+
+
+/-
+=================================================
+ Natural numbers: basic induction
+=================================================
+-/
+
+section NatBasic
+
+-- Hint: induction on `n`; `simp` should close the base case and simplify the step.
+theorem nat1 (n : Nat) : n + 0 = n := by
+  sorry
+
+-- Hint: this one may be closed by `simp`, but try induction on `n` first.
+theorem nat2 (n : Nat) : 0 + n = n := by
+  sorry
+
+-- Hint: induction on `n`; in the step case, use the induction hypothesis with `rw`.
+theorem nat3 (m n : Nat) : Nat.succ (m + n) = Nat.succ m + n := by
+  sorry
+
+-- Hint: induction on `c` or on `a`; `simp` plus the induction hypothesis should be enough.
+theorem nat4 (a b c : Nat) : (a + b) + c = a + (b + c) := by
+  sorry
+
+-- Hint: induction on `b`; use `simp` in the base case. In the step case, rewrite by the induction hypothesis.
+theorem nat5 (a b : Nat) : a + b = b + a := by
+  sorry
+
+-- Hint: use `intro h`; then `exact Nat.succ.inj h`, or try `cases h`.
+theorem nat6 (a b : Nat) : Nat.succ a = Nat.succ b → a = b := by
+  sorry
+
+end NatBasic
+
+
+/-
+=================================================
+ Natural numbers: multiplication
+=================================================
+-/
+
+section NatMul
+
+-- Hint: induction on `n`; `simp` should do most of the work.
+theorem nat7 (n : Nat) : n * 0 = 0 := by
+  sorry
+
+-- Hint: this is probably `simp`, but try induction if you want to see the recursion.
+theorem nat8 (n : Nat) : 0 * n = 0 := by
+  sorry
+
+-- Hint: `simp`; or unfold multiplication by induction on `n`.
+theorem nat9 (n : Nat) : n * 1 = n := by
+  sorry
+
+-- Hint: `simp`; if doing manually, induction on `n`.
+theorem nat10 (n : Nat) : 1 * n = n := by
+  sorry
+
+-- Hint: induction on `c` or `b`; use `simp`, then rewrite with the induction hypothesis.
+theorem nat11 (a b c : Nat) : a * (b + c) = a * b + a * c := by
+  sorry
+
+-- Hint: induction on `c`; `simp` may need help from associativity/commutativity of addition.
+theorem nat12 (a b c : Nat) : (a + b) * c = a * c + b * c := by
+  sorry
+
+-- Hint: induction on `b`; the step case usually needs distributivity or `simp [Nat.mul_succ]`.
+theorem nat13 (a b : Nat) : a * b = b * a := by
+  sorry
+
+end NatMul
+
+
+/-
+=================================================
+ Natural numbers: inequalities
+=================================================
+-/
+
+section NatIneq
+
+-- Hint: `exact Nat.zero_le n`, or just try `omega`.
+theorem nat14 (n : Nat) : 0 ≤ n := by
+  sorry
+
+-- Hint: `exact Nat.succ_pos n`, or try `omega`.
+theorem nat15 (n : Nat) : 0 < Nat.succ n := by
+  sorry
+
+-- Hint: after `intro h`, `omega` works. For a manual proof, use `Nat.le_trans`.
+theorem nat16 (a b c : Nat) : a ≤ b → a ≤ b + c := by
+  sorry
+
+-- Hint: after `intro h`, use `exact Nat.add_le_add_right h c`, or try `omega`.
+theorem nat17 (a b c : Nat) : a ≤ b → a + c ≤ b + c := by
+  sorry
+
+-- Hint: after `intro h`, use `exact Nat.add_lt_add_right h c`, or try `omega`.
+theorem nat18 (a b c : Nat) : a < b → a + c < b + c := by
+  sorry
+
+-- Hint: `intro h`; `omega` is fine here. Manually, combine `a ≤ a + c` with transitivity.
+theorem nat19 (a b c : Nat) : a + c ≤ b → a ≤ b := by
+  sorry
+
+-- Hint: this is meant to be an `omega` exercise.
+theorem nat20 (a b c : Nat) : a ≤ b → b ≤ c → a + 1 ≤ c + 1 := by
+  sorry
+
+end NatIneq
+
+
+/-
+=================================================
+ Natural numbers: parity and existentials
+=================================================
+-/
+
+section NatParity
+
+def MyEven (n : Nat) : Prop :=
+  ∃ k : Nat, n = 2 * k
+
+-- Hint: use `use 0`; then simplify.
+theorem nat21 : MyEven 0 := by
+  sorry
+
+-- Hint: use `use 1`; then simplify.
+theorem nat22 : MyEven 2 := by
+  sorry
+
+-- Hint: start with `intro h`; unpack with `rcases h with ⟨k, hk⟩`.
+-- Then choose a witness related to `k + 1`.
+theorem nat23 (n : Nat) : MyEven n → MyEven (n + 2) := by
+  sorry
+
+-- Hint: unpack both hypotheses with `rcases`.
+-- The witness should be built from the two existing witnesses.
+theorem nat24 (m n : Nat) : MyEven m → MyEven n → MyEven (m + n) := by
+  sorry
+
+-- Hint: unpack the evenness hypothesis.
+-- The witness should involve `3 * k`, but you may need arithmetic cleanup by `ring` or `omega`.
+theorem nat25 (n : Nat) : MyEven n → MyEven (3 * n) := by
+  sorry
+
+end NatParity
+
+
+/-
+=================================================
+ Natural numbers: divisibility
+=================================================
+-/
+
+section NatDivides
+
+-- Hint: divisibility means "there exists a multiplier".
+-- Use `use 1` or `use n`; then simplify.
+theorem nat26 (n : Nat) : n ∣ n := by
+  sorry
+
+-- Hint: use `use n`; then simplify.
+theorem nat27 (n : Nat) : 1 ∣ n := by
+  sorry
+
+-- Hint: start with `intro h`; unpack using `rcases h with ⟨k, hk⟩`.
+-- Then produce a witness involving `k * c`.
+theorem nat28 (a b c : Nat) : a ∣ b → a ∣ b * c := by
+  sorry
+
+-- Hint: unpack both divisibility hypotheses.
+-- The witness should be the sum of the two witnesses.
+theorem nat29 (a b c : Nat) : a ∣ b → a ∣ c → a ∣ b + c := by
+  sorry
+
+-- Hint: unpack both divisibility hypotheses.
+-- Substitute or rewrite using the equalities you get.
+theorem nat30 (a b c : Nat) : a ∣ b → b ∣ c → a ∣ c := by
+  sorry
+
+-- Hint: unpack both hypotheses.
+-- The witness should multiply the two witnesses.
+-- Arithmetic cleanup may need `ring`, `nlinarith`, or careful `rw`/`simp`.
+theorem nat31 (a b c d : Nat) : a ∣ b → c ∣ d → a * c ∣ b * d := by
+  sorry
+
+end NatDivides
