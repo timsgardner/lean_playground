@@ -235,3 +235,85 @@ theorem neg8 : (P → Q) → (¬P ∨ Q) := by
 
 
 end TacticNegation
+
+
+/-
+=================================================
+ Quantifier Logic
+-/
+
+section QuantifierLogic
+
+variable {α β : Type}
+variable (P Q R : α → Prop)
+variable (S : β → Prop)
+variable (T : α → β → Prop)
+
+-- 1. Use a universal hypothesis.
+theorem quant1
+    (h : ∀ x : α, P x)
+    (a : α) :
+    P a := by
+  sorry
+
+-- 2. Prove a universal statement.
+theorem quant2
+    (h : ∀ x : α, P x → Q x) :
+    (∀ x : α, P x) → ∀ x : α, Q x := by
+  sorry
+
+-- 3. Universal distributes over conjunction, forward direction.
+theorem quant3 :
+    (∀ x : α, P x ∧ Q x) → (∀ x : α, P x) ∧ (∀ x : α, Q x) := by
+  sorry
+
+-- 4. Universal distributes over conjunction, backward direction.
+theorem quant4 :
+    (∀ x : α, P x) ∧ (∀ x : α, Q x) → ∀ x : α, P x ∧ Q x := by
+  sorry
+
+-- 5. Existential gives a witness and a proof.
+theorem quant5 :
+    (∃ x : α, P x ∧ Q x) → ∃ x : α, P x := by
+  sorry
+
+-- 6. Existential distributes over disjunction, forward direction.
+theorem quant6 :
+    (∃ x : α, P x ∨ Q x) → (∃ x : α, P x) ∨ (∃ x : α, Q x) := by
+  sorry
+
+-- 7. Existential distributes over disjunction, backward direction.
+theorem quant7 :
+    (∃ x : α, P x) ∨ (∃ x : α, Q x) → ∃ x : α, P x ∨ Q x := by
+  sorry
+
+-- 8. Move a universal implication across an existential.
+theorem quant8
+    (h : ∀ x : α, P x → Q x) :
+    (∃ x : α, P x) → ∃ x : α, Q x := by
+  sorry
+
+-- 9. Reuse the same witness.
+theorem quant9
+    (h : ∃ x : α, P x ∧ Q x) :
+    ∃ x : α, Q x ∧ P x := by
+  sorry
+
+-- 10. Swap order of universal quantifiers.
+theorem quant10 :
+    (∀ x : α, ∀ y : β, T x y) → ∀ y : β, ∀ x : α, T x y := by
+  sorry
+
+-- 11. Swap order of existential quantifiers.
+theorem quant11 :
+    (∃ x : α, ∃ y : β, T x y) → ∃ y : β, ∃ x : α, T x y := by
+  sorry
+
+-- 12. Universal plus existential.
+theorem quant12
+    (h : ∀ x : α, P x → Q x)
+    (ex : ∃ x : α, P x) :
+    ∃ x : α, Q x := by
+  sorry
+
+end QuantifierLogic
