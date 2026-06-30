@@ -113,5 +113,59 @@ example : ∀ m n : Nat, Even n → Even (m * n) := fun m n ⟨k, (hk : n = k + 
   show ∃ l, m * n = l + l from ⟨_, hmn⟩
 
 
--- def makeLess (n : Int) : { m : Int // m < n } :=
---   ⟨n - 1, Int.sub_one_lt n⟩
+def makeLess (n : Int) : { m : Int // m < n } :=
+  ⟨n - 1, sub_one_lt n⟩
+
+-- `{ x : Nat // 0 < x }` is sugar for `Subtype (fun x => 0 < x)`, a structure with
+-- fields `val : Nat` and `property : 0 < val`. The `⟨_, _⟩` below is the anonymous
+-- constructor filling in those two fields: a value, plus a *proof* it satisfies the
+-- predicate. Lean checks the proof at compile time, so a `PosNat` can never wrap a
+-- non-positive number — the type itself is the verification.
+def PosNat := { x : Nat // 0 < x }
+
+def two : PosNat := ⟨2, by decide⟩
+
+-- ⟨0, by decide⟩ would fail here: `decide` can't prove `0 < 0`, so this won't compile.
+-- def zero : PosNat := ⟨0, by decide⟩
+
+-- Same proof obligation (0 < 3), but built as a direct term instead of a tactic:
+-- `Nat.succ_pos 2 : 0 < Nat.succ 2`, and `Nat.succ 2` reduces to `3` definitionally.
+def three : PosNat := ⟨3, Nat.succ_pos 2⟩
+
+-- as a theorem, without the anonymous constructor
+theorem four_is_positive : 0 < 4 :=
+  Nat.succ_pos 3
+
+def four : PosNat :=
+  Subtype.mk 4 four_is_positive
+
+-- directly as a record
+theorem five_is_positive : 0 < 5 :=
+  Nat.succ_pos 4
+
+def five : PosNat :=
+  {
+    val := 5
+    property := five_is_positive
+  }
+
+
+
+def makeLessPlain (n : Int) : Int :=
+  n - 1
+
+theorem makeLessPlain_spec (n : Int) : makeLessPlain n < n :=
+  sub_one_lt n
+
+
+-- Inductive stuff
+
+theorem my_zero_add (n : Nat) : 0 + n = n :=
+  Nat.rec
+    (show 0 + 0 = 0 from rfl)
+    (fun k ih =>
+      show 0 + Nat.succ k = Nat.succ k from
+        congrArg Nat.succ ih)
+    n
+
+#print my_zero_add
