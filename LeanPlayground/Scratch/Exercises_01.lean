@@ -172,3 +172,66 @@ theorem tac10 : (P → R) ∧ (Q → S) → P ∧ Q → R ∧ S := by
 
 
 end TacticLogic
+
+/-
+=================================================
+ Tactic Negation
+-/
+
+section TacticNegation
+
+variable (P Q R : Prop)
+
+-- Remember: ¬P means P → False.
+-- Use: intro, exact
+theorem neg1 (hp : P) : ¬¬P := by
+  intro hnp
+  exact hnp hp
+
+-- Use: intro, exact
+theorem neg2 (hpq : P → Q) (hnq : ¬Q) : ¬P := by
+  intro p
+  exact hnq (hpq p)
+
+-- Use: intro, exact
+theorem neg3 (h : P ∧ ¬P) : Q := by
+  obtain ⟨p, np⟩ := h
+  exact absurd p np
+
+
+-- Use: exfalso, exact
+theorem neg4 (hp : P) (hnp : ¬P) : Q := by
+  exfalso
+  exact hnp hp
+
+-- Use: intro, cases
+theorem neg5 : ¬(P ∨ Q) → ¬P ∧ ¬Q := by
+  intro hpq
+  constructor
+  · intro p
+    exact hpq (Or.inl p)
+  · intro q
+    exact hpq (Or.inr q)
+
+-- Use: intro, cases, exact
+theorem neg6 : ¬P ∧ ¬Q → ¬(P ∨ Q) := by
+  rintro ⟨np, nq⟩
+  rintro (p|q)
+  · exact np p
+  · exact nq q
+
+-- Classical. Use: classical, by_contra
+theorem neg7 : ¬¬P → P := by
+  intro nnp
+  by_contra
+  exact nnp this
+
+-- Classical. Use: classical, by_cases
+theorem neg8 : (P → Q) → (¬P ∨ Q) := by
+  intro pq
+  by_cases p : P
+  · exact Or.inr (pq p)
+  · exact Or.inl p
+
+
+end TacticNegation
