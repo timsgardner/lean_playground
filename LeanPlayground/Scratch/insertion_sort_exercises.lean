@@ -38,43 +38,106 @@ def insertionSort : List Nat → List Nat
 theorem mem_insertSorted_iff
     (x y : Nat) (ys : List Nat) :
     x ∈ insertSorted y ys ↔ x = y ∨ x ∈ ys := by
-  sorry
+  induction ys with
+  | nil => simp [insertSorted]
+  | cons z zs ih =>
+    simp only [insertSorted]
+    split_ifs with h
+    · simp
+    · simp only [List.mem_cons, ih]
+      tauto
 
 theorem mem_insertionSort_iff
     (x : Nat) (xs : List Nat) :
     x ∈ insertionSort xs ↔ x ∈ xs := by
-  sorry
+  induction xs with
+  | nil => simp [insertionSort]
+  | cons y ys ih =>
+    simp only [insertionSort]
+    rw [mem_insertSorted_iff]
+    constructor
+    · rintro (xIsY | xInYs)
+      · rw [<- xIsY]
+        exact List.mem_cons_self
+      · apply List.mem_cons_of_mem
+        exact ih.mp xInYs
+    · intro xInYYs
+      rw [ih]
+      exact List.mem_cons.mp xInYYs
+
 
 -- === MARKER: MEMBERSHIP PROOFS END ===
 
 
 -- === MARKER: SORTEDNESS PROOFS START ===
 
+abbrev SortedNatList (xs : List Nat) : Prop :=
+  List.Pairwise (fun a b => a ≤ b) xs
+
+-- theorem insertSorted_sorted
+--     (x : Nat) (xs : List Nat) :
+--     SortedNatList xs →
+--     SortedNatList (insertSorted x xs) := by
+--   induction xs with
+--   | nil =>
+--     apply List.Pairwise.cons
+--     simp
+--   | cons y ys ih =>
+--     intro sortedYYs
+--     have sortedYs : SortedNatList ys := by
+--       obtain ⟨p, q⟩ := List.pairwise_cons.mp sortedYYs
+--       exact q
+--     have stuff := ih sortedYs
+
+
+
 theorem insertSorted_sorted
     (x : Nat) (xs : List Nat) :
-    List.SortedLE xs →
-    List.SortedLE (insertSorted x xs) := by
-  sorry
+    SortedNatList xs →
+    SortedNatList (insertSorted x xs) := by
+      intro xsSorted
+      induction xs with
+      | nil =>
+          simp [insertSorted, SortedNatList]
+      | cons head tail tail_ih =>
+        simp [insertSorted]
+        split_ifs with h
+        · rewrite [SortedNatList]
+          apply List.pairwise_cons_cons.mpr
+          constructor
+          · exact h
+          · constructor
+            · have sortedTail := List.Pairwise.of_cons xsSorted
+              have head_le_tail : ∀ z, z ∈ tail → head ≤ z := by
+                cases xsSorted with
+                | cons h_head_tail h_tail_sorted =>
+                    exact h_head_tail
+              have x_le_tail : ∀ z, z ∈ tail -> x <= z := by
+                · intro z zt
+                  have bla := head_le_tail z zt
+                  omega
+              apply List.Pairwise.cons
+              exact x_le_tail
+              exact sortedTail
+            · apply xsSorted
+        · have head_le_xtail : ∀ z ∈ insertSorted x tail, head <= z := by
+            · intro z z_in_xtail
+              have hz_cases : z = x ∨ z ∈ tail := by
+                exact (mem_insertSorted_iff z x tail).mp z_in_xtail
+              rcases hz_cases with rfl | z_in_tail
+              · omega
+              · exact (List.pairwise_cons.mp xsSorted).left z z_in_tail
+          apply List.Pairwise.cons
+          · exact head_le_xtail
+          · exact tail_ih xsSorted.tail
+
+
 
 theorem insertionSort_sorted
     (xs : List Nat) :
-    List.SortedLE (insertionSort xs) := by
+    SortedNatList (insertionSort xs) := by
   sorry
 
 -- === MARKER: SORTEDNESS PROOFS END ===
-
-
--- === MARKER: FINAL CORRECTNESS THEOREM START ===
-
-theorem insertionSort_correct
-    (xs : List Nat) :
-    List.SortedLE (insertionSort xs)
-      ∧ ∀ x : Nat, x ∈ insertionSort xs ↔ x ∈ xs := by
-  constructor
-  · exact insertionSort_sorted xs
-  · intro x
-    exact mem_insertionSort_iff x xs
-
--- === MARKER: FINAL CORRECTNESS THEOREM END ===
 
 end AlgoExercises
