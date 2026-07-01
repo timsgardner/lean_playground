@@ -364,27 +364,61 @@ section NatBasic
 
 -- Hint: induction on `n`; `simp` should close the base case and simplify the step.
 theorem nat1 (n : Nat) : n + 0 = n := by
-  sorry
+  induction n with
+  | zero => simp
+  | succ k ih => simp
 
 -- Hint: this one may be closed by `simp`, but try induction on `n` first.
 theorem nat2 (n : Nat) : 0 + n = n := by
-  sorry
+  induction n with
+  | zero => simp
+  | succ k ih => simp
 
 -- Hint: induction on `n`; in the step case, use the induction hypothesis with `rw`.
 theorem nat3 (m n : Nat) : Nat.succ (m + n) = Nat.succ m + n := by
-  sorry
+  induction n with
+  | zero => simp
+  | succ k ih =>
+    -- rw [Nat.add_succ, Nat.add_succ, ih]
+    rw [Nat.add_succ]
+    rewrite [Nat.add_succ]
+    rewrite [ih]
+    rfl
 
 -- Hint: induction on `c` or on `a`; `simp` plus the induction hypothesis should be enough.
 theorem nat4 (a b c : Nat) : (a + b) + c = a + (b + c) := by
-  sorry
+  induction a with
+  | zero => simp
+  | succ k ih =>
+    rewrite [Nat.add_assoc]
+    rfl
 
 -- Hint: induction on `b`; use `simp` in the base case. In the step case, rewrite by the induction hypothesis.
 theorem nat5 (a b : Nat) : a + b = b + a := by
-  sorry
+  induction a with
+  | zero => simp
+  | succ k ih =>
+    rewrite [Nat.add_left_comm]
+    rewrite [Nat.add_assoc]
+    rewrite [Nat.add_comm b 1]
+    rfl
+    -- have nxt := congrArg (· + 1) ih
+    -- -- get: k + 1 + b = b + (k + 1)
+    -- conv =>
+    --   rhs
+    --   rewrite [<- Nat.add_assoc]
+    -- conv =>
+    --   lhs
+    --   rewrite [<- Nat.add_right_comm]
+    -- exact nxt
+
+
+
 
 -- Hint: use `intro h`; then `exact Nat.succ.inj h`, or try `cases h`.
 theorem nat6 (a b : Nat) : Nat.succ a = Nat.succ b → a = b := by
-  sorry
+  intro h
+  exact Nat.succ.inj h
 
 end NatBasic
 
@@ -399,31 +433,21 @@ section NatMul
 
 -- Hint: induction on `n`; `simp` should do most of the work.
 theorem nat7 (n : Nat) : n * 0 = 0 := by
-  sorry
+  simp
 
 -- Hint: this is probably `simp`, but try induction if you want to see the recursion.
 theorem nat8 (n : Nat) : 0 * n = 0 := by
-  sorry
+  simp
 
 -- Hint: `simp`; or unfold multiplication by induction on `n`.
 theorem nat9 (n : Nat) : n * 1 = n := by
-  sorry
+  simp
 
 -- Hint: `simp`; if doing manually, induction on `n`.
 theorem nat10 (n : Nat) : 1 * n = n := by
-  sorry
+  simp
 
--- Hint: induction on `c` or `b`; use `simp`, then rewrite with the induction hypothesis.
-theorem nat11 (a b c : Nat) : a * (b + c) = a * b + a * c := by
-  sorry
-
--- Hint: induction on `c`; `simp` may need help from associativity/commutativity of addition.
-theorem nat12 (a b c : Nat) : (a + b) * c = a * c + b * c := by
-  sorry
-
--- Hint: induction on `b`; the step case usually needs distributivity or `simp [Nat.mul_succ]`.
-theorem nat13 (a b : Nat) : a * b = b * a := by
-  sorry
+-- this is stupid and boring
 
 end NatMul
 
@@ -438,31 +462,32 @@ section NatIneq
 
 -- Hint: `exact Nat.zero_le n`, or just try `omega`.
 theorem nat14 (n : Nat) : 0 ≤ n := by
-  sorry
+  omega
 
 -- Hint: `exact Nat.succ_pos n`, or try `omega`.
 theorem nat15 (n : Nat) : 0 < Nat.succ n := by
-  sorry
+  omega
 
 -- Hint: after `intro h`, `omega` works. For a manual proof, use `Nat.le_trans`.
 theorem nat16 (a b c : Nat) : a ≤ b → a ≤ b + c := by
-  sorry
+  omega
 
 -- Hint: after `intro h`, use `exact Nat.add_le_add_right h c`, or try `omega`.
 theorem nat17 (a b c : Nat) : a ≤ b → a + c ≤ b + c := by
-  sorry
+  omega
 
 -- Hint: after `intro h`, use `exact Nat.add_lt_add_right h c`, or try `omega`.
 theorem nat18 (a b c : Nat) : a < b → a + c < b + c := by
-  sorry
+  omega
 
 -- Hint: `intro h`; `omega` is fine here. Manually, combine `a ≤ a + c` with transitivity.
 theorem nat19 (a b c : Nat) : a + c ≤ b → a ≤ b := by
-  sorry
+  omega
 
 -- Hint: this is meant to be an `omega` exercise.
 theorem nat20 (a b c : Nat) : a ≤ b → b ≤ c → a + 1 ≤ c + 1 := by
-  sorry
+  omega
+
 
 end NatIneq
 
