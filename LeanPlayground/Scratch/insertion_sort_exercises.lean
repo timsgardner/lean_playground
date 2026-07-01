@@ -74,23 +74,6 @@ theorem mem_insertionSort_iff
 abbrev SortedNatList (xs : List Nat) : Prop :=
   List.Pairwise (fun a b => a ≤ b) xs
 
--- theorem insertSorted_sorted
---     (x : Nat) (xs : List Nat) :
---     SortedNatList xs →
---     SortedNatList (insertSorted x xs) := by
---   induction xs with
---   | nil =>
---     apply List.Pairwise.cons
---     simp
---   | cons y ys ih =>
---     intro sortedYYs
---     have sortedYs : SortedNatList ys := by
---       obtain ⟨p, q⟩ := List.pairwise_cons.mp sortedYYs
---       exact q
---     have stuff := ih sortedYs
-
-
-
 theorem insertSorted_sorted
     (x : Nat) (xs : List Nat) :
     SortedNatList xs →
@@ -103,23 +86,10 @@ theorem insertSorted_sorted
         simp [insertSorted]
         split_ifs with h
         · rewrite [SortedNatList]
-          apply List.pairwise_cons_cons.mpr
+          apply List.pairwise_cons_cons_iff_of_trans.mpr
           constructor
           · exact h
-          · constructor
-            · have sortedTail := List.Pairwise.of_cons xsSorted
-              have head_le_tail : ∀ z, z ∈ tail → head ≤ z := by
-                cases xsSorted with
-                | cons h_head_tail h_tail_sorted =>
-                    exact h_head_tail
-              have x_le_tail : ∀ z, z ∈ tail -> x <= z := by
-                · intro z zt
-                  have bla := head_le_tail z zt
-                  omega
-              apply List.Pairwise.cons
-              exact x_le_tail
-              exact sortedTail
-            · apply xsSorted
+          · exact xsSorted
         · have head_le_xtail : ∀ z ∈ insertSorted x tail, head <= z := by
             · intro z z_in_xtail
               have hz_cases : z = x ∨ z ∈ tail := by
@@ -130,7 +100,6 @@ theorem insertSorted_sorted
           apply List.Pairwise.cons
           · exact head_le_xtail
           · exact tail_ih xsSorted.tail
-
 
 
 theorem insertionSort_sorted
