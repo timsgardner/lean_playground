@@ -105,7 +105,14 @@ theorem insertSorted_sorted
 theorem insertionSort_sorted
     (xs : List Nat) :
     SortedNatList (insertionSort xs) := by
-  sorry
+    induction xs with
+    | nil => decide
+    | cons head tail tail_ih =>
+      rw [insertionSort]
+      apply insertSorted_sorted
+      exact tail_ih
+
+
 
 -- === MARKER: SORTEDNESS PROOFS END ===
 
