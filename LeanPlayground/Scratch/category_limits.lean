@@ -63,12 +63,20 @@ theorem cone_w {J : Type*} [Category J] {F : J ⥤ C} (c : Cone F)
 derived API is friendlier. Build the iso by hand.
 -/
 
+#check IsTerminal.hom_ext
+
 def isTerminalIso {X Y : C} (hX : IsTerminal X) (hY : IsTerminal Y) :
     X ≅ Y where
-  hom := sorry
-  inv := sorry
-  hom_inv_id := sorry
-  inv_hom_id := sorry
+  hom := hY.from X
+  inv := hX.from Y
+  hom_inv_id := by
+    exact hX.hom_ext
+      (hY.from X ≫ hX.from Y)
+      (𝟙 X)
+  inv_hom_id := by
+    exact hY.hom_ext
+      (hX.from Y ≫ hY.from X)
+      (𝟙 Y)
 
 /- Hints:
    • `IsTerminal.from : IsTerminal X → (Y : C) → (Y ⟶ X)`  [✓]
