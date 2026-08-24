@@ -321,5 +321,34 @@ def SomeNat : NatTrans (Functor.id (Type u)) OptionF where
     dsimp [someX, someY, mappedF]
 
 
+def FstNat : NatTrans PairSelf (Functor.id (Type u)) where
+  app X :=
+    ↾fun p => p.1
+
+  naturality {X Y} f := by
+    set fstX : X × X ⟶ X :=
+      ↾fun p => p.1
+
+    set fstY : Y × Y ⟶ Y :=
+      ↾fun p => p.1
+
+    set mappedF : X × X ⟶ Y × Y :=
+      ↾fun p => (cchom f p.1, cchom f p.2)
+
+    show mappedF ≫ fstY = fstX ≫ f
+
+    apply TypeCat.Hom.ext
+    apply TypeCat.Fun.ext
+    funext p
+
+    change
+      cchom (mappedF ≫ fstY) p =
+      cchom (fstX ≫ f) p
+
+    rw [types_comp_apply mappedF fstY p]
+    rw [types_comp_apply fstX f p]
+
+    rfl
+
 
 end TypesKindergarten
