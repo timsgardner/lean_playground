@@ -12,7 +12,10 @@
   marked deprecated. `pullback.fst` and `pullback.snd` take their two
   morphisms explicitly: `pullback.fst f g` and `pullback.snd f g`.
 -/
-import Mathlib
+import Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts
+import Mathlib.CategoryTheory.Limits.Shapes.Equalizers
+import Mathlib.CategoryTheory.Limits.Shapes.Pullback.HasPullback
+import Mathlib.CategoryTheory.Limits.Types.Limits
 
 open CategoryTheory CategoryTheory.Limits
 
