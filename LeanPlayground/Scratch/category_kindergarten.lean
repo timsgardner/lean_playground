@@ -388,7 +388,8 @@ set_option pp.all true in
 
 So here's the commutative diagram for FirstSome. The outer rectangle is the
 naturality square for FirstSome. The middle horizontal is the result of the
-identity functor.
+identity functor. The composed side verticals are FirstSome.app X and
+FirstSome.app Y.
 
 PairSelf.obj X  ─── PairSelf.map f ───▶  PairSelf.obj Y
       │                                      │
@@ -401,6 +402,67 @@ PairSelf.obj X  ─── PairSelf.map f ───▶  PairSelf.obj Y
       │                                      │
       ▼                                      ▼
  OptionF.obj X  ───── OptionF.map f ───▶ OptionF.obj Y
+
+
+Side-note on ↾ vs cchom: they go in opposite directions.
+
+↾ wraps a lean function as a morphism in the type category.
+
+cchom takes a morphism in the type category and extracts the underlying
+function.
+
+Another side-note: morphisms in a concrete category have a `CoeFun` instance,
+and can therefore be applied directly like a function.
+
+For example:
 -/
+
+def increment' : Nat ⟶ Nat :=
+  ↾fun n => n + 1
+
+#eval increment' 10
+-- 11
+
+/-
+Which also means we didn't really need to spam `cchom` everywhere.
+-/
+
+
+theorem FirstSome_naturality_apply
+    {X Y : Type u}
+    (f : X ⟶ Y)
+    (p : X × X) :
+    FirstSome.app Y ((PairSelf.map f) p)
+      =
+    OptionF.map f ((FirstSome.app X) p) := by
+
+  have h :=
+    congrArg
+      (fun k : PairSelf.obj X ⟶ OptionF.obj Y => k p)
+      (FirstSome.naturality f)
+
+  rw [types_comp_apply] at h
+  rw [types_comp_apply] at h
+
+  exact h
+
+
+/- Prove that FstNat is a split epi, without using Mathlib's IsSplitEpi API for
+now.  -/
+
+/- Start by defining the section -/
+def DiagNat : NatTrans (Functor.id (Type u)) PairSelf where
+  app X :=
+    ↾fun x => (x, x)
+
+  naturality {X Y} f := by
+    rw [Functor.id_map]
+    sorry
+
+
+theorem FstNat_has_section :
+    DiagNat ≫ FstNat = 𝟙 (Functor.id (Type u)) := by
+  -- prove equality of natural transformations
+  sorry
 
 end TypesKindergarten
