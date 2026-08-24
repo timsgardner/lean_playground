@@ -286,5 +286,40 @@ def OptionF : Type u ⥤ Type u where
           exact types_comp_apply f g x
 
 
+/- On to nat trans.
+
+SomeNat is a nat trans from the identity functor to OptionF: -/
+
+def SomeNat : NatTrans (Functor.id (Type u)) OptionF where
+  app X :=
+    ↾fun x => some x
+
+  naturality {X Y} f := by
+    set someX : X ⟶ Option X :=
+      ↾fun x => some x
+
+    set someY : Y ⟶ Option Y :=
+      ↾fun y => some y
+
+    set mappedF : Option X ⟶ Option Y :=
+      ↾fun ox => Option.map (cchom f) ox
+
+    show f ≫ someY = someX ≫ mappedF
+
+    apply TypeCat.Hom.ext
+    apply TypeCat.Fun.ext
+    funext x
+
+    -- rfl would close here, but that's cheating
+
+    change
+      cchom (f ≫ someY) x = cchom (someX ≫ mappedF) x
+
+    rw [types_comp_apply f someY x]
+    rw [types_comp_apply someX mappedF x]
+
+    dsimp [someX, someY, mappedF]
+
+
 
 end TypesKindergarten
