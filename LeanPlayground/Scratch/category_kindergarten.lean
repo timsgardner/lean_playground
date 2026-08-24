@@ -126,9 +126,9 @@ def increment : Nat ⟶ Nat :=
 #check ConcreteCategory.hom increment
 
 -- run it
-#eval (ConcreteCategory.hom increment) 41
+#eval increment 41
 -- 42
--- think there must be some coercion going on here
+-- concrete-category morphisms have a CoeFun instance, so this applies the morphism directly
 
 #check TypeCat.homEquiv
 -- well, evidently they're equivalent
@@ -141,7 +141,7 @@ def double : Nat ⟶ Nat :=
 #check increment ≫ double
 -- increment ≫ double : Nat ⟶ Nat
 
-#eval (ConcreteCategory.hom (increment ≫ double)) 10
+#eval (increment ≫ double) 10
 -- 22
 
 /- here's the theorem saying morphism comp in TypeCat is ordinary function comp:
@@ -169,8 +169,8 @@ def PairSelf : Type u ⥤ Type u where
 
   map {X Y} f :=
     TypeCat.ofHom (fun p =>
-      (ConcreteCategory.hom f p.1,
-       ConcreteCategory.hom f p.2))
+      (f p.1,
+       f p.2))
 
   map_id X := by
     apply TypeCat.Hom.ext
@@ -181,8 +181,8 @@ def PairSelf : Type u ⥤ Type u where
     but change is more revealing here. -/
 
     change
-      ((ConcreteCategory.hom (𝟙 X)) p.1,
-       (ConcreteCategory.hom (𝟙 X)) p.2) = p
+      ((𝟙 X) p.1,
+       (𝟙 X) p.2) = p
 
     apply Prod.ext
     · exact types_id_apply X p.1
@@ -194,18 +194,18 @@ def PairSelf : Type u ⥤ Type u where
   map_comp {X Y Z} f g := by
     set mapFG : (X × X) ⟶ (Z × Z) :=
       ↾fun p =>
-        ((ConcreteCategory.hom (f ≫ g)) p.1,
-         (ConcreteCategory.hom (f ≫ g)) p.2)
+        ((f ≫ g) p.1,
+         (f ≫ g) p.2)
 
     set mapF : (X × X) ⟶ (Y × Y) :=
       ↾fun p =>
-        ((ConcreteCategory.hom f) p.1,
-         (ConcreteCategory.hom f) p.2)
+        (f p.1,
+         f p.2)
 
     set mapG : (Y × Y) ⟶ (Z × Z) :=
       ↾fun p =>
-        ((ConcreteCategory.hom g) p.1,
-         (ConcreteCategory.hom g) p.2)
+        (g p.1,
+         g p.2)
 
     -- now our previously nasty goal looks like this:
     show mapFG = mapF ≫ mapG
@@ -224,7 +224,7 @@ def PairSelf : Type u ⥤ Type u where
 #check PairSelf.map increment
 
 
-#eval (ConcreteCategory.hom (PairSelf.map increment)) (10, 20)
+#eval (PairSelf.map increment) (10, 20)
 -- (11, 21)
 
 /- we're already in a position to use this dopey functor to prove something
@@ -241,22 +241,17 @@ theorem fused_eq_staged :
   exact PairSelf.map_comp increment double
 
 
-/- Now let's try Option.
-
-So we don't keep writing ConcereteCategory.hom, we can introduce some local
-notation. -/
-
-local notation "cchom" => ConcreteCategory.hom
+/- Now let's try Option. -/
 
 def OptionF : Type u ⥤ Type u where
   obj X := Option X
 
   map {X Y} f :=
-    ↾fun ox => Option.map (cchom f) ox
+    ↾fun ox => Option.map f ox
 
   map_id X := by
     set mappedId : Option X ⟶ Option X :=
-      (↾fun ox => Option.map (cchom (𝟙 X)) ox)
+      (↾fun ox => Option.map (𝟙 X) ox)
 
     set optionId := 𝟙 (Option X)
 
@@ -269,14 +264,14 @@ def OptionF : Type u ⥤ Type u where
     cases ox with
       | none => rfl
       | some x =>
-          change some ((cchom (𝟙 X)) x) = some x
+          change some ((𝟙 X) x) = some x
           apply congrArg some
           exact types_id_apply X x
 
   map_comp {X Y Z} f g := by
-    set mappedFG := (↾fun ox => Option.map (cchom (f ≫ g)) ox)
-    set mappedF := (↾fun ox => Option.map (cchom f) ox)
-    set mappedG := (↾fun ox => Option.map (cchom g) ox)
+    set mappedFG := (↾fun ox => Option.map (f ≫ g) ox)
+    set mappedF := (↾fun ox => Option.map f ox)
+    set mappedG := (↾fun ox => Option.map g ox)
 
     show mappedFG = mappedF ≫ mappedG
 
@@ -310,7 +305,7 @@ def SomeNat : NatTrans (Functor.id (Type u)) OptionF where
       ↾fun y => some y
 
     set mappedF : Option X ⟶ Option Y :=
-      ↾fun ox => Option.map (cchom f) ox
+      ↾fun ox => Option.map f ox
 
     show f ≫ someY = someX ≫ mappedF
 
@@ -321,7 +316,7 @@ def SomeNat : NatTrans (Functor.id (Type u)) OptionF where
     -- rfl would close here, but that's cheating
 
     change
-      cchom (f ≫ someY) x = cchom (someX ≫ mappedF) x
+      (f ≫ someY) x = (someX ≫ mappedF) x
 
     rw [types_comp_apply f someY x]
     rw [types_comp_apply someX mappedF x]
@@ -341,7 +336,7 @@ def FstNat : NatTrans PairSelf (Functor.id (Type u)) where
       ↾fun p => p.1
 
     set mappedF : X × X ⟶ Y × Y :=
-      ↾fun p => (cchom f p.1, cchom f p.2)
+      ↾fun p => (f p.1, f p.2)
 
     show mappedF ≫ fstY = fstX ≫ f
 
@@ -350,8 +345,8 @@ def FstNat : NatTrans PairSelf (Functor.id (Type u)) where
     funext p
 
     change
-      cchom (mappedF ≫ fstY) p =
-      cchom (fstX ≫ f) p
+      (mappedF ≫ fstY) p =
+      (fstX ≫ f) p
 
     rw [types_comp_apply mappedF fstY p]
     rw [types_comp_apply fstX f p]
@@ -404,15 +399,9 @@ PairSelf.obj X  ─── PairSelf.map f ───▶  PairSelf.obj Y
  OptionF.obj X  ───── OptionF.map f ───▶ OptionF.obj Y
 
 
-Side-note on ↾ vs cchom: they go in opposite directions.
-
-↾ wraps a lean function as a morphism in the type category.
-
-cchom takes a morphism in the type category and extracts the underlying
-function.
-
-Another side-note: morphisms in a concrete category have a `CoeFun` instance,
-and can therefore be applied directly like a function.
+Side-note on ↾: it wraps a Lean function as a morphism in the type category.
+Morphisms in a concrete category also have a `CoeFun` instance, so once wrapped
+they can be applied directly like functions.
 
 For example:
 -/
@@ -423,9 +412,6 @@ def increment' : Nat ⟶ Nat :=
 #eval increment' 10
 -- 11
 
-/-
-Which also means we didn't really need to spam `cchom` everywhere.
--/
 
 
 theorem FirstSome_naturality_apply
