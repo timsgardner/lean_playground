@@ -6,6 +6,9 @@ open CategoryTheory
 
 universe u v
 
+
+local notation "cchom" => ConcreteCategory.hom
+
 /- Categories -/
 
 section Categories
@@ -428,7 +431,6 @@ theorem FirstSome_naturality_apply
       (FirstSome.naturality f)
 
   rw [types_comp_apply] at h
-  rw [types_comp_apply] at h
 
   exact h
 
@@ -442,13 +444,26 @@ def DiagNat : NatTrans (Functor.id (Type u)) PairSelf where
     ↾fun x => (x, x)
 
   naturality {X Y} f := by
-    rw [Functor.id_map]
-    sorry
+    rfl
 
+
+/-- Says that DiagNat ≫ FstNat is the identity morphism in the functor category
+[Type u, Type u] on the *object*  of that functor category that is the *identity
+functor* in the category Type u.-/
 
 theorem FstNat_has_section :
     DiagNat ≫ FstNat = 𝟙 (Functor.id (Type u)) := by
   -- prove equality of natural transformations
-  sorry
+  rfl
+
+/- we now have everything to establish the split epi -/
+
+def FstNat_splitEpi :
+    SplitEpi
+      (C := Type u ⥤ Type u)
+      FstNat where
+  section_ := DiagNat
+  id := FstNat_has_section
+
 
 end TypesKindergarten
