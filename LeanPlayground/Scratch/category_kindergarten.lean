@@ -156,8 +156,13 @@ def double : Nat ⟶ Nat :=
 F(X) = X × X
 
 on a function f: X -> Y:
+
 (x1​,x2​)↦(f(x1​),f(x2​)).
- -/
+
+The signature below means that, once the universe level `u` has been ground,
+`PairSelf.{u}` is an endofunctor on the category of types in `Type u`.
+
+-/
 
 def PairSelf : Type u ⥤ Type u where
   obj X := X × X
@@ -285,6 +290,9 @@ def OptionF : Type u ⥤ Type u where
           apply congrArg some
           exact types_comp_apply f g x
 
+set_option pp.all true in
+#print OptionF
+
 
 /- On to nat trans.
 
@@ -350,5 +358,49 @@ def FstNat : NatTrans PairSelf (Functor.id (Type u)) where
 
     rfl
 
+/- this fails because we can't infer the category etc
+
+#check FstNat ≫ SomeNat
+-/
+
+-- but  this works:
+#check (FstNat ≫ SomeNat : PairSelf ⟶ OptionF)
+
+def FirstSome : PairSelf ⟶ OptionF :=
+  FstNat ≫ SomeNat
+
+
+#synth Category (Type u)
+#synth Category (Type u ⥤ Type u)
+
+#synth Quiver (Type u ⥤ Type u)
+#synth CategoryStruct (Type u ⥤ Type u)
+
+set_option pp.all true in
+#check FirstSome
+
+/- Anyway, now we can look at FirstSome as a theorem-producing object. -/
+
+#check FirstSome.app
+#check FirstSome.naturality
+
+/-
+
+So here's the commutative diagram for FirstSome. The outer rectangle is the
+naturality square for FirstSome. The middle horizontal is the result of the
+identity functor.
+
+PairSelf.obj X  ─── PairSelf.map f ───▶  PairSelf.obj Y
+      │                                      │
+   FstNat.app X                           FstNat.app Y
+      │                                      │
+      ▼                                      ▼
+     X            ─────── f ─────────▶       Y
+      │                                      │
+  SomeNat.app X                          SomeNat.app Y
+      │                                      │
+      ▼                                      ▼
+ OptionF.obj X  ───── OptionF.map f ───▶ OptionF.obj Y
+-/
 
 end TypesKindergarten
