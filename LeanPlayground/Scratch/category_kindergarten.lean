@@ -235,4 +235,56 @@ theorem fused_eq_staged :
     fusedProgram = stagedProgram := by
   exact PairSelf.map_comp increment double
 
+
+/- Now let's try Option.
+
+So we don't keep writing ConcereteCategory.hom, we can introduce some local
+notation. -/
+
+local notation "cchom" => ConcreteCategory.hom
+
+def OptionF : Type u ⥤ Type u where
+  obj X := Option X
+
+  map {X Y} f :=
+    ↾fun ox => Option.map (cchom f) ox
+
+  map_id X := by
+    set mappedId : Option X ⟶ Option X :=
+      (↾fun ox => Option.map (cchom (𝟙 X)) ox)
+
+    set optionId := 𝟙 (Option X)
+
+    show mappedId = optionId
+
+    apply TypeCat.Hom.ext
+    apply TypeCat.Fun.ext
+    funext ox
+    -- Option lets us use cases
+    cases ox with
+      | none => rfl
+      | some x =>
+          change some ((cchom (𝟙 X)) x) = some x
+          apply congrArg some
+          exact types_id_apply X x
+
+  map_comp {X Y Z} f g := by
+    set mappedFG := (↾fun ox => Option.map (cchom (f ≫ g)) ox)
+    set mappedF := (↾fun ox => Option.map (cchom f) ox)
+    set mappedG := (↾fun ox => Option.map (cchom g) ox)
+
+    show mappedFG = mappedF ≫ mappedG
+
+    apply TypeCat.Hom.ext
+    apply TypeCat.Fun.ext
+    funext ox
+
+    cases ox with
+      | none => rfl
+      | some x =>
+          apply congrArg some
+          exact types_comp_apply f g x
+
+
+
 end TypesKindergarten
