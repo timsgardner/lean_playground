@@ -1,6 +1,8 @@
 import Mathlib.CategoryTheory.Functor.Basic
 import Mathlib.CategoryTheory.NatTrans
 import Mathlib.CategoryTheory.Types.Basic
+import ProofWidgets.Extra.CheckHighlight
+import ProofWidgets.Demos.Graph.ExprGraph
 
 open CategoryTheory
 
@@ -451,10 +453,14 @@ def DiagNat : NatTrans (Functor.id (Type u)) PairSelf where
 [Type u, Type u] on the *object*  of that functor category that is the *identity
 functor* in the category Type u.-/
 
+@[reassoc]
 theorem FstNat_has_section :
     DiagNat ≫ FstNat = 𝟙 (Functor.id (Type u)) := by
   -- prove equality of natural transformations
   rfl
+
+
+#checkh FstNat_has_section_assoc
 
 /- we now have everything to establish the split epi -/
 
@@ -465,5 +471,116 @@ def FstNat_splitEpi :
   section_ := DiagNat
   id := FstNat_has_section
 
+
+/- Lists -/
+
+/-- For this functor Lean can infer all the laws after we specify obj and map.
+But we're doing it by hand anyway because it builds character-/
+
+def ListF : Type u ⥤ Type u where
+  obj X := List X
+  map {X Y} f := ↾(List.map f)
+  map_id X := by
+    apply TypeCat.Hom.ext
+    apply TypeCat.Fun.ext
+    funext xs
+    have hid : (cchom (𝟙 X): X -> X) = id := by
+      rfl
+    rw [hid]
+    dsimp
+    rw [List.map_id_fun]
+    rfl
+  map_comp {X Y Z} f g := by
+    /- Unwrapping manually with TypeCat.Hom.ext is stupid tho. -/
+    apply ConcreteCategory.ext_apply
+    intro xs
+    rw [ConcreteCategory.coe_comp]
+    rw [TypeCat.ofHom_apply]
+    rw [types_comp_apply]
+    rw [TypeCat.ofHom_apply]
+    rw [TypeCat.ofHom_apply]
+    rw [List.map_map]
+
+
+def HeadNat : NatTrans ListF OptionF where
+  app X :=
+    ↾fun xs : List X =>
+      match xs with
+      | [] => none
+      | x :: _ => some x
+
+  naturality {X Y} f := by
+    set headX : ListF.obj X ⟶ OptionF.obj X :=
+      ↾fun xs : List X =>
+        match xs with
+        | [] => none
+        | x :: _ => some x
+
+    set headY : ListF.obj Y ⟶ OptionF.obj Y :=
+      ↾fun ys : List Y =>
+        match ys with
+        | [] => none
+        | x :: _ => some x
+
+    apply ConcreteCategory.ext_apply
+    intro xs
+    rw [types_comp_apply]
+    rw [types_comp_apply]
+    cases xs <;> rfl
+
+#check (HeadNat).naturality
+
+#checkh ConcreteCategory.ext_apply
+
+def TailNat : NatTrans ListF ListF where
+  app X :=
+    ↾fun xs : List X =>
+      match xs with
+      | [] => []
+      | _ :: tail => tail
+
+  naturality {X Y} f := by
+    set tailY : (ListF.obj Y) ⟶ (ListF.obj Y) :=
+      ↾fun ys : List Y =>
+        match ys with
+        | [] => []
+        | head :: tail => tail
+
+    set tailX : (ListF.obj X) ⟶ (ListF.obj X) :=
+      ↾fun xs : List X =>
+        match xs with
+        | [] => []
+        | head :: tail => tail
+
+    apply ConcreteCategory.ext_apply
+    intro xs
+    rw [types_comp_apply]
+    rw [types_comp_apply]
+    cases xs <;> rfl
+
+
+def ListPairF : Type u ⥤ Type u where
+  obj X := List X × List X
+  map f :=
+    ↾fun p => (List.map f p.1, List.map f p.2)
+
+  /- These next two auto-implement if you leave them out-/
+
+  map_id X := by
+    apply ConcreteCategory.ext_apply
+    intro xs
+    rw [types_id_apply (List X × List X) xs]
+    rw [TypeCat.ofHom_apply]
+    rw [types_id X]
+    rw [List.map_id]
+    rw [List.map_id]
+
+  map_comp {X Y Z} f g := by
+    apply ConcreteCategory.ext_apply
+    intro xs
+    -- can't be bothered
+    simp
+
+#check (ListPairF).map_comp
 
 end TypesKindergarten
