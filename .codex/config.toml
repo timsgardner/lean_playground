@@ -1,0 +1,35 @@
+[mcp_servers.lean-lsp]
+command = "uvx"
+args = ["lean-lsp-mcp"]
+cwd = "/home/timsg/code/lean_playground"
+
+[mcp_servers.lean-explore]
+command = "uvx"
+args = [
+  "--from",
+  "lean-explore",
+  "lean-explore",
+  "mcp",
+  "serve",
+  "--backend",
+  "api",
+]
+cwd = "/home/timsg/code/lean_playground"
+
+[mcp_servers.tikz-cd]
+command = "docker"
+args = [
+    "run",
+    "--rm",
+    "-i",
+    "--network=none",
+    "--read-only",
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges",
+    "--memory=512m",
+    "--cpus=1",
+    "--pids-limit=64",
+    "--tmpfs",
+    "/tmp:rw,nosuid,nodev,size=128m",
+    "tikz-cd-mcp",
+]
