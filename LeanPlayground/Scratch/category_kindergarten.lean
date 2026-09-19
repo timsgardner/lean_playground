@@ -723,6 +723,76 @@ theorem PositionalList.draw_map
   simp [PositionalList.draw]
   simp [List.map_filterMap]
 
+/- A position scheme chooses positions from the length of its input. This can
+describe operations such as tail and reverse, unlike a fixed positional list. -/
+
+abbrev PositionScheme := Nat → PositionalList
+
+def PositionScheme.draw
+    (scheme : PositionScheme)
+    {α : Type u}
+    (xs : List α) : List α :=
+  (scheme xs.length).draw xs
+
+theorem PositionScheme.draw_map
+    (scheme : PositionScheme)
+    {α β : Type u}
+    (f : α → β)
+    (xs : List α) :
+    (scheme.draw xs).map f = scheme.draw (xs.map f) := by
+  rw [PositionScheme.draw, PositionScheme.draw, List.length_map]
+  exact PositionalList.draw_map (scheme xs.length) f xs
+
+def PositionScheme.natTrans
+    (scheme : PositionScheme) : NatTrans ListF ListF where
+  app X := ↾fun xs : List X => scheme.draw xs
+  naturality {X Y} f := by
+    apply ConcreteCategory.ext_apply
+    intro xs
+    change scheme.draw (List.map (cchom f : X → Y) xs) =
+      List.map (cchom f : X → Y) (scheme.draw xs)
+    exact (scheme.draw_map (cchom f) xs).symm
+
+def DuplicateHeadScheme : PositionScheme :=
+  fun _ => [0, 0]
+
+def DuplicateHeadNat : ListF ⟶ ListF :=
+  DuplicateHeadScheme.natTrans
+
+example : cchom (DuplicateHeadNat.app Nat) [10, 20] = [10, 10] := by
+  rfl
+
+example : cchom (DuplicateHeadNat.app Nat) [] = [] := by
+  rfl
+
+def ReversePositionScheme : PositionScheme :=
+  fun n => (List.finRange n).reverse.map Fin.val
+
+def ReverseNatByPosition : ListF ⟶ ListF :=
+  ReversePositionScheme.natTrans
+
+theorem ReversePositionScheme_draw
+    {α : Type u}
+    (xs : List α) :
+    ReversePositionScheme.draw xs = xs.reverse := by
+  unfold PositionScheme.draw ReversePositionScheme PositionalList.draw
+  rw [List.filterMap_map]
+  rw [List.filterMap_reverse]
+  congr
+  calc
+    _ = (List.finRange xs.length).map (fun i => xs[i]) := by
+      rw [← List.filterMap_eq_map]
+      apply List.filterMap_congr
+      intro i _
+      change xs[i]? = some xs[i]
+      exact List.getElem?_eq_getElem i.isLt
+    _ = xs := List.map_getElem_finRange xs
+
+theorem ReverseNatByPosition_eq_ReverseNat :
+    ReverseNatByPosition = ReverseNat := by
+  ext X xs
+  exact ReversePositionScheme_draw xs
+
 
 
 
