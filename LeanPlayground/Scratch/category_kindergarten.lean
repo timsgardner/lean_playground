@@ -1,6 +1,7 @@
 import Mathlib.CategoryTheory.Functor.Basic
 import Mathlib.CategoryTheory.NatTrans
 import Mathlib.CategoryTheory.Types.Basic
+import Mathlib.Data.List.FinRange
 import ProofWidgets.Extra.CheckHighlight
 import ProofWidgets.Demos.Graph.ExprGraph
 
@@ -491,16 +492,10 @@ def ListF : Type u ⥤ Type u where
     rw [List.map_id_fun]
     rfl
   map_comp {X Y Z} f g := by
-    /- Unwrapping manually with TypeCat.Hom.ext is stupid tho. -/
     apply ConcreteCategory.ext_apply
     intro xs
-    rw [ConcreteCategory.coe_comp]
-    rw [TypeCat.ofHom_apply]
-    rw [types_comp_apply]
-    rw [TypeCat.ofHom_apply]
-    rw [TypeCat.ofHom_apply]
-    rw [List.map_map]
-
+    simp only [ConcreteCategory.coe_comp, TypeCat.ofHom_apply, types_comp_apply]
+    exact List.map_map.symm
 
 def HeadNat : NatTrans ListF OptionF where
   app X :=
@@ -581,6 +576,154 @@ def ListPairF : Type u ⥤ Type u where
     -- can't be bothered
     simp
 
+
 #check (ListPairF).map_comp
+
+#check ListPairF.obj Nat
+
+example (p: ListPairF.obj Nat): True := by
+  dsimp [ListPairF] at p
+  #check p
+  trivial
+
+
+def AppendNat : NatTrans ListPairF ListF where
+  app X :=
+    ↾fun p : List X × List X =>
+      p.1 ++ p.2
+
+  naturality {X Y} f := by
+    apply ConcreteCategory.ext_apply
+    intro xs
+    rw [@types_comp_apply]
+    simp
+
+    have hpair :
+        cchom (ListPairF.map f) xs =
+          (List.map (cchom f) xs.1,
+           List.map (cchom f) xs.2) := by
+      rfl
+
+    rw [hpair]
+
+    have hlist :
+        cchom (ListF.map f) (xs.1 ++ xs.2) =
+          List.map (cchom f) (xs.1 ++ xs.2) := by
+      rfl
+
+    rw [hlist]
+    simp
+
+def OptionToListNat : NatTrans OptionF ListF where
+  app X :=
+    ↾fun ox : Option X =>
+      match ox with
+      | none => []
+      | some x => [x]
+
+  naturality {X Y} f := by
+    apply ConcreteCategory.ext_apply
+    intro ox
+    dsimp
+    cases ox <;> rfl
+
+
+@[reassoc]
+theorem OptionToList_head :
+    OptionToListNat ≫ HeadNat = 𝟙 OptionF := by
+  ext X ox
+  cases ox <;> rfl
+
+
+/- So OptionToListNat has a retraction, making it a split mono in the functor
+category, and OptionF a retract of ListF. -/
+
+def OptionToListNat_splitMono :
+    SplitMono
+      (C := Type u ⥤ Type u)
+      OptionToListNat where
+  retraction := HeadNat
+  id := OptionToList_head
+
+
+/- The composite in the other order is *not* the identity: heads forgets the
+tail. Witnessed at X = Nat by the list [0, 1], which comes back as [0]. -/
+
+theorem head_OptionToList_ne_id :
+    HeadNat.{u} ≫ OptionToListNat.{u} ≠ 𝟙 ListF.{u} := by
+  intro h
+  -- ULift lets us build the witness at an arbitrary universe u
+  let a : ULift.{u} Bool := ULift.up true
+  let b : ULift.{u} Bool := ULift.up false
+  have happ :=
+    congrArg
+      (fun η : ListF.{u} ⟶ ListF.{u} =>
+        cchom (NatTrans.app η (ULift.{u} Bool)) [a, b]) h
+  -- both sides are definitionally plain list expressions: [a] = [a, b]
+  have hbad : ([a] : List (ULift.{u} Bool)) = [a, b] := happ
+  simp at hbad
+
+/- Permutations: a *fixed positional* rearrangement is natural, because it
+depends only on length and position, never on the elements. -/
+
+def ReverseNat : NatTrans ListF ListF where
+  app X := ↾fun xs : List X => xs.reverse
+
+  naturality {X Y} f :=
+    ConcreteCategory.ext_apply fun xs =>
+      show (List.map (cchom f : X → Y) xs).reverse =
+            List.map (cchom f : X → Y) xs.reverse
+      from List.map_reverse.symm
+
+
+--List.map_reverse.symm
+
+
+/- Reversing twice is the identity, so ReverseNat is an isomorphism of functors
+(a self-inverse automorphism of ListF). -/
+
+@[reassoc]
+theorem ReverseNat_involutive :
+    ReverseNat ≫ ReverseNat = 𝟙 ListF := by
+  ext X xs
+  exact List.reverse_reverse xs
+
+/-- Applying the natural transformation twice recovers a concrete list. -/
+example :
+    cchom (ReverseNat.app Nat)
+        (cchom (ReverseNat.app Nat) [1, 2, 3]) = [1, 2, 3] := by
+  have h := congrArg
+    (fun η : ListF ⟶ ListF => cchom (NatTrans.app η Nat) [1, 2, 3])
+    ReverseNat_involutive
+  exact h
+
+def ReverseNat_iso : ListF.{u} ≅ ListF.{u} where
+  hom := ReverseNat
+  inv := ReverseNat
+  hom_inv_id := ReverseNat_involutive
+  inv_hom_id := ReverseNat_involutive
+
+
+-- more general
+
+abbrev PositionalList := List Nat
+
+def PositionalList.draw
+  (pl: PositionalList)
+  {α : Type u}
+  (xs : List α) : List α :=
+  pl.filterMap fun i => xs[i]?
+
+theorem PositionalList.draw_map
+    (pl: PositionalList)
+    {α : Type u}
+    (f : α -> β)
+    (xs: List α) :
+    (pl.draw xs).map f = pl.draw (xs.map f) := by
+  simp [PositionalList.draw]
+  simp [List.map_filterMap]
+
+
+
 
 end TypesKindergarten
