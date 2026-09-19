@@ -723,6 +723,25 @@ theorem PositionalList.draw_map
   simp [PositionalList.draw]
   simp [List.map_filterMap]
 
+
+/-- If the set of elements in one list is a subset of the set of
+elements in another list, it can be formed by a draw from the other list.-/
+theorem PositionalList.subset_existence
+    (sub: List α)
+    (sup: List α)
+    (h: List.Subset sub sup):
+    ∃ pl: PositionalList, pl.draw sup = sub := by
+  classical
+  refine ⟨sub.map (fun a => sup.idxOf a), ?_⟩
+  unfold PositionalList.draw
+  rw [List.filterMap_map]
+  calc
+  _ = sub.filterMap some := by
+    apply List.filterMap_congr
+    intro a ha
+    exact List.getElem?_idxOf (h ha)
+  _ = sub := List.filterMap_some
+
 /- A position scheme chooses positions from the length of its input. This can
 describe operations such as tail and reverse, unlike a fixed positional list. -/
 
@@ -764,6 +783,7 @@ example : cchom (DuplicateHeadNat.app Nat) [10, 20] = [10, 10] := by
 
 example : cchom (DuplicateHeadNat.app Nat) [] = [] := by
   rfl
+
 
 def ReversePositionScheme : PositionScheme :=
   fun n => (List.finRange n).reverse.map Fin.val
