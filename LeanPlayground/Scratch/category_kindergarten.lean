@@ -1,6 +1,7 @@
 import Mathlib.CategoryTheory.Functor.Basic
 import Mathlib.CategoryTheory.NatTrans
 import Mathlib.CategoryTheory.Types.Basic
+import Mathlib.CategoryTheory.Yoneda
 import Mathlib.Data.List.FinRange
 import ProofWidgets.Extra.CheckHighlight
 import ProofWidgets.Demos.Graph.ExprGraph
@@ -723,6 +724,26 @@ theorem PositionalList.draw_map
   simp [PositionalList.draw]
   simp [List.map_filterMap]
 
+/- Coercing valid `Fin xs.length` positions to naturals lets permissive draw
+recover ordinary mapping over those positions. -/
+theorem PositionalList.draw_fin_positions
+    {α : Type u}
+    (xs : List α)
+    (positions : List (Fin xs.length)) :
+    PositionalList.draw (positions.map Fin.val) xs =
+      positions.map (fun i => xs[i]) := by
+  unfold PositionalList.draw
+  rw [List.filterMap_map]
+  calc
+    List.filterMap ((fun i => xs[i]?) ∘ Fin.val) positions =
+        positions.filterMap (some ∘ fun i => xs[i]) := by
+      apply List.filterMap_congr
+      intro i _
+      change xs[i]? = some xs[i]
+      exact List.getElem?_eq_getElem i.isLt
+    _ = positions.map (fun i => xs[i]) := by
+      rw [List.filterMap_eq_map]
+
 
 /-- If the set of elements in one list is a subset of the set of
 elements in another list, it can be formed by a draw from the other list.-/
@@ -741,6 +762,7 @@ theorem PositionalList.subset_existence
     intro a ha
     exact List.getElem?_idxOf (h ha)
   _ = sub := List.filterMap_some
+
 
 /- A position scheme chooses positions from the length of its input. This can
 describe operations such as tail and reverse, unlike a fixed positional list. -/
@@ -761,6 +783,35 @@ theorem PositionScheme.draw_map
     (scheme.draw xs).map f = scheme.draw (xs.map f) := by
   rw [PositionScheme.draw, PositionScheme.draw, List.length_map]
   exact PositionalList.draw_map (scheme xs.length) f xs
+
+def PositionScheme.Represents
+    (scheme : PositionScheme)
+    (operation : ∀ {α : Type u}, List α → List α) : Prop :=
+  ∀ {α : Type u} (xs : List α), operation xs = scheme.draw xs
+
+theorem PositionScheme.Represents.natural
+    {scheme : PositionScheme}
+    {operation : ∀ {α : Type u}, List α → List α}
+    (h : scheme.Represents operation)
+    {α β : Type u}
+    (f : α → β)
+    (xs : List α) :
+    (operation xs).map f = operation (xs.map f) := by
+  calc
+    (operation xs).map f = (scheme.draw xs).map f :=
+      congrArg (fun ys => ys.map f) (h xs)
+    _ = scheme.draw (xs.map f) := scheme.draw_map f xs
+    _ = operation (xs.map f) := (h (xs.map f)).symm
+
+def PositionScheme.natTransOfRepresents
+    (scheme : PositionScheme)
+    (operation : ∀ {α : Type u}, List α → List α)
+    (h : scheme.Represents operation) : NatTrans ListF ListF where
+  app X := ↾fun xs : List X => operation xs
+  naturality {X Y} f := by
+    apply ConcreteCategory.ext_apply
+    intro xs
+    exact (h.natural (cchom f) xs).symm
 
 def PositionScheme.natTrans
     (scheme : PositionScheme) : NatTrans ListF ListF where
@@ -788,13 +839,11 @@ example : cchom (DuplicateHeadNat.app Nat) [] = [] := by
 def ReversePositionScheme : PositionScheme :=
   fun n => (List.finRange n).reverse.map Fin.val
 
-def ReverseNatByPosition : ListF ⟶ ListF :=
-  ReversePositionScheme.natTrans
-
-theorem ReversePositionScheme_draw
+theorem ReversePositionScheme_represents_reverse
     {α : Type u}
     (xs : List α) :
-    ReversePositionScheme.draw xs = xs.reverse := by
+    xs.reverse = ReversePositionScheme.draw xs := by
+  symm
   unfold PositionScheme.draw ReversePositionScheme PositionalList.draw
   rw [List.filterMap_map]
   rw [List.filterMap_reverse]
@@ -808,10 +857,145 @@ theorem ReversePositionScheme_draw
       exact List.getElem?_eq_getElem i.isLt
     _ = xs := List.map_getElem_finRange xs
 
+def ReverseNatByPosition : ListF ⟶ ListF :=
+  ReversePositionScheme.natTransOfRepresents List.reverse
+    ReversePositionScheme_represents_reverse
+
+def TakePositionScheme (k : Nat) : PositionScheme :=
+  fun n => ((List.finRange n).take k).map Fin.val
+
+theorem TakePositionScheme_represents_take
+    (k : Nat)
+    {α : Type u}
+    (xs : List α) :
+    xs.take k = (TakePositionScheme k).draw xs := by
+  symm
+  unfold PositionScheme.draw TakePositionScheme
+  rw [PositionalList.draw_fin_positions]
+  change ((List.finRange xs.length).take k).map (fun i => xs[i]) = xs.take k
+  rw [List.map_take]
+  exact congrArg (List.take k) (List.map_getElem_finRange xs)
+
+theorem take_natural_by_scheme
+    (k : Nat)
+    {α β : Type u}
+    (f : α → β)
+    (xs : List α) :
+    (xs.take k).map f = (xs.map f).take k :=
+  PositionScheme.Represents.natural
+    (TakePositionScheme_represents_take k) f xs
+
+def DropPositionScheme (k : Nat) : PositionScheme :=
+  fun n => ((List.finRange n).drop k).map Fin.val
+
+theorem DropPositionScheme_represents_drop
+    (k : Nat)
+    {α : Type u}
+    (xs : List α) :
+    xs.drop k = (DropPositionScheme k).draw xs := by
+  symm
+  unfold PositionScheme.draw DropPositionScheme
+  rw [PositionalList.draw_fin_positions]
+  change ((List.finRange xs.length).drop k).map (fun i => xs[i]) = xs.drop k
+  rw [List.map_drop]
+  exact congrArg (List.drop k) (List.map_getElem_finRange xs)
+
+theorem drop_natural_by_scheme
+    (k : Nat)
+    {α β : Type u}
+    (f : α → β)
+    (xs : List α) :
+    (xs.drop k).map f = (xs.map f).drop k :=
+  PositionScheme.Represents.natural
+    (DropPositionScheme_represents_drop k) f xs
+
 theorem ReverseNatByPosition_eq_ReverseNat :
     ReverseNatByPosition = ReverseNat := by
   ext X xs
-  exact ReversePositionScheme_draw xs
+  rfl
+
+/- Co-Yoneda describes the fixed-length version of a positional draw. A list
+of positions in `Fin n` determines a natural transformation from maps out of
+`Fin n` to lists. This demonstration lives in `Type`, where `Fin n` is an
+object without a universe lift. -/
+
+noncomputable def YonedaDrawAt
+    (n : Nat)
+    (positions : List (Fin n)) :
+    coyoneda.obj (Opposite.op (Fin n)) ⟶ ListF :=
+  (coyonedaEquiv (C := Type) (X := Fin n) (F := ListF)).symm positions
+
+theorem yonedaDrawAt_value
+    (n : Nat)
+    (positions : List (Fin n)) :
+    coyonedaEquiv (C := Type) (X := Fin n) (F := ListF)
+      (YonedaDrawAt n positions) = positions := by
+  exact Equiv.apply_symm_apply
+    (coyonedaEquiv (C := Type) (X := Fin n) (F := ListF)) positions
+
+theorem yonedaDrawAt_apply
+    (n : Nat)
+    (positions : List (Fin n))
+    (X : Type)
+    (f : Fin n → X) :
+    cchom ((YonedaDrawAt n positions).app X) (TypeCat.ofHom f) =
+      positions.map f := by
+  exact coyonedaEquiv_symm_app_apply
+    (C := Type) (X := Fin n) (F := ListF) positions X (TypeCat.ofHom f)
+
+noncomputable def ReverseYonedaAt (n : Nat) :=
+  YonedaDrawAt n (List.finRange n).reverse
+
+theorem reverseYonedaAt_apply
+    (n : Nat)
+    (X : Type)
+    (g : Fin n → X) :
+    cchom ((ReverseYonedaAt n).app X) (TypeCat.ofHom g) =
+      ((List.finRange n).map g).reverse := by
+  change cchom ((YonedaDrawAt n (List.finRange n).reverse).app X)
+    (TypeCat.ofHom g) = _
+  rw [yonedaDrawAt_apply, List.map_reverse]
+
+/- The middle equality below is the naturality square of `ReverseYonedaAt`,
+evaluated at the position-indexing map of `xs`. -/
+theorem reverse_natural_yoneda
+    (X Y : Type)
+    (f : X → Y)
+    (xs : List X) :
+    (xs.map f).reverse = xs.reverse.map f := by
+  let index : Fin xs.length → X := fun i => xs[i]
+  have hX :
+      cchom ((ReverseYonedaAt xs.length).app X) (TypeCat.ofHom index) =
+        xs.reverse := by
+    rw [reverseYonedaAt_apply]
+    dsimp [index]
+    exact congrArg List.reverse (List.map_getElem_finRange xs)
+  have hY :
+      cchom ((ReverseYonedaAt xs.length).app Y)
+        (TypeCat.ofHom fun i => f (index i)) =
+        (xs.map f).reverse := by
+    rw [reverseYonedaAt_apply]
+    congr 1
+    calc
+      (List.finRange xs.length).map (fun i => f (index i)) =
+          ((List.finRange xs.length).map (fun i => xs[i])).map f := by
+        dsimp [index]
+        simp only [List.map_map]
+        rfl
+      _ = xs.map f :=
+        congrArg (List.map f) (List.map_getElem_finRange xs)
+  have hmap :
+      cchom ((ReverseYonedaAt xs.length).app Y)
+        (TypeCat.ofHom fun i => f (index i)) =
+        List.map f
+          (cchom ((ReverseYonedaAt xs.length).app X) (TypeCat.ofHom index)) := by
+    have h := congrArg
+      (fun k : (coyoneda.obj (Opposite.op (Fin xs.length))).obj X ⟶ ListF.obj Y =>
+        cchom k (TypeCat.ofHom index))
+      ((ReverseYonedaAt xs.length).naturality (TypeCat.ofHom f))
+    rw [types_comp_apply, types_comp_apply] at h
+    exact h
+  exact hY.symm.trans (hmap.trans (congrArg (List.map f) hX))
 
 
 
