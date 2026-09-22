@@ -24,7 +24,10 @@
                                                        `yonedaEquiv` (in `Cᵒᵖ`-form)
 -/
 
-import Mathlib
+import Mathlib.CategoryTheory.Functor.Basic
+import Mathlib.CategoryTheory.NatTrans
+import Mathlib.CategoryTheory.Types.Basic
+import Mathlib.CategoryTheory.Yoneda
 
 open CategoryTheory Opposite
 
@@ -69,7 +72,7 @@ example (η : coyoneda.obj (op X) ⟶ F) :
     ∃ x : F.obj X, ∀ {Y : C} (f : X ⟶ Y), η.app Y f = F.map f x :=
   ⟨η.app X (𝟙 X), fun {Y} f => by
     have := η.naturality_apply f (𝟙 X)
-    simpa using this.symm⟩
+    simpa using this⟩
 
 /-- Conversely, every element `x : F.obj X` assembles into a natural
 transformation `Hom(X, -) ⟶ F`, namely `f ↦ F.map f x`, and this is exactly
@@ -77,7 +80,7 @@ transformation `Hom(X, -) ⟶ F`, namely `f ↦ F.map f x`, and this is exactly
 two directions are mutually inverse, which is the content of the Yoneda
 lemma in the covariant case. -/
 def natTransOfElement (x : F.obj X) : coyoneda.obj (op X) ⟶ F where
-  app _ f := F.map f x
+  app Y := TypeCat.ofHom fun f : X ⟶ Y => F.map f x
   naturality {Y Y'} g := by
     ext f
     simp
@@ -146,7 +149,7 @@ noncomputable def corepresentableByOfNatIso : F.CorepresentableBy X where
   homEquiv {Y} := Equiv.ofBijective (η.app Y) (hη Y)
   homEquiv_comp {Y Y'} g f := by
     have := η.naturality_apply g f
-    simpa using this.symm
+    simpa using this
 
 /-- Sanity check: the universal element read off this reconstructed
 corepresentation agrees with `elementOfNatTrans`. -/
