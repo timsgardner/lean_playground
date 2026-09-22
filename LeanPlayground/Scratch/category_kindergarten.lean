@@ -943,6 +943,83 @@ theorem yonedaDrawAt_apply
   exact coyonedaEquiv_symm_app_apply
     (C := Type) (X := Fin n) (F := ListF) positions X (TypeCat.ofHom f)
 
+/- This is the common data behind the two viewpoints: at each input length,
+choose a list of valid positions. -/
+abbrev YonedaPositionScheme := (n : Nat) → List (Fin n)
+
+def YonedaPositionScheme.toPositionScheme
+    (scheme : YonedaPositionScheme) : PositionScheme :=
+  fun n => (scheme n).map Fin.val
+
+def YonedaPositionScheme.Represents
+    (scheme : YonedaPositionScheme)
+    (operation : ∀ {α : Type u}, List α → List α) : Prop :=
+  scheme.toPositionScheme.Represents operation
+
+theorem YonedaPositionScheme.Represents.natural
+    {scheme : YonedaPositionScheme}
+    {operation : ∀ {α : Type u}, List α → List α}
+    (h : scheme.Represents operation)
+    {α β : Type u}
+    (f : α → β)
+    (xs : List α) :
+    (operation xs).map f = operation (xs.map f) :=
+  PositionScheme.Represents.natural h f xs
+
+noncomputable def YonedaPositionScheme.yonedaAt
+    (scheme : YonedaPositionScheme)
+    (n : Nat) :
+    coyoneda.obj (Opposite.op (Fin n)) ⟶ ListF :=
+  YonedaDrawAt n (scheme n)
+
+theorem YonedaPositionScheme.draw_eq_yonedaAt
+    (scheme : YonedaPositionScheme)
+    (X : Type)
+    (xs : List X) :
+    scheme.toPositionScheme.draw xs =
+      cchom ((scheme.yonedaAt xs.length).app X)
+        (TypeCat.ofHom fun i => xs[i]) := by
+  unfold YonedaPositionScheme.toPositionScheme
+  rw [PositionScheme.draw, PositionalList.draw_fin_positions]
+  exact (yonedaDrawAt_apply xs.length (scheme xs.length) X
+    (fun i => xs[i])).symm
+
+def ReverseYonedaPositionScheme : YonedaPositionScheme :=
+  fun n => (List.finRange n).reverse
+
+def TakeYonedaPositionScheme (k : Nat) : YonedaPositionScheme :=
+  fun n => (List.finRange n).take k
+
+def DropYonedaPositionScheme (k : Nat) : YonedaPositionScheme :=
+  fun n => (List.finRange n).drop k
+
+example : ReverseYonedaPositionScheme.toPositionScheme = ReversePositionScheme :=
+  rfl
+
+example (k : Nat) :
+    (TakeYonedaPositionScheme k).toPositionScheme = TakePositionScheme k :=
+  rfl
+
+example (k : Nat) :
+    (DropYonedaPositionScheme k).toPositionScheme = DropPositionScheme k :=
+  rfl
+
+theorem ReverseYonedaPositionScheme_represents_reverse
+    {α : Type u}
+    (xs : List α) :
+    xs.reverse = ReverseYonedaPositionScheme.toPositionScheme.draw xs :=
+  ReversePositionScheme_represents_reverse xs
+
+/- The raw co-Yoneda proof below exposes the naturality square. Once that
+structure has been packaged as a position scheme, this is the ergonomic form. -/
+theorem reverse_natural_yoneda_short
+    {α β : Type u}
+    (f : α → β)
+    (xs : List α) :
+    xs.reverse.map f = (xs.map f).reverse :=
+  YonedaPositionScheme.Represents.natural
+    ReverseYonedaPositionScheme_represents_reverse f xs
+
 noncomputable def ReverseYonedaAt (n : Nat) :=
   YonedaDrawAt n (List.finRange n).reverse
 
