@@ -1157,10 +1157,10 @@ example
                  presheafA.map (op g)
                      Hom(g, A)
     Hom(Y, A) ------------------------> Hom(X, A)
-       |                                  |
-       | component_Y                      | component_X
-       |  Hom(Y, f)                       |  Hom(X, f)
-       v                                  v
+       │                                  │
+       │ component_Y                      │ component_X
+       │  Hom(Y, f)                       │  Hom(X, f)
+       ↓                                  ↓
     Hom(Y, B) ------------------------> Hom(X, B)
                  presheafB.map (op g)
                       Hom(g, B)
