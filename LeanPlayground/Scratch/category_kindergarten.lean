@@ -1087,14 +1087,14 @@ variable (C: Type u) [Category.{v} C]
 
 #check yoneda (C:= C)
 
-example (X Y Z: C) (f: X ⟶ Y) (g: Z ⟶ X): true := by
+example (X Y A B : C) (f : A ⟶ B) (g : X ⟶ Y) : true := by
   -- functor; Y : C ⥤ Cᵒᵖ ⥤ Type v
   let yon := yoneda (C := C)
-  -- presheaf; presheafX : Cᵒᵖ ⥤ Type v.
-  -- This is the hom functor C(-, X).
-  let presheafX := yon.obj X
+  -- presheaf; presheafA : Cᵒᵖ ⥤ Type v.
+  -- This is the hom functor C(-, A).
+  let presheafA := yon.obj A
   /-
-  The hom functor C(-, X) can also be approached by currying Mathlib's canonical
+  The hom functor C(-, A) can also be approached by currying Mathlib's canonical
   hom bifunctor.
 
   Functor.hom gives us the hom bifunctor of type `Cᵒᵖ × C ⥤ Type v`.
@@ -1123,26 +1123,53 @@ example (X Y Z: C) (f: X ⟶ Y) (g: Z ⟶ X): true := by
   have curriedHom_iso_yon : curriedHom ≅ yon :=
     eqToIso curriedHom_eq_yon
 
-  -- nat trans from Hom(-, X) to Hom(-, Y)
-  let nat_trans_hom_XY := yon.map f
+  -- nat trans from Hom(-, A) to Hom(-, B)
+  let nat_trans_hom_AB := yon.map f
   -- it really is a nat trans:
-  change NatTrans (yon.obj X) (yon.obj Y) at nat_trans_hom_XY
-  -- component of that nat trans between hom functors at Z.
-  let component_Z := nat_trans_hom_XY.app (op Z)
+  change NatTrans (yon.obj A) (yon.obj B) at nat_trans_hom_AB
 
-  -- component_Z is a function (Z -> X) -> (Z -> Y)
-  change (Z ⟶ X) ⟶ (Z ⟶ Y) at component_Z
+  -- component of that nat trans between hom functors at Y.
+  let component_Y := nat_trans_hom_AB.app (op Y)
 
-  -- it acts by post comp
-  have component_Z_is_postcomp_f : component_Z = ↾fun g : Z ⟶ X ↦ g ≫ f := by
+  -- component_Y is a function (Y -> A) -> (Y -> B)
+  change (Y ⟶ A) ⟶ (Y ⟶ B) at component_Y
+
+  -- it acts by post composing f
+  have component_Y_is_postcomp_f : component_Y = ↾fun h : Y ⟶ A ↦ h ≫ f := by
     rfl
 
+  -- because nat_trans_hom_AB is a nat trans, we get naturality with other
+  -- components
 
+  let component_X := nat_trans_hom_AB.app (op X)
+  change (X ⟶ A) ⟶ (X ⟶ B) at component_X
 
+  -- Hom(-, B)
+  let presheafB := yon.obj B
 
+  /-
+                 presheafA.map (op g)
+    Hom(Y, A) ------------------------> Hom(X, A)
+       |                                  |
+       | component_Y                      | component_X
+       v                                  v
+    Hom(Y, B) ------------------------> Hom(X, B)
+                 presheafB.map (op g)
 
+    Here `g : X ⟶ Y`, so mapping `op g : op Y ⟶ op X` in either
+    presheaf is precomposition by `g`.
 
+    `presheafA.map (op g)` is Hom(g, A).
+    `presheafB.map (op g)` is Hom(g, B).
+  -/
+  have _ : presheafA.map (op g) ≫ component_X = component_Y ≫ presheafB.map (op g) := by
+    apply nat_trans_hom_AB.naturality (op g)
 
+  /-
+    In the diagram above, note that we've used yoneda to get Hom(-, A) and
+    Hom(-, B), but this gives us a naturality condition that applies to
+    morphisms between any X and Y in C.
+  -/
 
   trivial
 
