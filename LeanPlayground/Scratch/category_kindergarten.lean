@@ -1084,10 +1084,16 @@ end TypesKindergarten
 section YonedaTime
 
 variable (C: Type u) [Category.{v} C]
+variable (C₂: Type u) [Category.{v} C₂]
 
 #check yoneda (C:= C)
 
-example (X Y A B : C) (f : A ⟶ B) (g : X ⟶ Y) : true := by
+example
+  (X Y A B : C)
+  (f : A ⟶ B)
+  (g : X ⟶ Y)
+  (F : Cᵒᵖ ⥤ Type v)
+  (h : Nonempty (F.obj (op A))): true := by
   -- functor; Y : C ⥤ Cᵒᵖ ⥤ Type v
   let yon := yoneda (C := C)
   -- presheaf; presheafA : Cᵒᵖ ⥤ Type v.
@@ -1149,12 +1155,15 @@ example (X Y A B : C) (f : A ⟶ B) (g : X ⟶ Y) : true := by
 
   /-
                  presheafA.map (op g)
+                     Hom(g, A)
     Hom(Y, A) ------------------------> Hom(X, A)
        |                                  |
        | component_Y                      | component_X
+       |  Hom(Y, f)                       |  Hom(X, f)
        v                                  v
     Hom(Y, B) ------------------------> Hom(X, B)
                  presheafB.map (op g)
+                      Hom(g, B)
 
     Here `g : X ⟶ Y`, so mapping `op g : op Y ⟶ op X` in either
     presheaf is precomposition by `g`.
@@ -1170,6 +1179,21 @@ example (X Y A B : C) (f : A ⟶ B) (g : X ⟶ Y) : true := by
     Hom(-, B), but this gives us a naturality condition that applies to
     morphisms between any X and Y in C.
   -/
+
+
+  -- Now let's look at representations.
+
+  #check yonedaEquiv (F := F) (X := A)
+
+  let yonRHS := F.obj (op A)
+  let rhs : yonRHS := Classical.choice h
+
+  -- can look the nat trans up
+  let the_nat_trans := (yonedaEquiv (F := F) (X := A)).symm rhs
+
+  #check the_nat_trans.app
+
+
 
   trivial
 
