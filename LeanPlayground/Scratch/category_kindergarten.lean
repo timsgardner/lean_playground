@@ -1087,7 +1087,7 @@ variable (C: Type u) [Category.{v} C]
 
 #check yoneda (C:= C)
 
-example (X Y Z: C) (f: X ⟶ Y): true := by
+example (X Y Z: C) (f: X ⟶ Y) (g: Z ⟶ X): true := by
   -- functor; Y : C ⥤ Cᵒᵖ ⥤ Type v
   let yon := yoneda (C := C)
   -- presheaf; presheafX : Cᵒᵖ ⥤ Type v.
@@ -1112,11 +1112,14 @@ example (X Y Z: C) (f: X ⟶ Y): true := by
     exact CategoryTheory.Functor.ext
       (F := CategoryTheory.Functor.uncurry.obj (yoneda (C := C)))
       (G := CategoryTheory.Prod.swap C Cᵒᵖ ⋙ CategoryTheory.Functor.hom C) (by simp)
+
   -- now we can observe that they're the same functor:
   have curriedHom_eq_yon : curriedHom = yon := by
     dsimp [curriedHom]
     rw [← uncurried_yon_eq_homSwapped]
     exact Functor.curry_obj_uncurry_obj yon
+
+  -- and of course therefore equivalent / iso:
   have curriedHom_iso_yon : curriedHom ≅ yon :=
     eqToIso curriedHom_eq_yon
 
@@ -1124,8 +1127,23 @@ example (X Y Z: C) (f: X ⟶ Y): true := by
   let nat_trans_hom_XY := yon.map f
   -- it really is a nat trans:
   change NatTrans (yon.obj X) (yon.obj Y) at nat_trans_hom_XY
-  -- component of that nat trans between hom functors at x
-  let component_X := nat_trans_hom_XY.app (op X)
+  -- component of that nat trans between hom functors at Z.
+  let component_Z := nat_trans_hom_XY.app (op Z)
+
+  -- component_Z is a function (Z -> X) -> (Z -> Y)
+  change (Z ⟶ X) ⟶ (Z ⟶ Y) at component_Z
+
+  -- it acts by post comp
+  have component_Z_is_postcomp_f : component_Z = ↾fun g : Z ⟶ X ↦ g ≫ f := by
+    rfl
+
+
+
+
+
+
+
+
   trivial
 
 
