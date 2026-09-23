@@ -1,12 +1,16 @@
 import Mathlib.CategoryTheory.Functor.Basic
+import Mathlib.CategoryTheory.Functor.Currying
 import Mathlib.CategoryTheory.NatTrans
 import Mathlib.CategoryTheory.Types.Basic
 import Mathlib.CategoryTheory.Yoneda
 import Mathlib.Data.List.FinRange
 import ProofWidgets.Extra.CheckHighlight
 import ProofWidgets.Demos.Graph.ExprGraph
+import Mathlib.CategoryTheory.Functor.Currying
+
 
 open CategoryTheory
+open Opposite
 
 universe u v
 
@@ -1074,7 +1078,56 @@ theorem reverse_natural_yoneda
     exact h
   exact hY.symm.trans (hmap.trans (congrArg (List.map f) hX))
 
-
-
-
 end TypesKindergarten
+
+
+section YonedaTime
+
+variable (C: Type u) [Category.{v} C]
+
+#check yoneda (C:= C)
+
+example (X Y Z: C) (f: X ⟶ Y): true := by
+  -- functor; Y : C ⥤ Cᵒᵖ ⥤ Type v
+  let yon := yoneda (C := C)
+  -- presheaf; presheafX : Cᵒᵖ ⥤ Type v.
+  -- This is the hom functor C(-, X).
+  let presheafX := yon.obj X
+  /-
+  The hom functor C(-, X) can also be approached by currying Mathlib's canonical
+  hom bifunctor.
+
+  Functor.hom gives us the hom bifunctor of type `Cᵒᵖ × C ⥤ Type v`.
+
+  To curry this to match `yon`, we need to first flip it to be
+
+  `C × Cᵒᵖ ⥤ Type v`.
+
+  We can do that by composing with Prod.swap.
+  -/
+  let homSwapped := CategoryTheory.Prod.swap C Cᵒᵖ ⋙ Functor.hom C
+  let curriedHom := Functor.curry.obj homSwapped
+  have uncurried_yon_eq_homSwapped : Functor.uncurry.obj yon = homSwapped := by
+    dsimp [yon, homSwapped]
+    exact CategoryTheory.Functor.ext
+      (F := CategoryTheory.Functor.uncurry.obj (yoneda (C := C)))
+      (G := CategoryTheory.Prod.swap C Cᵒᵖ ⋙ CategoryTheory.Functor.hom C) (by simp)
+  -- now we can observe that they're the same functor:
+  have curriedHom_eq_yon : curriedHom = yon := by
+    dsimp [curriedHom]
+    rw [← uncurried_yon_eq_homSwapped]
+    exact Functor.curry_obj_uncurry_obj yon
+  have curriedHom_iso_yon : curriedHom ≅ yon :=
+    eqToIso curriedHom_eq_yon
+
+  -- nat trans from Hom(-, X) to Hom(-, Y)
+  let nat_trans_hom_XY := yon.map f
+  -- it really is a nat trans:
+  change NatTrans (yon.obj X) (yon.obj Y) at nat_trans_hom_XY
+  -- component of that nat trans between hom functors at x
+  let component_X := nat_trans_hom_XY.app (op X)
+  trivial
+
+
+
+end YonedaTime
