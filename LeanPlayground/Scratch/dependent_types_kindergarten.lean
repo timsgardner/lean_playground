@@ -1,5 +1,3 @@
-import Mathlib
-
 namespace DependentTypesKindergarten
 
 /-!
@@ -48,9 +46,11 @@ def makeDefault (n : Nat) : VecType n :=
 -- === MARKER: SIGMA START ===
 
 /--
-An arbitrary type packaged together with a value of that type.
+A type in `Type` packaged together with a value of that type.
+
+The package itself is in `Type 1`, because `Type : Type 1`.
 -/
-def AnyValue : Type :=
+def AnyValue : Type 1 :=
   Sigma fun T : Type => T
 
 def aNat : AnyValue :=
