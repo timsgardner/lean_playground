@@ -1089,9 +1089,10 @@ variable (C₂: Type u) [Category.{v} C₂]
 #check yoneda (C:= C)
 
 example
-  (X Y A B : C)
+  (X Y A B Z : C)
   (f : A ⟶ B)
   (g : X ⟶ Y)
+  (f2 : Z ⟶ A)
   (F : Cᵒᵖ ⥤ Type v)
   (h : Nonempty (F.obj (op A))): true := by
   -- functor; Y : C ⥤ Cᵒᵖ ⥤ Type v
@@ -1181,21 +1182,157 @@ example
   -/
 
 
-  -- Now let's look at representations.
 
   #check yonedaEquiv (F := F) (X := A)
 
   let yonRHS := F.obj (op A)
+  -- pick a witness out of the set F.obj (op A)
   let rhs : yonRHS := Classical.choice h
 
   -- can look the nat trans up
   let the_nat_trans := (yonedaEquiv (F := F) (X := A)).symm rhs
 
   #check the_nat_trans.app
+  -- the_nat_trans.app : (X : Cᵒᵖ) → (yoneda.obj A).obj X ⟶ F.obj X
+  --
+  -- ie, for any X in Cᵒᵖ the domain is a function C(X, A) -> F(X). This is the
+  -- component of the nat trans at X.
+
+
+  #check the_nat_trans.app (op Z)
+  -- the_nat_trans.app (op Z) : (yoneda.obj A).obj (op Z) ⟶ F.obj (op Z)
+  --
+  -- ie, C(Z, A) -> F(Z)
+  --
+  -- Whiteboard Yoneda lemma tells us that, for the nat trans looked up by the
+  -- element rhs, notated α^rhs, the result of applying its component at Z,
+  -- notated (a^rhs)_Z, to some element f of its codomain C(Z, A) -- that is, a
+  -- morphism f: Z ⟶ A in C -- is the same as calling F(f) on rhs. That is,
+  -- (a^rhs)_Z(f) = F(f)(rhs).
+
+  -- here we want to use f2 : Z ⟶ A.
+
+  have _ : the_nat_trans.app (op Z) f2 = F.map (op f2) rhs := by
+    rfl
+
+  trivial
+
+/-- Structures introduced to bridge between Riehl's usage (p. 51, p. 62)
+and the Lean category API. We'll exercise these in the example below. -/
+
+structure Corepresentation where
+  functor: C ⥤ Type v
+  obj: C
+  corep: functor.CorepresentableBy obj
+
+structure Representation where
+  functor: Cᵒᵖ ⥤ Type v
+  obj: C
+  rep: functor.RepresentableBy obj
+
+/- `Element` is an associated type: the type of a universal element depends
+on which representation package we were given. -/
+class HasUniversalElement (S : Type w) where
+  Element : S → Type v
+  universalElement : (s : S) → Element s
+
+instance : HasUniversalElement (Corepresentation (C := C)) where
+  Element R := R.functor.obj R.obj
+  universalElement R := R.corep.homEquiv (𝟙 R.obj)
+
+instance : HasUniversalElement (Representation (C := C)) where
+  Element R := R.functor.obj (op R.obj)
+  universalElement R := R.rep.homEquiv (𝟙 R.obj)
+
+def universalElement {S : Type w} [h : HasUniversalElement S] (s : S) :
+    h.Element s :=
+  h.universalElement s
+
+
+
+-- Let's start a new example to look at representations and universal
+-- properties. We'll use coyoneda for covariance, since it's a bit simpler.
+example
+(X Y Z A B D : C)
+  (F: C ⥤ Type v)
+  -- Assume A represents F. This α is both the statement that A reprsents F, ie,
+  -- that there is a nat iso Hom(A, -) ≅ F, and also that iso itself.
+  (α : coyoneda.obj (op A) ≅ F)
+  : true := by
+
+  -- Get the universal element. We can do it a couple ways.
+  -- The whiteboard approach: just run the bijection forward.
+  -- This is u = α_A(1_A) in Riehl-speak
+  let u := (α.app A).hom (𝟙 A)
+
+  -- can also get it this way
+  have _ : u = α.hom.app A (𝟙 A) :=
+    coyonedaEquiv_apply α.hom
+
+  /-
+  On p.62, Riehl defines a *universal property* _of_ an object `A` in `C` as
+  being "expressed" by
+
+  - a representable functor `F`, and
+  - a universal element `u ∈ F(A)`
+
+  such that `u` defines a natural isomorphism `C(A, -) ≅ F` or `C(-, A) ≅ F`, as
+  appropriate.
+
+  In other words, `F` and `u` as in the example below. The tricky bit is just
+  that these two are discussed as together constituting a universal property
+  *of* A.
+
+  Let's look at the related Lean equipment. There isn't a *direct* equivalent,
+  but we can make our own structure that adheres to Riehl's definition closely.
+  -/
+
+  let F_corep_A : F.CorepresentableBy A :=
+    Functor.corepresentableByEquiv.symm α
+
+  -- can look up u from this
+  have _ : F_corep_A.homEquiv (𝟙 A) = u := by
+    rfl
+
+  /- If you've forgotten that an F.CorepresentableBy A has A as the
+  representing object, you can extract it using implicit arguments
+  -/
+
+  let universalElementOfCorep :=
+    fun {A : C} (h : F.CorepresentableBy A) =>
+      h.homEquiv (𝟙 A)
+
+  have _ : universalElementOfCorep F_corep_A = u := by
+    rfl
+
+  -- Still, this isn't closely tracking Riehl. We want our own structure
+  -- for that.
+  let corep : Corepresentation (C := C) := {
+    functor := F
+    obj := A
+    corep := F_corep_A
+  }
+
+  -- The typeclass selects the covariant/corepresentable implementation.
+  have _ : universalElement corep = u := by
+    rfl
+
+  /- Our Corepresentation and Representation structures capture the data of both
+  Riehl's "representation" on p. 51 and "universal property" on p. 62, as far as
+  I can tell.
+  -/
 
 
 
   trivial
+
+
+
+
+
+/-
+  Here we're going to take a look at
+-/
 
 
 
