@@ -278,25 +278,31 @@ using whiteboard notation, ∫C(c, -) is the slice category c/C under the object
 open Opposite
 
 -- The covariant representable sends X to the arrows c ⟶ X.
-noncomputable example (c : C) : (coyoneda.obj (op c)).Elements ≌ Under c := by
+example (c : C) : (coyoneda.obj (op c)).Elements ≌ Under c := by
   let toUnder : (coyoneda.obj (op c)).Elements ⥤ Under c :=
     { obj := fun p => Under.mk p.2
       map := fun f => Under.homMk f.val f.property }
   let fromUnder : Under c ⥤ (coyoneda.obj (op c)).Elements :=
     { obj := fun p => ⟨p.right, p.hom⟩
       map := fun f => ⟨f.right, Under.w f⟩ }
-  haveI : toUnder.IsEquivalence :=
-    Functor.IsEquivalence.mk' fromUnder (Iso.refl _) (Iso.refl _)
-  exact toUnder.asEquivalence
+  exact {
+    functor := toUnder
+    inverse := fromUnder
+    unitIso := Iso.refl _
+    counitIso := Iso.refl _
+    functor_unitIso_comp := by
+      intro X
+      change toUnder.map (𝟙 X) ≫ 𝟙 (toUnder.obj X) = 𝟙 (toUnder.obj X)
+      simp
+  }
 
-/- Developer note: These are the same construction with the arrows reversed.
-For the presheaf `C(-, c)`, an element morphism from `(X, f)` to `(Y, g)`
-uses an arrow `Y ⟶ X`, whereas a morphism in `Over c` goes from `X` to `Y`.
-Thus the second statement needs `Elementsᵒᵖ`. Its longer inverse functor
-only spells out Lean's `op`/`unop` conversions and the element-morphism
-wrapper; it does not encode additional mathematical structure. -/
+/- Developer note: The two equivalences use the same construction with arrows
+reversed. For the presheaf `C(-, c)`, an element morphism from `(X, f)` to
+`(Y, g)` uses an arrow `Y ⟶ X`, whereas an `Over c` morphism goes from `X`
+to `Y`. This accounts for `Elementsᵒᵖ` in the second statement and for the
+`op`/`unop` conversions in its explicit inverse functor. -/
 -- The presheaf representable sends X to the arrows X ⟶ c.
-noncomputable example (c : C) : (yoneda.obj c).Elementsᵒᵖ ≌ Over c := by
+example (c : C) : (yoneda.obj c).Elementsᵒᵖ ≌ Over c := by
   let toOver : (yoneda.obj c).Elementsᵒᵖ ⥤ Over c :=
     { obj := fun p => Over.mk (unop p).2
       map := fun f => Over.homMk f.unop.val.unop f.unop.property }
@@ -306,9 +312,16 @@ noncomputable example (c : C) : (yoneda.obj c).Elementsᵒᵖ ≌ Over c := by
         (⟨op Y.left, Y.hom⟩ : (yoneda.obj c).Elements)
         (⟨op X.left, X.hom⟩ : (yoneda.obj c).Elements)
         f.left.op (Over.w f)) }
-  haveI : toOver.IsEquivalence :=
-    Functor.IsEquivalence.mk' fromOver (Iso.refl _) (Iso.refl _)
-  exact toOver.asEquivalence
+  exact {
+    functor := toOver
+    inverse := fromOver
+    unitIso := Iso.refl _
+    counitIso := Iso.refl _
+    functor_unitIso_comp := by
+      intro X
+      change toOver.map (𝟙 X) ≫ 𝟙 (toOver.obj X) = 𝟙 (toOver.obj X)
+      simp
+  }
 
 end CategoryOfElements
 
