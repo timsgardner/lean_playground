@@ -12,6 +12,7 @@ import Mathlib.CategoryTheory.Whiskering
 import Mathlib.CategoryTheory.Equivalence
 import Mathlib.CategoryTheory.Elements
 import Mathlib.CategoryTheory.Comma.Over.Basic
+import Mathlib.CategoryTheory.Limits.Elements
 -- These next two imports let us use Fin n as a preorder category. So, Fin 1 is
 -- the singleton category, Fin 2 is the walking arrow, etc
 import Mathlib.CategoryTheory.Category.Preorder
@@ -322,6 +323,76 @@ example (c : C) : (yoneda.obj c).Elementsᵒᵖ ≌ Over c := by
       change toOver.map (𝟙 X) ≫ 𝟙 (toOver.obj X) = 𝟙 (toOver.obj X)
       simp
   }
+
+/- All well and good, but who cares?
+
+Riehl Proposition 2.4.8, p. 68:
+
+For a covariant set-valued functor, a universal element is an initial object
+of its category of elements. Thus the functor is representable precisely when
+that category has an initial object. Mathlib calls this `IsCorepresentable`.
+
+Dually, a universal element of a contravariant set-valued functor is terminal
+in the presheaf convention for the category of elements. In Mathlib this is
+`F.Elementsᵒᵖ`, so the same object is initial in `F.Elements`. -/
+
+open Limits
+
+-- An initial element (X, x) gives the natural bijection Hom(X, Y) ≃ F(Y):
+-- the forward map sends f to F(f)(x), and initiality supplies its inverse.
+private def corepresentableByOfInitialElement {F : C ⥤ Type v₁} (e : F.Elements)
+    (h : IsInitial e) : F.CorepresentableBy e.1 where
+  homEquiv {Y} :=
+    { toFun := fun f => F.map f e.2
+      invFun := fun y => (h.to ⟨Y, y⟩).val
+      left_inv := by
+        intro f
+        have k : (⟨f, rfl⟩ : e ⟶ ⟨Y, F.map f e.2⟩) = h.to _ := h.hom_ext _ _
+        exact (congrArg Subtype.val k).symm
+      right_inv := by
+        intro y
+        exact (h.to ⟨Y, y⟩).property }
+  homEquiv_comp g f := by simp [Functor.map_comp]
+
+-- Mathlib supplies the forward implication; the helper above supplies the converse.
+example (F : C ⥤ Type v₁) : F.IsCorepresentable ↔ HasInitial F.Elements := by
+  constructor
+  · intro h
+    letI := h
+    infer_instance
+  · intro h
+    letI := h
+    exact (corepresentableByOfInitialElement (initial F.Elements)
+      initialIsInitial).isCorepresentable
+
+-- For a presheaf, an initial element of `F.Elements` represents F. Taking
+-- opposites expresses the same universal property as terminality.
+private def representableByOfInitialElement {F : Cᵒᵖ ⥤ Type v₁} (e : F.Elements)
+    (h : IsInitial e) : F.RepresentableBy e.1.unop where
+  homEquiv {X} :=
+    { toFun := fun f => F.map f.op e.2
+      invFun := fun y => (h.to (⟨Opposite.op X, y⟩ : F.Elements)).val.unop
+      left_inv := by
+        intro f
+        have k : (⟨f.op, rfl⟩ : e ⟶ ⟨Opposite.op X, F.map f.op e.2⟩) = h.to _ :=
+          h.hom_ext _ _
+        exact (congrArg (fun m : e ⟶ (⟨Opposite.op X, F.map f.op e.2⟩ : F.Elements) =>
+          m.val.unop) k).symm
+      right_inv := by
+        intro y
+        exact (h.to (⟨Opposite.op X, y⟩ : F.Elements)).property }
+  homEquiv_comp f g := by simp [Functor.map_comp]
+
+example (F : Cᵒᵖ ⥤ Type v₁) : F.IsRepresentable ↔ HasTerminal F.Elementsᵒᵖ := by
+  constructor
+  · intro h
+    letI := h
+    infer_instance
+  · intro h
+    letI : HasTerminal F.Elementsᵒᵖ := h
+    letI : HasInitial F.Elements := hasInitial_of_hasTerminal_op
+    exact (representableByOfInitialElement (initial F.Elements)
+      initialIsInitial).isRepresentable
 
 end CategoryOfElements
 
