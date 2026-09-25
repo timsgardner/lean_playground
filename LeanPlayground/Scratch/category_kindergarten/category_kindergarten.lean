@@ -1,3 +1,4 @@
+import LeanPlayground.Scratch.category_kindergarten.common_tools
 import Mathlib.CategoryTheory.Functor.Basic
 import Mathlib.CategoryTheory.Functor.Currying
 import LeanPlayground.Scratch.category_kindergarten.universal_elements
@@ -12,11 +13,9 @@ import Mathlib.CategoryTheory.Functor.Currying
 
 open CategoryTheory
 open Opposite
+open scoped CategoryKindergarten
 
 universe u v
-
-
-local notation "cchom" => ConcreteCategory.hom
 
 /- Categories -/
 
