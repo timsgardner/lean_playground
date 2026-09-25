@@ -13,6 +13,8 @@ import Mathlib.CategoryTheory.Equivalence
 import Mathlib.CategoryTheory.Elements
 import Mathlib.CategoryTheory.Comma.Over.Basic
 import Mathlib.CategoryTheory.Limits.Elements
+import Mathlib.CategoryTheory.ObjectProperty.FullSubcategory
+import Mathlib.CategoryTheory.PUnit
 -- These next two imports let us use Fin n as a preorder category. So, Fin 1 is
 -- the singleton category, Fin 2 is the walking arrow, etc
 import Mathlib.CategoryTheory.Category.Preorder
@@ -398,6 +400,56 @@ theorem isRepresentable_iff_hasTerminal_elements_op (F : Cᵒᵖ ⥤ Type v₁) 
     letI : HasInitial F.Elements := hasInitial_of_hasTerminal_op
     exact (representableByOfInitialElement (initial F.Elements)
       initialIsInitial).isRepresentable
+
+/- Riehl Proposition 2.4.9, p. 69: the representations of a covariant functor
+form either the empty category or a contractible groupoid. By Proposition
+2.4.8, these are exactly the initial objects of its category of elements. -/
+
+/-- The full subcategory of the category of elements consisting of universal
+elements, equivalently representations of `F`. -/
+abbrev UniversalElements (F : C ⥤ Type v₁) :=
+  ObjectProperty.FullSubcategory (fun e : F.Elements => Nonempty (IsInitial e))
+
+private theorem universalElements_unique_hom (F : C ⥤ Type v₁)
+    (X Y : UniversalElements F) : Nonempty (Unique (X ⟶ Y)) := by
+  obtain ⟨hX⟩ := X.property
+  let f : X ⟶ Y := ObjectProperty.homMk (hX.to Y.obj)
+  have : Subsingleton (X ⟶ Y) := ⟨by
+    intro a b
+    apply ObjectProperty.hom_ext
+    exact hX.hom_ext a.hom b.hom⟩
+  exact ⟨uniqueOfSubsingleton f⟩
+
+/-- Every morphism between universal elements is invertible. -/
+instance universalElements_isGroupoid (F : C ⥤ Type v₁) :
+    IsGroupoid (UniversalElements F) := by
+  letI : Groupoid (UniversalElements F) :=
+    Groupoid.ofHomUnique (fun {X Y} =>
+      Classical.choice (universalElements_unique_hom F X Y))
+  infer_instance
+
+/-- Universal elements exist precisely when the functor is corepresentable. -/
+theorem universalElements_nonempty_iff_isCorepresentable (F : C ⥤ Type v₁) :
+    Nonempty (UniversalElements F) ↔ F.IsCorepresentable := by
+  constructor
+  · rintro ⟨⟨e, ⟨he⟩⟩⟩
+    exact (isCorepresentable_iff_hasInitial_elements F).2 he.hasInitial
+  · intro h
+    letI : HasInitial F.Elements := (isCorepresentable_iff_hasInitial_elements F).1 h
+    exact ⟨⟨initial F.Elements, ⟨initialIsInitial⟩⟩⟩
+
+/-- The representations of a covariant type-valued functor form either the
+empty category or a category equivalent to the singleton category. The latter
+is a contractible groupoid. -/
+theorem universalElements_empty_or_contractible (F : C ⥤ Type v₁) :
+    IsEmpty (UniversalElements F) ∨
+      Nonempty (UniversalElements F ≌ Discrete PUnit) := by
+  by_cases h : Nonempty (UniversalElements F)
+  · right
+    exact (equiv_punit_iff_unique (UniversalElements F)).2
+      ⟨h, fun X Y => universalElements_unique_hom F X Y⟩
+  · left
+    exact ⟨fun X => h ⟨X⟩⟩
 
 end CategoryOfElements
 
