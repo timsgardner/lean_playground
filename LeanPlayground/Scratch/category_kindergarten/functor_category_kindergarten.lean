@@ -354,8 +354,10 @@ private def corepresentableByOfInitialElement {F : C ⥤ Type v₁} (e : F.Eleme
         exact (h.to ⟨Y, y⟩).property }
   homEquiv_comp g f := by simp [Functor.map_comp]
 
--- Mathlib supplies the forward implication; the helper above supplies the converse.
-example (F : C ⥤ Type v₁) : F.IsCorepresentable ↔ HasInitial F.Elements := by
+/-- A covariant type-valued functor is corepresentable exactly when its category
+of elements has an initial object. -/
+theorem isCorepresentable_iff_hasInitial_elements (F : C ⥤ Type v₁) :
+    F.IsCorepresentable ↔ HasInitial F.Elements := by
   constructor
   · intro h
     letI := h
@@ -383,7 +385,10 @@ private def representableByOfInitialElement {F : Cᵒᵖ ⥤ Type v₁} (e : F.E
         exact (h.to (⟨Opposite.op X, y⟩ : F.Elements)).property }
   homEquiv_comp f g := by simp [Functor.map_comp]
 
-example (F : Cᵒᵖ ⥤ Type v₁) : F.IsRepresentable ↔ HasTerminal F.Elementsᵒᵖ := by
+/-- A presheaf is representable exactly when the opposite of its Mathlib
+category of elements has a terminal object. -/
+theorem isRepresentable_iff_hasTerminal_elements_op (F : Cᵒᵖ ⥤ Type v₁) :
+    F.IsRepresentable ↔ HasTerminal F.Elementsᵒᵖ := by
   constructor
   · intro h
     letI := h
