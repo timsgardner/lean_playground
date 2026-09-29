@@ -1,17 +1,4 @@
-import LeanPlayground.Scratch.category_kindergarten.common_tools
-import Mathlib.CategoryTheory.Functor.Category
-import Mathlib.CategoryTheory.Whiskering
-import Mathlib.CategoryTheory.Equivalence
-import Mathlib.CategoryTheory.Elements
 import Mathlib.CategoryTheory.HomCongr
-import Mathlib.CategoryTheory.Comma.Over.Basic
-import Mathlib.CategoryTheory.Limits.Elements
-import Mathlib.CategoryTheory.ObjectProperty.FullSubcategory
-import Mathlib.CategoryTheory.PUnit
--- These next two imports let us use Fin n as a preorder category. So, Fin 1 is
--- the singleton category, Fin 2 is the walking arrow, etc
-import Mathlib.CategoryTheory.Category.Preorder
-import Mathlib.Data.Fintype.Order
 
 open CategoryTheory
 open CategoryTheory.Functor
