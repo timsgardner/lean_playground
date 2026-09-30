@@ -15,12 +15,14 @@ import Mathlib.CategoryTheory.Comma.Over.Basic
 import Mathlib.CategoryTheory.Limits.Elements
 import Mathlib.CategoryTheory.ObjectProperty.FullSubcategory
 import Mathlib.CategoryTheory.PUnit
+import Mathlib.CategoryTheory.Yoneda
 -- These next two imports let us use Fin n as a preorder category. So, Fin 1 is
 -- the singleton category, Fin 2 is the walking arrow, etc
 import Mathlib.CategoryTheory.Category.Preorder
 import Mathlib.Data.Fintype.Order
 
 open CategoryTheory
+open Opposite
 open CategoryTheory.Functor
 open scoped CategoryKindergarten
 
@@ -340,21 +342,149 @@ in the presheaf convention for the category of elements. In Mathlib this is
 
 open Limits
 
--- An initial element (X, x) gives the natural bijection Hom(X, Y) ≃ F(Y):
--- the forward map sends f to F(f)(x), and initiality supplies its inverse.
+/-- An initial object `e = (X, x)` of `F.Elements` makes `F` corepresentable by
+`X = e.1`. Concretely, its unique maps out of `e` give the natural equivalence
+`(X ⟶ Y) ≃ F.obj Y`, sending `f` to `F.map f x`. -/
 private def corepresentableByOfInitialElement {F : C ⥤ Type v₁} (e : F.Elements)
     (h : IsInitial e) : F.CorepresentableBy e.1 where
+  -- For each `Y : C`, this field has the full type
+  -- `homEquiv {Y : C} : (e.1 ⟶ Y) ≃ F.obj Y`.
+  -- We build the equivalence by giving its two functions and proving they are inverse.
   homEquiv {Y} :=
-    { toFun := fun f => F.map f e.2
+    { -- `toFun : (e.1 ⟶ Y) → F.obj Y` transports `e.2` along `f`.
+      toFun := fun f => F.map f e.2
+      /- Given `y : F.obj Y`, initiality supplies `h.to ⟨Y, y⟩ : e ⟶ ⟨Y, y⟩`.
+         A morphism in `F.Elements` is a subtype: its `.val` is an arrow
+         `f : e.1 ⟶ Y`, and its `.property` proves `F.map f e.2 = y`.
+         Thus `.val` gives the required inverse function
+         `F.obj Y → (e.1 ⟶ Y)`. -/
       invFun := fun y => (h.to ⟨Y, y⟩).val
+      -- `left_inv` says `invFun (toFun f) = f` for every `f : e.1 ⟶ Y`.
+      -- Here that means `(h.to ⟨Y, F.map f e.2⟩).val = f`.
       left_inv := by
         intro f
+        -- `f` itself is an element-category arrow to `(Y, F.map f e.2)`.
+        -- By uniqueness, it is the arrow supplied by initiality.
         have k : (⟨f, rfl⟩ : e ⟶ ⟨Y, F.map f e.2⟩) = h.to _ := h.hom_ext _ _
+        -- Equality of element-category arrows gives equality of their base arrows.
         exact (congrArg Subtype.val k).symm
+      -- `right_inv` says `toFun (invFun y) = y` for every `y : F.obj Y`.
+      -- Here that means `F.map (h.to ⟨Y, y⟩).val e.2 = y`.
       right_inv := by
         intro y
+        -- The arrow to `(Y, y)` must send `e.2` to `y` by definition.
         exact (h.to ⟨Y, y⟩).property }
+  -- The forward map respects composition because `F` is a functor.
   homEquiv_comp g f := by simp [Functor.map_comp]
+
+/-- A longer version of `corepresentableByOfInitialElement`. The local `let`s
+name the functions and objects being constructed; the `have`s name the facts
+needed to turn those functions into a natural equivalence. -/
+private def corepresentableByOfInitialElementExplicit {F : C ⥤ Type v₁}
+    (e : F.Elements) (h : IsInitial e) : F.CorepresentableBy e.1 := by
+  -- We seek an equivalence `(e.1 ⟶ Y) ≃ F.obj Y` for every object `Y`.
+  -- First define its forward function for all `Y` at once. It applies `F.map f`
+  -- to the distinguished element `e.2 : F.obj e.1`.
+  let forward : ∀ Y : C, (e.1 ⟶ Y) → F.obj Y :=
+    fun Y f => F.map f e.2
+
+  -- For `y : F.obj Y`, the pair `(Y, y)` is an object of `F.Elements`.
+  -- Since `e` is initial, `h.to ⟨Y, y⟩` is an arrow from `e` to that pair.
+  -- Taking `.val` extracts its underlying arrow `e.1 ⟶ Y` in `C`.
+  let backward : ∀ Y : C, F.obj Y → (e.1 ⟶ Y) :=
+    fun Y y => (h.to (⟨Y, y⟩ : F.Elements)).val
+
+  -- Left inverse: start with `f : e.1 ⟶ Y`, map `e.2` along `f`, then use
+  -- initiality to recover the arrow. We must get back exactly `f`.
+  have backward_forward : ∀ (Y : C) (f : e.1 ⟶ Y),
+      backward Y (forward Y f) = f := by
+    intro Y f
+    -- This is the target object selected by `forward Y f`.
+    let target : F.Elements := ⟨Y, forward Y f⟩
+    -- The arrow `f` itself defines a morphism in `F.Elements` to `target`:
+    -- its compatibility equation is true by the definition of `target`.
+    let candidate : e ⟶ target := ⟨f, rfl⟩
+    -- An initial object has only one morphism to a given target.
+    have unique : candidate = h.to target := h.hom_ext _ _
+    -- Forget the compatibility proofs to compare the underlying arrows.
+    have underlying_equal : candidate.val = (h.to target).val :=
+      congrArg Subtype.val unique
+    -- Unfold `backward` and `forward` in the goal. The local `let`s for
+    -- `target` and `candidate` unfold to the pair and arrow built above.
+    change (h.to target).val = candidate.val
+    exact underlying_equal.symm
+
+  -- Right inverse: start with `y : F.obj Y`, take the underlying arrow of
+  -- `h.to ⟨Y, y⟩`, then apply `F.map` to `e.2`. We must get back `y`.
+  have forward_backward : ∀ (Y : C) (y : F.obj Y),
+      forward Y (backward Y y) = y := by
+    intro Y y
+    let arrow : e ⟶ (⟨Y, y⟩ : F.Elements) := h.to _
+    -- Every morphism in `F.Elements` carries a proof that it sends the
+    -- selected source element to the selected target element.
+    have compatible : F.map arrow.val e.2 = y := arrow.property
+    -- Unfold `forward` and `backward`; `arrow` is the chosen initial map.
+    change F.map arrow.val e.2 = y
+    exact compatible
+
+  -- Package the two functions and their inverse laws into an `Equiv` at `Y`.
+  let equivAt (Y : C) : (e.1 ⟶ Y) ≃ F.obj Y :=
+    { toFun := forward Y
+      invFun := backward Y
+      left_inv := backward_forward Y
+      right_inv := forward_backward Y }
+
+  -- The family `equivAt` must also be natural in `Y`: following `f` by `g`
+  -- corresponds to applying `F.map g` after `equivAt Y f`.
+  have naturality : ∀ {Y Y' : C} (g : Y ⟶ Y') (f : e.1 ⟶ Y),
+      equivAt Y' (f ≫ g) = F.map g (equivAt Y f) := by
+    intro Y Y' g f
+    change F.map (f ≫ g) e.2 = F.map g (F.map f e.2)
+    simp [Functor.map_comp]
+
+  -- These are precisely the two fields of `F.CorepresentableBy e.1`.
+  exact { homEquiv := fun {Y} => equivAt Y
+          homEquiv_comp := by
+            intro Y Y' g f
+            exact naturality g f }
+
+
+/-- I bet we can do this by yoneda tho. This follows Riehl's proof on p.69 -/
+private noncomputable def corepresentableByOfInitialElementYoneda {F : C ⥤ Type v₁}
+    (e : F.Elements) (h : IsInitial e) : F.CorepresentableBy e.1 := by
+  have h_unique_mor : ∀ (d : C) (y : F.obj d), ∃! (f: e.1 ⟶ d), F.map f e.2 = y := by
+    intro d y
+    let underlyingMor := (h.to ⟨d, y⟩).val
+    refine ⟨?_, ?_, ?_⟩
+    · exact underlyingMor
+    #check (h.to ⟨d,y⟩).property
+    · simpa [underlyingMor] using
+        (h.to ⟨d,y⟩).property
+    · intro m hm
+      have unique :
+          -- ⟨m, hm⟩ below is a morphism in the category of elements F.Elements.
+          (⟨m, hm⟩ : e ⟶ (⟨d, y⟩ : F.Elements)) = h.to ⟨d, y⟩ := h.hom_ext _ _
+      -- `Subtype.val`, applied to a morphism in F.Elements (such as `unique`),
+      -- returns the underlying morphism in C. In the case of `⟨m, hm⟩`, that's
+      -- ↑⟨m, hm⟩ : e.fst ⟶ ⟨d, y⟩.fst
+      -- ie, e.1 ⟶ d
+      #check Subtype.val (⟨m, hm⟩ : e ⟶ (⟨d, y⟩ : F.Elements))
+      #check congrArg Subtype.val unique
+      exact congrArg Subtype.val unique
+  -- the nat trans C(e.1, -) ⟶ F, looked up by e.2 in F(e.1)
+  let η := coyonedaEquiv.symm e.2
+  have η_iso : IsIso η := by
+    rw [NatTrans.isIso_iff_isIso_app]
+    intro d
+    rw [isIso_iff_bijective, Function.bijective_iff_existsUnique]
+    simp -- unnecessary, but you can park the cursor here to see a denoised goal
+    simpa only [η, coyonedaEquiv_symm_app_apply] using h_unique_mor d
+  letI : IsIso η := η_iso
+  #check (Functor.CorepresentableBy.coyoneda (op e.1)).ofIso (asIso η)
+  exact (Functor.CorepresentableBy.coyoneda (op e.1)).ofIso (asIso η)
+
+
+
 
 /-- A covariant type-valued functor is corepresentable exactly when its category
 of elements has an initial object. -/
