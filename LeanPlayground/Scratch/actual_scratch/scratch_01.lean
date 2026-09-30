@@ -249,27 +249,44 @@ variable (combine : Y → Y → Y)
 -- change only one argument at a time.
 example (a b c : Y) (hab : a = b) (hbc : b = c) :
     observe (combine a b) = observe (combine c c) := by
-  sorry
+  calc
+    observe (combine a b)
+      = observe (combine b b) := by rw [← hab]
+    _ = observe (combine c b) := by rw [hbc]
+    _ = observe (combine c c) := by rw [hbc]
+
 
 -- 2. Mix definitional computation with substitution and then a small piece of
 -- arithmetic normalization. A useful chain passes through `n + 1` and
 -- `(m + 2) + 1`.
 example (n m : Nat) (h : n = m + 2) :
     (f (.mk n)).toNat = m + 3 := by
-  sorry
+  calc
+    (f (.mk n)).toNat
+      = n + 1 := by rfl
+    _ = m + 2 + 1 := by rw [h]
+    _ = m + 3 := by rfl
+
 
 -- 3. A `calc` chain need not consist solely of equalities. Lean has to compose
 -- `≤`, `<`, and `≤` in the right order here.
 example (a b c d : Nat)
     (hab : a ≤ b) (hbc : b < c) (hcd : c ≤ d) :
     a < d := by
-  sorry
+  calc
+    a ≤ b := hab
+    _ < c := hbc
+    _ ≤ d := hcd
 
 -- 4. Build an iff chain. The hypotheses supply the interesting changes, while
 -- the surrounding propositional structure requires smaller local arguments.
 example (P Q R : Prop) (hPQ : P ↔ Q) (hQR : Q ↔ R) :
     (P ∧ (Q ∨ False)) ↔ (R ∧ R) := by
-  sorry
+  calc
+    (P ∧ (Q ∨ False))
+      ↔ P ∧ Q := by simp
+    _ ↔ Q ∧ Q := by rw [hPQ]
+    _ ↔ R ∧ R := by rw [hQR]
 
 -- 5. First expose an arbitrary input. At each line of the pointwise `calc`,
 -- transport an equality through `observe`; finally rebuild function equality.
@@ -277,7 +294,12 @@ example (g k l : X → Y)
     (hgk : ∀ x, g x = k x)
     (hkl : ∀ x, k x = l x) :
     (fun x => observe (g x)) = (fun x => observe (l x)) := by
-  sorry
+  funext x
+  calc
+    observe (g x)
+      = observe (k x) := by rw [hgk]
+    _ = observe (l x) := by rw [hkl]
+
 
 -- 6. The equality needed for the first argument points forward, while the one
 -- needed for the second points backward. This rewards careful choice of the
@@ -285,6 +307,12 @@ example (g k l : X → Y)
 example (a b c d : Y)
     (hab : a = b) (hcb : c = b) (hcd : c = d) :
     combine a d = combine b b := by
-  sorry
+  calc
+    combine a d
+      = combine a c := by rw [hcd]
+    _ = combine b c := by rw [← hab]
+    _ = combine b b := by rw [hcb]
+
+
 
 end CalcPractice
