@@ -6,6 +6,7 @@ Toy world for reviewing very basic Lean maneuvers without tactic-mashing.
 
 import Mathlib.Util.TermReduce
 import Mathlib.Tactic.Conv
+import Mathlib.CategoryTheory.Functor.Category
 
 /-- A toy copy of the natural numbers. It is distinct from both `Nat` and `Y`. -/
 inductive X where
@@ -316,3 +317,150 @@ example (a b c d : Y)
 
 
 end CalcPractice
+
+
+namespace PrefixRelationCalcPractice
+
+/-!
+## `calc` with custom relations written in prefix form
+
+The names `Reaches a b` and `StrictlyReaches a b` are ordinary function
+applications, not notation. The `Trans` instances tell `calc` which kinds of
+adjacent steps it may compose and what relation the resulting chain has.
+-/
+
+def Reaches (a b : Nat) : Prop := a ≤ b
+
+def StrictlyReaches (a b : Nat) : Prop := a < b
+
+instance : Trans Reaches Reaches Reaches where
+  trans := Nat.le_trans
+
+instance : Trans Reaches StrictlyReaches StrictlyReaches where
+  trans := Nat.lt_of_le_of_lt
+
+instance : Trans StrictlyReaches Reaches StrictlyReaches where
+  trans := Nat.lt_of_lt_of_le
+
+-- 1. Write every relation in prefix form. On later lines, the continuation
+-- placeholder belongs in the first argument position: `Reaches _ c`.
+example (a b c d : Nat)
+    (hab : Reaches a b) (hbc : Reaches b c) (hcd : Reaches c d) :
+    Reaches a d := by
+  calc
+    Reaches a b := hab
+    Reaches _ c := hbc
+    Reaches _ d := hcd
+
+-- 2. The first custom instance preserves `Reaches`; the next two ensure that
+-- once the chain becomes strict, the final result remains strict.
+example (a b c d : Nat)
+    (hab : Reaches a b)
+    (hbc : StrictlyReaches b c)
+    (hcd : Reaches c d) :
+    StrictlyReaches a d := by
+  calc
+    Reaches a b := hab
+    StrictlyReaches _ c := hbc
+    Reaches _ d := hcd
+
+-- 3. Equality composes with arbitrary relations using generic `Trans`
+-- instances from Lean's prelude. Thus a chain can enter and leave our custom
+-- relation through equality steps without extra instances here.
+example (a b c d : Nat)
+    (hab : Eq a b) (hbc : Reaches b c) (hcd : Eq c d) :
+    Reaches a d := by
+  calc
+    Eq a b := hab
+    Reaches _ c := hbc
+    Eq _ d := hcd
+
+end PrefixRelationCalcPractice
+
+
+namespace CategoryCalcPractice
+
+/-!
+## `calc` in category-theoretic proofs
+
+These remain open for practice. The first exercise uses a custom prefix
+relation on objects; the others calculate with equalities of morphisms.
+-/
+
+open CategoryTheory
+
+universe v v₁ u u₁
+
+variable {C : Type u} [Category.{v} C]
+variable {W X Y Z : C}
+
+/-- There is at least one morphism from `A` to `B`. -/
+def HasArrow (A B : C) : Prop := Nonempty (A ⟶ B)
+
+instance : Trans (HasArrow (C := C)) (HasArrow (C := C)) (HasArrow (C := C)) where
+  trans
+    | ⟨f⟩, ⟨g⟩ => ⟨f ≫ g⟩
+
+-- 1. Composition makes `HasArrow` transitive. Use it as a prefix relation in
+-- a `calc` chain through all four objects.
+example (hWX : HasArrow W X) (hXY : HasArrow X Y) (hYZ : HasArrow Y Z) :
+    HasArrow W Z := by
+  calc
+    HasArrow W X := hWX
+    HasArrow _ Y := hXY
+    HasArrow _ Z := hYZ
+
+-- 2. Normalize the identities and reassociate the composition in several
+-- visible stages. This is intentionally more work than `simp` would require.
+example (f : W ⟶ X) (g : X ⟶ Y) (h : Y ⟶ Z) :
+    (((𝟙 W) ≫ f) ≫ g) ≫ h = f ≫ (g ≫ (h ≫ 𝟙 Z)) := by
+  -- actually simp does close this. but let's ignore that
+  calc
+    (((𝟙 W) ≫ f) ≫ g) ≫ h
+      = (f ≫ g) ≫ h := by simp
+    _ = (f ≫ g) ≫ (h ≫ 𝟙 Z) := by simp
+    _ = f ≫ (g ≫ (h ≫ 𝟙 Z)) := by simp
+
+-- 3. Change one morphism at a time, while also changing the association of
+-- the composite. The hypotheses themselves are only about individual arrows.
+example (f f' : W ⟶ X) (g g' : X ⟶ Y) (h h' : Y ⟶ Z)
+    (hf : f = f') (hg : g = g') (hh : h = h') :
+    (f ≫ g) ≫ h = f' ≫ (g' ≫ h') := by
+  calc
+    (f ≫ g) ≫ h
+      = (f' ≫ g) ≫ h := by rw [hf]
+    _ = (f' ≫ g') ≫ h := by rw [hg]
+    _ = (f' ≫ g') ≫ h' := by rw [hh]
+    _ = f' ≫ (g' ≫ h') := by simp
+
+variable {D : Type u₁} [Category.{v₁} D]
+
+-- 4. Combine functoriality (`map_comp`, `map_id`) with the category laws.
+-- Useful landmarks are `F.map (f ≫ g)` and `F.map f ≫ F.map g`.
+example (F : C ⥤ D) (f : W ⟶ X) (g : X ⟶ Y) (h : Y ⟶ Z) :
+    F.map (((𝟙 W) ≫ f) ≫ (g ≫ h)) =
+      (𝟙 (F.obj W)) ≫ (F.map f ≫ (F.map g ≫ F.map h)) := by
+  calc
+    F.map (((𝟙 W) ≫ f) ≫ (g ≫ h))
+      = (F.map ((𝟙 W) ≫ f)) ≫ F.map (g ≫ h) := F.map_comp ((𝟙 W) ≫ f) (g ≫ h) -- by simp is fine too
+    _ = (F.map (𝟙 W) ≫ F.map f) ≫ F.map (g ≫ h) := by simp
+    _ = (F.map (𝟙 W) ≫ F.map f) ≫ F.map g ≫ F.map h := by simp
+    _ = (𝟙 (F.obj W)) ≫ F.map f ≫ F.map g ≫ F.map h := by simp
+-- or whatever
+
+-- 5. Prove naturality of a composite transformation by calculating through
+-- the naturality equations for `α` and `β`, with associativity steps between
+-- them. Avoid invoking the naturality theorem for `α ≫ β` directly.
+example (F G H : C ⥤ D) (α : F ⟶ G) (β : G ⟶ H) (f : X ⟶ Y) :
+    F.map f ≫ (α ≫ β).app Y = (α ≫ β).app X ≫ H.map f := by
+  -- `simp` works for each step of this `calc`, and for the top level,
+  -- but let's be more explicit
+  calc
+    F.map f ≫ (α ≫ β).app Y
+      = F.map f ≫ α.app Y ≫ β.app Y := by rw [(α.vcomp_app' β)]
+    _ = α.app X ≫ G.map f ≫ β.app Y := by
+          rw [← Category.assoc, (α.naturality f), Category.assoc]
+    _ = α.app X ≫ β.app X ≫ H.map f := by rw [(β.naturality f)]
+    _ = (α ≫ β).app X ≫ H.map f := by rw [← Category.assoc, (α.vcomp_app' β)]
+
+end CategoryCalcPractice
