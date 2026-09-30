@@ -211,4 +211,80 @@ example (a b : Y) (h : a = b) :
       arg 1
       rw [← h]
 
+-- let's try `beta%`
+example (x: X):
+    ∀ (p : X × X), (fun x': X => (x', x')) x = p → p = (x, x) := by
+  intro p h
+  conv at h =>
+    lhs
+    change (beta% ((fun x' : X => (x', x')) x))
+  rw [h]
+
+-- whnf is similar in this case
+example (x: X):
+    ∀ (p : X × X), (fun x': X => (x', x')) x = p → p = (x, x) := by
+  intro p h
+  conv at h =>
+    lhs
+    whnf
+  rw [h]
+
+
 end TargetedReduction
+
+
+section CalcPractice
+
+/-!
+## `calc` practice
+
+These are deliberately left open. Each proof is intended to have a meaningful
+multi-step `calc` chain; try not to discharge the whole goal with `simp`.
+-/
+
+variable (observe : Y → Nat)
+variable (combine : Y → Y → Y)
+
+-- 1. Both arguments of `combine` have to move. Choose intermediate terms that
+-- change only one argument at a time.
+example (a b c : Y) (hab : a = b) (hbc : b = c) :
+    observe (combine a b) = observe (combine c c) := by
+  sorry
+
+-- 2. Mix definitional computation with substitution and then a small piece of
+-- arithmetic normalization. A useful chain passes through `n + 1` and
+-- `(m + 2) + 1`.
+example (n m : Nat) (h : n = m + 2) :
+    (f (.mk n)).toNat = m + 3 := by
+  sorry
+
+-- 3. A `calc` chain need not consist solely of equalities. Lean has to compose
+-- `≤`, `<`, and `≤` in the right order here.
+example (a b c d : Nat)
+    (hab : a ≤ b) (hbc : b < c) (hcd : c ≤ d) :
+    a < d := by
+  sorry
+
+-- 4. Build an iff chain. The hypotheses supply the interesting changes, while
+-- the surrounding propositional structure requires smaller local arguments.
+example (P Q R : Prop) (hPQ : P ↔ Q) (hQR : Q ↔ R) :
+    (P ∧ (Q ∨ False)) ↔ (R ∧ R) := by
+  sorry
+
+-- 5. First expose an arbitrary input. At each line of the pointwise `calc`,
+-- transport an equality through `observe`; finally rebuild function equality.
+example (g k l : X → Y)
+    (hgk : ∀ x, g x = k x)
+    (hkl : ∀ x, k x = l x) :
+    (fun x => observe (g x)) = (fun x => observe (l x)) := by
+  sorry
+
+-- 6. The equality needed for the first argument points forward, while the one
+-- needed for the second points backward. This rewards careful choice of the
+-- middle expression rather than indiscriminate rewriting.
+example (a b c d : Y)
+    (hab : a = b) (hcb : c = b) (hcd : c = d) :
+    combine a d = combine b b := by
+  sorry
+
+end CalcPractice
