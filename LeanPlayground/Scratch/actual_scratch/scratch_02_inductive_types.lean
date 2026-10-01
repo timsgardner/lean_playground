@@ -892,106 +892,85 @@ private theorem Expr.eval_eq_of_agree_root (x y : Expr t)
   cases hb
   exact he
 
+/-- Transfer the agreement assumption from a common parent to one child.
+The caller only has to show that the child's first differences occur under
+this token in the parent's first-difference list. -/
+private theorem Expr.agree_on_child {x y : Expr t} {a b : Expr u}
+    (tok : Token)
+    (ha : tok.child? x = some ⟨u, a⟩)
+    (hb : tok.child? y = some ⟨u, b⟩)
+    (hpaths : ∀ p ∈ firstDifferencePaths a b,
+      tok :: p ∈ firstDifferencePaths x y)
+    (h : ∀ p ∈ firstDifferencePaths x y, EvalAgreeAt p x y) :
+    ∀ p ∈ firstDifferencePaths a b, EvalAgreeAt p a b := by
+  intro p hp
+  simpa [EvalAgreeAt, followTokens?, ha, hb] using h (tok :: p) (hpaths p hp)
+
 /-- If every first syntactic difference preserves value, so does the whole
 expression. Paths below a first mismatch are deliberately irrelevant. -/
 theorem Expr.eval_eq_of_firstDifferencePaths_agree (x y : Expr t)
     (h : ∀ path ∈ firstDifferencePaths x y, EvalAgreeAt path x y) :
     x.eval = y.eval := by
+  -- After splitting `y`, only the matching-constructor case needs recursion.
+  -- Every other case has its first mismatch at the root.
   induction x with
   | num n =>
-      cases y with
-      | num m =>
-          by_cases hnm : n = m
-          · subst m; rfl
-          · exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths, hnm]))
-      | add l r =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | twice a =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | ite c yes no =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
+      cases y
+      case num m =>
+        by_cases hnm : n = m
+        · subst m; rfl
+        · exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths, hnm]))
+      all_goals exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
   | boolean b =>
-      cases y with
-      | boolean c =>
-          by_cases hbc : b = c
-          · subst c; rfl
-          · exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths, hbc]))
-      | isZero a =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | ite c yes no =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
+      cases y
+      case boolean c =>
+        by_cases hbc : b = c
+        · subst c; rfl
+        · exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths, hbc]))
+      all_goals exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
   | add l r ihl ihr =>
-      cases y with
-      | num m =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | twice a =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | ite c yes no =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | add l' r' =>
-          have hl : ∀ p ∈ firstDifferencePaths l l', EvalAgreeAt p l l' := by
-            intro p hp
-            simpa [EvalAgreeAt, followTokens?, Token.child?] using
-              (h (Token.addLeft :: p) (by simp [firstDifferencePaths, hp]))
-          have hr : ∀ p ∈ firstDifferencePaths r r', EvalAgreeAt p r r' := by
-            intro p hp
-            simpa [EvalAgreeAt, followTokens?, Token.child?] using
-              (h (Token.addRight :: p) (by simp [firstDifferencePaths, hp]))
-          change l.eval + r.eval = l'.eval + r'.eval
-          rw [ihl l' hl, ihr r' hr]
+      cases y
+      case add l' r' =>
+        have hl : ∀ p ∈ firstDifferencePaths l l', EvalAgreeAt p l l' :=
+          agree_on_child .addLeft (by rfl) (by rfl)
+            (by intro p hp; simp [firstDifferencePaths, hp]) h
+        have hr : ∀ p ∈ firstDifferencePaths r r', EvalAgreeAt p r r' :=
+          agree_on_child .addRight (by rfl) (by rfl)
+            (by intro p hp; simp [firstDifferencePaths, hp]) h
+        change l.eval + r.eval = l'.eval + r'.eval
+        rw [ihl l' hl, ihr r' hr]
+      all_goals exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
   | twice e ih =>
-      cases y with
-      | num m =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | add l r =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | ite c yes no =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | twice e' =>
-          have he : ∀ p ∈ firstDifferencePaths e e', EvalAgreeAt p e e' := by
-            intro p hp
-            simpa [EvalAgreeAt, followTokens?, Token.child?] using
-              (h (Token.twiceArg :: p) (by simp [firstDifferencePaths, hp]))
-          change e.eval + e.eval = e'.eval + e'.eval
-          rw [ih e' he]
+      cases y
+      case twice e' =>
+        have he : ∀ p ∈ firstDifferencePaths e e', EvalAgreeAt p e e' :=
+          agree_on_child .twiceArg (by rfl) (by rfl)
+            (by intro p hp; simp [firstDifferencePaths, hp]) h
+        change e.eval + e.eval = e'.eval + e'.eval
+        rw [ih e' he]
+      all_goals exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
   | isZero e ih =>
-      cases y with
-      | boolean b =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | ite c yes no =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | isZero e' =>
-          have he : ∀ p ∈ firstDifferencePaths e e', EvalAgreeAt p e e' := by
-            intro p hp
-            simpa [EvalAgreeAt, followTokens?, Token.child?] using
-              (h (Token.isZeroArg :: p) (by simp [firstDifferencePaths, hp]))
-          change (e.eval == 0) = (e'.eval == 0)
-          rw [ih e' he]
+      cases y
+      case isZero e' =>
+        have he : ∀ p ∈ firstDifferencePaths e e', EvalAgreeAt p e e' :=
+          agree_on_child .isZeroArg (by rfl) (by rfl)
+            (by intro p hp; simp [firstDifferencePaths, hp]) h
+        change (e.eval == 0) = (e'.eval == 0)
+        rw [ih e' he]
+      all_goals exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
   | ite c yes no ihc ihy ihn =>
-      cases y with
-      | num m =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | boolean b =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | add l r =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | twice e =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | isZero e =>
-          exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
-      | ite c' yes' no' =>
-          have hc : ∀ p ∈ firstDifferencePaths c c', EvalAgreeAt p c c' := by
-            intro p hp
-            simpa [EvalAgreeAt, followTokens?, Token.child?] using
-              (h (Token.iteCondition :: p) (by simp [firstDifferencePaths, hp]))
-          have hy : ∀ p ∈ firstDifferencePaths yes yes', EvalAgreeAt p yes yes' := by
-            intro p hp
-            simpa [EvalAgreeAt, followTokens?, Token.child?] using
-              (h (Token.iteYes :: p) (by simp [firstDifferencePaths, hp]))
-          have hn : ∀ p ∈ firstDifferencePaths no no', EvalAgreeAt p no no' := by
-            intro p hp
-            simpa [EvalAgreeAt, followTokens?, Token.child?] using
-              (h (Token.iteNo :: p) (by simp [firstDifferencePaths, hp]))
-          exact eval_ite_congr (ihc c' hc) (ihy yes' hy) (ihn no' hn)
+      cases y
+      case ite c' yes' no' =>
+        have hc : ∀ p ∈ firstDifferencePaths c c', EvalAgreeAt p c c' :=
+          agree_on_child .iteCondition (by rfl) (by rfl)
+            (by intro p hp; simp [firstDifferencePaths, hp]) h
+        have hy : ∀ p ∈ firstDifferencePaths yes yes', EvalAgreeAt p yes yes' :=
+          agree_on_child .iteYes (by rfl) (by rfl)
+            (by intro p hp; simp [firstDifferencePaths, hp]) h
+        have hn : ∀ p ∈ firstDifferencePaths no no', EvalAgreeAt p no no' :=
+          agree_on_child .iteNo (by rfl) (by rfl)
+            (by intro p hp; simp [firstDifferencePaths, hp]) h
+        exact eval_ite_congr (ihc c' hc) (ihy yes' hy) (ihn no' hn)
+      all_goals exact eval_eq_of_agree_root _ _ (h [] (by simp [firstDifferencePaths]))
 
 end InductiveTypesScratch
