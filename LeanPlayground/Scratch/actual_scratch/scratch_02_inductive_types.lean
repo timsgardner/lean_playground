@@ -1,4 +1,5 @@
 import Mathlib.Data.List.Basic
+import Mathlib.Data.List.Pairwise
 
 set_option pp.fieldNotation false
 
@@ -350,5 +351,519 @@ example (c : Expr .bool) (x y : Expr .nat) :
     dsimp [Expr.eval]
     rw [Expr.eval_desugar]
   exact Expr.eval_ite_congr hc ht rfl
+
+/-!
+## One-hole contexts
+
+`OneHole s t` is an expression of result type `t` with exactly one missing
+subexpression of type `s`. Each constructor records which child contains the
+hole; all other children are fixed expressions. `plug` fills that hole.
+-/
+
+inductive Expr.OneHole (s : Ty) : Ty → Type where
+  | hole : OneHole s s
+  | addLeft (inner : OneHole s .nat) (right : Expr .nat) : OneHole s .nat
+  | addRight (left : Expr .nat) (inner : OneHole s .nat) : OneHole s .nat
+  | twice (inner : OneHole s .nat) : OneHole s .nat
+  | isZero (inner : OneHole s .nat) : OneHole s .bool
+  | iteCondition {t : Ty} (inner : OneHole s .bool)
+      (yes no : Expr t) : OneHole s t
+  | iteYes {t : Ty} (condition : Expr .bool)
+      (inner : OneHole s t) (no : Expr t) : OneHole s t
+  | iteNo {t : Ty} (condition : Expr .bool)
+      (yes : Expr t) (inner : OneHole s t) : OneHole s t
+
+def Expr.OneHole.plug : OneHole s t → Expr s → Expr t
+  | .hole, replacement => replacement
+  | .addLeft inner right, replacement =>
+      .add (plug inner replacement) right
+  | .addRight left inner, replacement =>
+      .add left (plug inner replacement)
+  | .twice inner, replacement =>
+      .twice (plug inner replacement)
+  | .isZero inner, replacement =>
+      .isZero (plug inner replacement)
+  | .iteCondition inner yes no, replacement =>
+      .ite (plug inner replacement) yes no
+  | .iteYes condition inner no, replacement =>
+      .ite condition (plug inner replacement) no
+  | .iteNo condition yes inner, replacement =>
+      .ite condition yes (plug inner replacement)
+
+/-- Replacing one subexpression by another with the same value preserves the
+value of the whole typed expression. -/
+theorem Expr.OneHole.eval_plug_congr (C : OneHole s t)
+    {x y : Expr s} (h : x.eval = y.eval) :
+    (C.plug x).eval = (C.plug y).eval := by
+  induction C with
+  | hole => exact h
+  | addLeft inner right ih =>
+      change (inner.plug x).eval + right.eval =
+        (inner.plug y).eval + right.eval
+      exact congrArg (fun z : Nat => z + right.eval) ih
+  | addRight left inner ih =>
+      change left.eval + (inner.plug x).eval =
+        left.eval + (inner.plug y).eval
+      exact congrArg (fun z : Nat => left.eval + z) ih
+  | twice inner ih =>
+      change (inner.plug x).eval + (inner.plug x).eval =
+        (inner.plug y).eval + (inner.plug y).eval
+      exact congrArg (fun z : Nat => z + z) ih
+  | isZero inner ih =>
+      change ((inner.plug x).eval == 0) = ((inner.plug y).eval == 0)
+      exact congrArg (fun z : Nat => z == 0) ih
+  | iteCondition inner yes no ih =>
+      change (Expr.ite (inner.plug x) yes no).eval =
+        (Expr.ite (inner.plug y) yes no).eval
+      exact Expr.eval_ite_congr ih rfl rfl
+  | iteYes condition inner no ih =>
+      change (Expr.ite condition (inner.plug x) no).eval =
+        (Expr.ite condition (inner.plug y) no).eval
+      exact Expr.eval_ite_congr rfl ih rfl
+  | iteNo condition yes inner ih =>
+      change (Expr.ite condition yes (inner.plug x)).eval =
+        (Expr.ite condition yes (inner.plug y)).eval
+      exact Expr.eval_ite_congr rfl rfl ih
+
+-- The hole is inside an addition, a zero test, and a conditional.
+def Expr.nestedContext : OneHole .nat .bool :=
+  .iteCondition (.isZero (.addLeft .hole (.num 1)))
+    (.boolean true) (.boolean false)
+
+example (n : Nat) :
+    (Expr.nestedContext.plug (.twice (.num n))).eval =
+      (Expr.nestedContext.plug (.add (.num n) (.num n))).eval := by
+  apply Expr.OneHole.eval_plug_congr
+  rfl
+
+/-!
+## Several typed holes
+
+A `Template ι holeTy t` is a syntax tree of result type `t` whose holes have
+names `i : ι`. The function `holeTy i` says which type of expression may fill
+hole `i`; choosing `ι := Fin n` provides `n` possible names. Use a distinct
+name at each position if those places should vary independently. Fixed subtrees
+are ordinary expressions. This tree-shaped representation makes hole positions
+explicit without maintaining paths into a changing tree.
+
+A filling `ρ : ∀ i, Expr (holeTy i)` supplies an expression for each name.
+The same template can be filled twice. If corresponding fillings evaluate
+equally, the resulting whole expressions evaluate equally.
+-/
+
+inductive Expr.Template (ι : Type) (holeTy : ι → Ty) : Ty → Type where
+  | hole (i : ι) : Template ι holeTy (holeTy i)
+  | fixed {t : Ty} (e : Expr t) : Template ι holeTy t
+  | add (left right : Template ι holeTy .nat) : Template ι holeTy .nat
+  | twice (arg : Template ι holeTy .nat) : Template ι holeTy .nat
+  | isZero (arg : Template ι holeTy .nat) : Template ι holeTy .bool
+  | ite {t : Ty} (condition : Template ι holeTy .bool)
+      (yes no : Template ι holeTy t) : Template ι holeTy t
+
+def Expr.Template.fill : Template ι holeTy t →
+    (∀ i, Expr (holeTy i)) → Expr t
+  | .hole i, ρ => ρ i
+  | .fixed e, _ => e
+  | .add left right, ρ => .add (fill left ρ) (fill right ρ)
+  | .twice arg, ρ => .twice (fill arg ρ)
+  | .isZero arg, ρ => .isZero (fill arg ρ)
+  | .ite condition yes no, ρ =>
+      .ite (fill condition ρ) (fill yes ρ) (fill no ρ)
+
+/-- Replacing any collection of holes by expressions with the same respective
+values preserves the value of the entire typed expression. -/
+theorem Expr.Template.eval_fill_congr (C : Template ι holeTy t)
+    (ρ σ : ∀ i, Expr (holeTy i))
+    (h : ∀ i, (ρ i).eval = (σ i).eval) :
+    (C.fill ρ).eval = (C.fill σ).eval := by
+  induction C with
+  | hole i => exact h i
+  | fixed e => rfl
+  | add left right ihLeft ihRight =>
+      change (left.fill ρ).eval + (right.fill ρ).eval =
+        (left.fill σ).eval + (right.fill σ).eval
+      rw [ihLeft, ihRight]
+  | twice arg ih =>
+      change (arg.fill ρ).eval + (arg.fill ρ).eval =
+        (arg.fill σ).eval + (arg.fill σ).eval
+      rw [ih]
+  | isZero arg ih =>
+      change ((arg.fill ρ).eval == 0) = ((arg.fill σ).eval == 0)
+      rw [ih]
+  | ite condition yes no ihCondition ihYes ihNo =>
+      change (Expr.ite (condition.fill ρ) (yes.fill ρ) (no.fill ρ)).eval =
+        (Expr.ite (condition.fill σ) (yes.fill σ) (no.fill σ)).eval
+      exact Expr.eval_ite_congr ihCondition ihYes ihNo
+
+-- `false` names a Nat hole and `true` names a Bool hole.
+def Expr.twoHoleTypes : Bool → Ty
+  | false => .nat
+  | true => .bool
+
+def Expr.twoHoleTemplate : Template Bool twoHoleTypes .nat :=
+  .ite (.hole true) (.add (.hole false) (.fixed (.num 1)))
+    (.fixed (.num 0))
+
+def Expr.firstFilling (n : Nat) : (i : Bool) → Expr (twoHoleTypes i)
+  | false => .twice (.num n)
+  | true => .isZero (.num 0)
+
+def Expr.secondFilling (n : Nat) : (i : Bool) → Expr (twoHoleTypes i)
+  | false => .add (.num n) (.num n)
+  | true => .boolean true
+
+example (n : Nat) :
+    (Expr.twoHoleTemplate.fill (Expr.firstFilling n)).eval =
+      (Expr.twoHoleTemplate.fill (Expr.secondFilling n)).eval := by
+  apply Expr.Template.eval_fill_congr
+  intro i
+  cases i <;> rfl
+
+/-!
+## Paths to subexpressions
+
+`Path root focus` is data describing child choices from an expression of type
+`root` down to a subexpression of type `focus`. The type indices rule out, for
+example, treating the condition of an `.ite` as a natural-number expression.
+They do not say which constructor the actual tree has, so `follow?` returns
+`none` when a path asks for a child that is not there.
+-/
+
+inductive Expr.Path : Ty → Ty → Type where
+  | here : Path t t
+  | addLeft : Path .nat focus → Path .nat focus
+  | addRight : Path .nat focus → Path .nat focus
+  | twiceArg : Path .nat focus → Path .nat focus
+  | isZeroArg : Path .nat focus → Path .bool focus
+  | iteCondition {t : Ty} : Path .bool focus → Path t focus
+  | iteYes {t : Ty} : Path t focus → Path t focus
+  | iteNo {t : Ty} : Path t focus → Path t focus
+
+def Expr.Path.follow? : Path root focus → Expr root → Option (Expr focus)
+  | .here, e => some e
+  | .addLeft rest, .add left _ => follow? rest left
+  | .addLeft _, _ => none
+  | .addRight rest, .add _ right => follow? rest right
+  | .addRight _, _ => none
+  | .twiceArg rest, .twice arg => follow? rest arg
+  | .twiceArg _, _ => none
+  | .isZeroArg rest, .isZero arg => follow? rest arg
+  | .isZeroArg _, _ => none
+  | .iteCondition rest, .ite condition _ _ => follow? rest condition
+  | .iteCondition _, _ => none
+  | .iteYes rest, .ite _ yes _ => follow? rest yes
+  | .iteYes _, _ => none
+  | .iteNo rest, .ite _ _ no => follow? rest no
+  | .iteNo _, _ => none
+
+-- From a natural-number expression: enter its conditional's yes branch,
+-- then enter the left child of an addition.
+def Expr.examplePath : Path .nat .nat :=
+  .iteYes (.addLeft .here)
+
+example :
+    Expr.examplePath.follow?
+      (.ite (.boolean true) (.add (.num 2) (.num 3)) (.num 0)) =
+        some (.num 2) := by
+  rfl
+
+example : Expr.examplePath.follow? (.num 7) = none := by
+  rfl
+
+/-!
+## Paths as ordinary lists of tokens
+
+The earlier `Path root focus` encodes both endpoint types in its type. A plain
+`List Token` is easier to assemble or store, but its tokens are not checked
+against one another until traversal. The endpoint type is also unknown in
+advance, so lookup returns `Σ t, Expr t`: a dependent pair whose first part
+selects the type of the expression in its second part. For example, the path
+`.iteYes (.addLeft .here)` above is the token list `[.iteYes, .addLeft]` here.
+-/
+
+inductive Expr.Token where
+  | addLeft
+  | addRight
+  | twiceArg
+  | isZeroArg
+  | iteCondition
+  | iteYes
+  | iteNo
+
+def Expr.Token.child? (tok : Token) (e : Expr t) : Option (Σ u : Ty, Expr u) :=
+  match tok, e with
+  | .addLeft, .add left _ => some ⟨.nat, left⟩
+  | .addRight, .add _ right => some ⟨.nat, right⟩
+  | .twiceArg, .twice arg => some ⟨.nat, arg⟩
+  | .isZeroArg, .isZero arg => some ⟨.nat, arg⟩
+  | .iteCondition, .ite condition _ _ => some ⟨.bool, condition⟩
+  | .iteYes, .ite _ yes _ => some ⟨t, yes⟩
+  | .iteNo, .ite _ _ no => some ⟨t, no⟩
+  | _, _ => none
+
+def Expr.followTokens? (path : List Token) (e : Expr t) :
+    Option (Σ u : Ty, Expr u) :=
+  match path with
+  | [] => some ⟨t, e⟩
+  | tok :: rest => do
+      let ⟨_, child⟩ ← tok.child? e
+      followTokens? rest child
+
+example :
+    Expr.followTokens? [.iteYes, .addLeft]
+      (.ite (.boolean true) (.add (.num 2) (.num 3)) (.num 0)) =
+        some ⟨.nat, .num 2⟩ := by
+  rfl
+
+example : Expr.followTokens? [.iteYes, .addLeft] (.num 7) = none := by
+  rfl
+
+/-!
+## First syntactic differences
+
+Compare matching constructors recursively. At the first mismatch on each
+route, record the token path to that node and stop descending along that route.
+The resulting paths may have different lengths, but none extends another.
+`[]` is the path to the root, so `[[]]` means the roots differ, while `[]`
+means the trees are syntactically identical.
+-/
+
+def Expr.firstDifferencePaths : Expr t → Expr t → List (List Token)
+  | .num n, .num m => if n = m then [] else [[]]
+  | .boolean b, .boolean c => if b = c then [] else [[]]
+  | .add l r, .add l' r' =>
+      (firstDifferencePaths l l').map (fun p => .addLeft :: p) ++
+      (firstDifferencePaths r r').map (fun p => .addRight :: p)
+  | .twice e, .twice e' =>
+      (firstDifferencePaths e e').map (fun p => .twiceArg :: p)
+  | .isZero e, .isZero e' =>
+      (firstDifferencePaths e e').map (fun p => .isZeroArg :: p)
+  | .ite c y n, .ite c' y' n' =>
+      (firstDifferencePaths c c').map (fun p => .iteCondition :: p) ++
+      (firstDifferencePaths y y').map (fun p => .iteYes :: p) ++
+      (firstDifferencePaths n n').map (fun p => .iteNo :: p)
+  | _, _ => [[]]
+
+example : Expr.firstDifferencePaths (.num 2) (.num 2) = [] := by
+  rfl
+
+example : Expr.firstDifferencePaths (.num 2) (.twice (.num 1)) = [[]] := by
+  rfl
+
+example :
+    Expr.firstDifferencePaths
+      (.add (.num 1) (.twice (.num 2)))
+      (.add (.num 3) (.twice (.num 4))) =
+        [[.addLeft], [.addRight, .twiceArg]] := by
+  rfl
+
+-- A constructor mismatch is reported where it occurs; the children of that
+-- mismatched pair are not compared.
+example :
+    Expr.firstDifferencePaths
+      (.add (.num 1) (.num 2))
+      (.add (.twice (.num 1)) (.num 3)) =
+        [[.addLeft], [.addRight]] := by
+  rfl
+
+/-! A node is a stopping point when constructors differ, or matching literal
+constructors carry different values. Matching compound constructors are not
+stopping points: comparison proceeds into their children. -/
+def Expr.HeadMismatch : Expr t → Expr t → Prop
+  | .num n, .num m => n ≠ m
+  | .boolean b, .boolean c => b ≠ c
+  | .add _ _, .add _ _ => False
+  | .twice _, .twice _ => False
+  | .isZero _, .isZero _ => False
+  | .ite _ _ _, .ite _ _ _ => False
+  | _, _ => True
+
+/-- A path ends at the first mismatch on its route through two trees. -/
+def Expr.FirstMismatch : Expr t → Expr t → List Token → Prop
+  | x, y, [] => HeadMismatch x y
+  | .add l _, .add l' _, .addLeft :: rest => FirstMismatch l l' rest
+  | .add _ r, .add _ r', .addRight :: rest => FirstMismatch r r' rest
+  | .twice e, .twice e', .twiceArg :: rest => FirstMismatch e e' rest
+  | .isZero e, .isZero e', .isZeroArg :: rest => FirstMismatch e e' rest
+  | .ite c _ _, .ite c' _ _, .iteCondition :: rest => FirstMismatch c c' rest
+  | .ite _ y _, .ite _ y' _, .iteYes :: rest => FirstMismatch y y' rest
+  | .ite _ _ n, .ite _ _ n', .iteNo :: rest => FirstMismatch n n' rest
+  | _, _, _ => False
+
+theorem Expr.mem_firstDifferencePaths_iff (x y : Expr t) (p : List Token) :
+    p ∈ firstDifferencePaths x y ↔ FirstMismatch x y p := by
+  induction x generalizing p with
+  | num n =>
+      cases y <;> cases p with
+      | nil => simp [firstDifferencePaths, FirstMismatch, HeadMismatch]
+      | cons tok rest => cases tok <;> simp [firstDifferencePaths, FirstMismatch]
+  | boolean b =>
+      cases y <;> cases p with
+      | nil => simp [firstDifferencePaths, FirstMismatch, HeadMismatch]
+      | cons tok rest => cases tok <;> simp [firstDifferencePaths, FirstMismatch]
+  | add l r ihl ihr =>
+      cases y <;> cases p with
+      | nil => simp [firstDifferencePaths, FirstMismatch, HeadMismatch]
+      | cons tok rest => cases tok <;> simp [firstDifferencePaths, FirstMismatch, ihl, ihr]
+  | twice e ih =>
+      cases y <;> cases p with
+      | nil => simp [firstDifferencePaths, FirstMismatch, HeadMismatch]
+      | cons tok rest => cases tok <;> simp [firstDifferencePaths, FirstMismatch, ih]
+  | isZero e ih =>
+      cases y <;> cases p with
+      | nil => simp [firstDifferencePaths, FirstMismatch, HeadMismatch]
+      | cons tok rest => cases tok <;> simp [firstDifferencePaths, FirstMismatch, ih]
+  | ite c yes no ihc ihy ihn =>
+      cases y <;> cases p with
+      | nil => simp [firstDifferencePaths, FirstMismatch, HeadMismatch]
+      | cons tok rest => cases tok <;> simp [firstDifferencePaths, FirstMismatch, ihc, ihy, ihn]
+/-- The order in which child positions are visited at a branching node. -/
+def Expr.Token.rank : Token → Nat
+  | .addLeft => 0
+  | .addRight => 1
+  | .twiceArg => 0
+  | .isZeroArg => 0
+  | .iteCondition => 0
+  | .iteYes => 1
+  | .iteNo => 2
+
+/-- Strict left-to-right order on paths that diverge before either ends. -/
+def Expr.PathBefore : List Token → List Token → Prop
+  | a :: p, b :: q => a.rank < b.rank ∨ (a = b ∧ PathBefore p q)
+  | _, _ => False
+
+private theorem Expr.pairwise_prepend (tok : Token)
+    {paths : List (List Token)} (h : paths.Pairwise PathBefore) :
+    (paths.map (fun p => tok :: p)).Pairwise PathBefore := by
+  exact List.Pairwise.map (fun p => tok :: p)
+    (fun _ _ hab => by simpa [PathBefore] using hab) h
+
+private theorem Expr.pairwise_prepend_append (a b : Token)
+    (hab : a.rank < b.rank)
+    {left right : List (List Token)}
+    (hl : left.Pairwise PathBefore) (hr : right.Pairwise PathBefore) :
+    ((left.map (fun p => a :: p)) ++
+      (right.map (fun p => b :: p))).Pairwise PathBefore := by
+  rw [List.pairwise_append]
+  refine ⟨pairwise_prepend a hl, pairwise_prepend b hr, ?_⟩
+  intro p hp q hq
+  obtain ⟨p', _, rfl⟩ := List.mem_map.mp hp
+  obtain ⟨q', _, rfl⟩ := List.mem_map.mp hq
+  exact Or.inl hab
+
+private theorem Expr.pairwise_prepend_append_three (a b c : Token)
+    (hab : a.rank < b.rank) (hac : a.rank < c.rank) (hbc : b.rank < c.rank)
+    {first second third : List (List Token)}
+    (hf : first.Pairwise PathBefore) (hs : second.Pairwise PathBefore)
+    (ht : third.Pairwise PathBefore) :
+    (((first.map (fun p => a :: p)) ++
+      (second.map (fun p => b :: p))) ++
+      (third.map (fun p => c :: p))).Pairwise PathBefore := by
+  rw [List.pairwise_append]
+  refine ⟨pairwise_prepend_append a b hab hf hs, pairwise_prepend c ht, ?_⟩
+  intro p hp q hq
+  obtain ⟨q', _, rfl⟩ := List.mem_map.mp hq
+  rcases List.mem_append.mp hp with hp | hp
+  · obtain ⟨p', _, rfl⟩ := List.mem_map.mp hp
+    exact Or.inl hac
+  · obtain ⟨p', _, rfl⟩ := List.mem_map.mp hp
+    exact Or.inl hbc
+
+theorem Expr.pairwise_firstDifferencePaths (x y : Expr t) :
+    (firstDifferencePaths x y).Pairwise PathBefore := by
+  induction x with
+  | num n =>
+      cases y <;> simp [firstDifferencePaths]; split_ifs <;> simp
+  | boolean b =>
+      cases y <;> simp [firstDifferencePaths]; split_ifs <;> simp
+  | add l r ihl ihr =>
+      cases y with
+      | add l' r' =>
+          simpa only [firstDifferencePaths] using
+            pairwise_prepend_append .addLeft .addRight (by decide) (ihl l') (ihr r')
+      | num n => simp [firstDifferencePaths]
+      | twice a => simp [firstDifferencePaths]
+      | ite c yes no => simp [firstDifferencePaths]
+  | twice e ih =>
+      cases y with
+      | twice e' =>
+          simpa only [firstDifferencePaths] using pairwise_prepend .twiceArg (ih e')
+      | num n => simp [firstDifferencePaths]
+      | add l r => simp [firstDifferencePaths]
+      | ite c yes no => simp [firstDifferencePaths]
+  | isZero e ih =>
+      cases y with
+      | isZero e' =>
+          simpa only [firstDifferencePaths] using pairwise_prepend .isZeroArg (ih e')
+      | boolean b => simp [firstDifferencePaths]
+      | ite c yes no => simp [firstDifferencePaths]
+  | ite c yes no ihc ihy ihn =>
+      cases y with
+      | ite c' yes' no' =>
+          simpa only [firstDifferencePaths, List.append_assoc] using
+            pairwise_prepend_append_three .iteCondition .iteYes .iteNo
+              (by decide) (by decide) (by decide) (ihc c') (ihy yes') (ihn no')
+      | num n => simp [firstDifferencePaths]
+      | boolean b => simp [firstDifferencePaths]
+      | add l r => simp [firstDifferencePaths]
+      | twice a => simp [firstDifferencePaths]
+      | isZero a => simp [firstDifferencePaths]
+
+private theorem Expr.PathBefore.not_prefixes {p q : List Token}
+    (h : PathBefore p q) : ¬ p <+: q ∧ ¬ q <+: p := by
+  induction p generalizing q with
+  | nil => cases q <;> simp [PathBefore] at h
+  | cons a p ih =>
+      cases q with
+      | nil => simp [PathBefore] at h
+      | cons b q =>
+          change a.rank < b.rank ∨ (a = b ∧ PathBefore p q) at h
+          rcases h with hab | ⟨rfl, hrest⟩
+          · have hne : a ≠ b := by
+              intro heq
+              subst b
+              exact (Nat.lt_irrefl _) hab
+            constructor
+            · intro hp
+              exact hne (List.cons_prefix_cons.mp hp).1
+            · intro hp
+              exact hne (List.cons_prefix_cons.mp hp).1.symm
+          · obtain ⟨hleft, hright⟩ := ih hrest
+            constructor
+            · intro hp
+              exact hleft (List.cons_prefix_cons.mp hp).2
+            · intro hp
+              exact hright (List.cons_prefix_cons.mp hp).2
+
+/-- No path appears twice in the list of first differences. -/
+theorem Expr.nodup_firstDifferencePaths (x y : Expr t) :
+    (firstDifferencePaths x y).Nodup := by
+  rw [List.nodup_iff_pairwise_ne]
+  exact (pairwise_firstDifferencePaths x y).imp (fun h heq => by
+    subst_eqs
+    exact (PathBefore.not_prefixes h).1 (List.prefix_refl _))
+
+/-- No returned path points inside another returned mismatch. -/
+theorem Expr.firstDifferencePaths_prefix_free (x y : Expr t)
+    {p q : List Token} (hp : p ∈ firstDifferencePaths x y)
+    (hq : q ∈ firstDifferencePaths x y) (hne : p ≠ q) : ¬ p <+: q := by
+  have hpair : (firstDifferencePaths x y).Pairwise
+      (fun p q => ¬ p <+: q ∧ ¬ q <+: p) :=
+    (pairwise_firstDifferencePaths x y).imp (fun h => PathBefore.not_prefixes h)
+  letI : Std.Symm (fun p q : List Token => ¬ p <+: q ∧ ¬ q <+: p) :=
+    ⟨fun _ _ h => ⟨h.2, h.1⟩⟩
+  exact (hpair.forall hp hq hne).1
+
+/-- The output is empty precisely when the expressions are syntactically equal. -/
+theorem Expr.firstDifferencePaths_eq_nil_iff (x y : Expr t) :
+    firstDifferencePaths x y = [] ↔ x = y := by
+  induction x with
+  | num n => cases y <;> simp [firstDifferencePaths]
+  | boolean b => cases y <;> simp [firstDifferencePaths]
+  | add l r ihl ihr => cases y <;> simp [firstDifferencePaths, ihl, ihr]
+  | twice e ih => cases y <;> simp [firstDifferencePaths, ih]
+  | isZero e ih => cases y <;> simp [firstDifferencePaths, ih]
+  | ite c yes no ihc ihy ihn =>
+      cases y <;> simp [firstDifferencePaths, ihc, ihy, ihn]
 
 end InductiveTypesScratch
