@@ -98,41 +98,68 @@ example (t : Tree α) : ∃ a : α, a ∈ t.leaves := by
       exact (Tree.leaves l).mem_append_left (Tree.leaves r) ha
 
 /-!
-## Inductively defined paths
+## Inductively defined reachability
 
-`Walk step a b` records a finite path from `a` to `b`. Its last constructor
-extends a path at the *end*, which affects the useful induction hypothesis.
+This declaration has a different result sort from `Tree α : Type`. Here `α` is
+the type of vertices, and `canMove : α → α → Prop` is a binary relation:
+`canMove x y` is the *proposition* that one move from `x` to `y` is allowed.
+Once `canMove` is fixed, `CanReach canMove : α → α → Prop` is another binary
+relation. In particular, `CanReach canMove a b : Prop` says that `a` can reach
+`b` in finitely many moves. A term of that proposition is a proof of
+reachability, rather than a list-valued path to compute with.
+
+The endpoints `a` and `b` are *indices*: different choices give different
+propositions in the family. The parameters `α` and `canMove` stay fixed.
+`refl a` proves `CanReach canMove a a` with zero moves; it needs no proof of
+`canMove a a`. Given `CanReach canMove a b` and `canMove b c`, `extend` proves
+`CanReach canMove a c`. Thus the constructors describe exactly how proofs of
+reachability are built. Because `extend` adds a move at the *end*, induction
+gives a hypothesis about the earlier part of the route.
 -/
 
-inductive Walk {α : Type} (step : α → α → Prop) : α → α → Prop where
-  | here (a : α) : Walk step a a
-  | snoc {a b c : α} : Walk step a b → step b c → Walk step a c
+inductive CanReach {α : Type} (canMove : α → α → Prop) : α → α → Prop where
+  | refl (a : α) : CanReach canMove a a
+  | extend {a b c : α} : CanReach canMove a b → canMove b c → CanReach canMove a c
 
--- 5. Put one edge at the end of a zero-length path.
-example {step : α → α → Prop} {a b : α} (h : step a b) :
-    Walk step a b := by
-  sorry
+-- 5. A single permitted move is enough for reachability: extend the
+-- zero-move proof with that move.
+example {canMove : α → α → Prop} {a b : α} (h : canMove a b) :
+    CanReach canMove a b := by
+      exact CanReach.extend (CanReach.refl a) h
 
--- 6. Prove path concatenation. Induction on the *second* path fits `snoc`
+-- 6. Prove reachability is transitive. Induction on the *second* proof fits `extend`
 -- particularly well; induction on the first needs a different setup.
-example {step : α → α → Prop} {a b c : α}
-    (p : Walk step a b) (q : Walk step b c) : Walk step a c := by
-  sorry
+example {canMove : α → α → Prop} {a b c : α}
+    (p : CanReach canMove a b) (q : CanReach canMove b c) : CanReach canMove a c := by
+  induction q with
+  | refl => exact p
+  | extend path edge ih =>
+      exact CanReach.extend ih edge
 
--- 7. Translate every edge along a path. The vertex map does not have to be
+-- 7. Translate every permitted move along a route. The vertex map does not have to be
 -- injective, and the source and target types may differ.
-example {step : α → α → Prop} {next : β → β → Prop}
+example {canMove : α → α → Prop} {canMove' : β → β → Prop}
     (f : α → β)
-    (preserves : ∀ {x y}, step x y → next (f x) (f y))
-    {a b : α} (p : Walk step a b) : Walk next (f a) (f b) := by
-  sorry
+    (preserves : ∀ {x y}, canMove x y → canMove' (f x) (f y))
+    {a b : α} (p : CanReach canMove a b) : CanReach canMove' (f a) (f b) := by
+  induction p with
+  | refl =>
+      exact CanReach.refl (f a)
+  | extend reach_ab move_bc a_ih =>
+      have canMove'_bc := preserves move_bc
+      exact CanReach.extend a_ih canMove'_bc
 
--- 8. If every individual edge increases a measure, so does every path.
+
+-- 8. If every permitted move increases a measure, so does reachability.
 -- Use the induction hypothesis together with transitivity of `≤`.
-example {step : α → α → Prop} (weight : α → Nat)
-    (increases : ∀ {x y}, step x y → weight x ≤ weight y)
-    {a b : α} (p : Walk step a b) : weight a ≤ weight b := by
-  sorry
+example {canMove : α → α → Prop} (weight : α → Nat)
+    (increases : ∀ {x y}, canMove x y → weight x ≤ weight y)
+    {a b : α} (p : CanReach canMove a b) : weight a ≤ weight b := by
+  induction p with
+  | refl => simp -- the goal here is immediate from ≤
+  | extend canReach_h canMove_h a_ih =>
+      let thing := (increases canMove_h)
+      exact Nat.le_trans a_ih thing
 
 /-!
 ## Indexed data: length is part of the type
