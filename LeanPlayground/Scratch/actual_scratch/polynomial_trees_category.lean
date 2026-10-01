@@ -143,4 +143,159 @@ theorem eval_is_initial_arrow {t : Ty} (e : Expr t) :
     ((isInitial exprSignature).to exprEvalAlgebra)]
   exact eval_via_fold e
 
+/-! ## Templates as trees with typed hole constructors -/
+
+/-- Add a nullary constructor for each typed hole and each fixed expression.
+The ordinary expression operations reuse `ExprShape`. -/
+inductive TemplateShape (ι : Type) (holeTy : ι → Ty) : Ty → Type where
+  | hole (j : ι) : TemplateShape ι holeTy (holeTy j)
+  | fixed {t : Ty} (e : Expr t) : TemplateShape ι holeTy t
+  | base {t : Ty} (s : ExprShape t) : TemplateShape ι holeTy t
+
+abbrev TemplateShape.pos : TemplateShape ι holeTy t → Type
+  | .hole _ | .fixed _ => PEmpty
+  | .base s => s.pos
+
+abbrev TemplateShape.input (s : TemplateShape ι holeTy t) : s.pos → Ty :=
+  match s with
+  | .hole _ | .fixed _ => fun p => p.elim
+  | .base s => s.input
+
+/-- A signature for expressions with named, typed holes. -/
+abbrev templateSignature (ι : Type) (holeTy : ι → Ty) : Signature Ty where
+  Shape := TemplateShape ι holeTy
+  Pos := TemplateShape.pos
+  input := TemplateShape.input
+
+/-- Encode the existing `Expr.Template` as a generic term. -/
+def ofTemplate {ι : Type} {holeTy : ι → Ty} :
+    {t : Ty} → Expr.Template ι holeTy t → Term (templateSignature ι holeTy) t
+  | _, .hole j => .node (.hole j) (fun p => p.elim)
+  | _, .fixed e => .node (.fixed e) (fun p => p.elim)
+  | _, .add left right => .node (.base .add) (fun
+      | .left => ofTemplate left
+      | .right => ofTemplate right)
+  | _, .twice arg => .node (.base .twice) (fun _ => ofTemplate arg)
+  | _, .isZero arg => .node (.base .isZero) (fun _ => ofTemplate arg)
+  | _, .ite condition yes no => .node (.base .ite) (fun
+      | .condition => ofTemplate condition
+      | .yes => ofTemplate yes
+      | .no => ofTemplate no)
+
+/-- Interpreting holes with expressions performs template filling. -/
+def templateFillAlg {ι : Type} {holeTy : ι → Ty}
+    (ρ : ∀ j, Expr (holeTy j)) :
+    Term.Algebra (templateSignature ι holeTy) Expr :=
+  fun _ ⟨s, children⟩ =>
+    match s with
+    | .hole j => ρ j
+    | .fixed e => e
+    | .base s => exprAlgebra _ ⟨s, children⟩
+
+/-- Interpret holes by values, fixed expressions by their evaluations, and
+all other shapes by the corresponding evaluation operation. -/
+def templateValueAlg {ι : Type} {holeTy : ι → Ty}
+    (values : ∀ j, Ty.denote (holeTy j)) :
+    Term.Algebra (templateSignature ι holeTy) Ty.denote :=
+  fun _ ⟨s, children⟩ =>
+    match s with
+    | .hole j => values j
+    | .fixed e => e.eval
+    | .base s => evalAlgebra _ ⟨s, children⟩
+
+def templateFillObject {ι : Type} {holeTy : ι → Ty}
+    (ρ : ∀ j, Expr (holeTy j)) :
+    Endofunctor.Algebra (polynomial (templateSignature ι holeTy)) :=
+  asAlgebra _ ⟨Expr⟩ (templateFillAlg ρ)
+
+def templateValueObject {ι : Type} {holeTy : ι → Ty}
+    (values : ∀ j, Ty.denote (holeTy j)) :
+    Endofunctor.Algebra (polynomial (templateSignature ι holeTy)) :=
+  asAlgebra _ ⟨Ty.denote⟩ (templateValueAlg values)
+
+/-- The generic fold into expressions agrees with the original `fill`. -/
+theorem fill_via_fold {ι : Type} {holeTy : ι → Ty} {t : Ty}
+    (C : Expr.Template ι holeTy t) (ρ : ∀ j, Expr (holeTy j)) :
+    Term.fold (templateFillAlg ρ) (ofTemplate C) = C.fill ρ := by
+  induction C with
+  | hole j => rfl
+  | fixed e => rfl
+  | add left right ihLeft ihRight =>
+      change Expr.add (Term.fold (templateFillAlg ρ) (ofTemplate left))
+        (Term.fold (templateFillAlg ρ) (ofTemplate right)) =
+        Expr.add (left.fill ρ) (right.fill ρ)
+      rw [ihLeft, ihRight]
+  | twice arg ih =>
+      change Expr.twice (Term.fold (templateFillAlg ρ) (ofTemplate arg)) =
+        Expr.twice (arg.fill ρ)
+      rw [ih]
+  | isZero arg ih =>
+      change Expr.isZero (Term.fold (templateFillAlg ρ) (ofTemplate arg)) =
+        Expr.isZero (arg.fill ρ)
+      rw [ih]
+  | ite condition yes no ihCondition ihYes ihNo =>
+      change Expr.ite (Term.fold (templateFillAlg ρ) (ofTemplate condition))
+        (Term.fold (templateFillAlg ρ) (ofTemplate yes))
+        (Term.fold (templateFillAlg ρ) (ofTemplate no)) =
+        Expr.ite (condition.fill ρ) (yes.fill ρ) (no.fill ρ)
+      rw [ihCondition, ihYes, ihNo]
+
+/-- Evaluation respects every operation of the template signature, including
+the hole operation because its target value is chosen as `(ρ j).eval`. -/
+def templateEvalHom {ι : Type} {holeTy : ι → Ty}
+    (ρ : ∀ j, Expr (holeTy j)) :
+    templateFillObject ρ ⟶ templateValueObject (fun j => (ρ j).eval) where
+  f := fun _ e => e.eval
+  h := by
+    funext i layer
+    rcases layer with ⟨s, children⟩
+    cases s with
+    | hole j => rfl
+    | fixed e => rfl
+    | base s => cases s <;> rfl
+
+/-- Evaluating a filled template is the unique initial arrow to the value
+algebra, applied to the template's generic encoding. -/
+theorem eval_fill_as_initial_arrow {ι : Type} {holeTy : ι → Ty} {t : Ty}
+    (C : Expr.Template ι holeTy t) (ρ : ∀ j, Expr (holeTy j)) :
+    (C.fill ρ).eval =
+      ((isInitial (templateSignature ι holeTy)).to
+        (templateValueObject (fun j => (ρ j).eval))).f t (ofTemplate C) := by
+  let S := templateSignature ι holeTy
+  have hfill :
+      ((isInitial S).to (templateFillObject ρ)).f t (ofTemplate C) = C.fill ρ := by
+    rw [hom_eq_foldHom S (templateFillObject ρ)
+      ((isInitial S).to (templateFillObject ρ))]
+    exact fill_via_fold C ρ
+  have hcomp := (isInitial S).to_comp (templateEvalHom ρ)
+  have hpoint := congrArg
+    (fun f : initialAlgebra S ⟶ templateValueObject (fun j => (ρ j).eval) =>
+      f.f t (ofTemplate C)) hcomp
+  change (((isInitial S).to (templateFillObject ρ)).f t (ofTemplate C)).eval =
+    ((isInitial S).to (templateValueObject (fun j => (ρ j).eval))).f t
+      (ofTemplate C) at hpoint
+  rw [hfill] at hpoint
+  exact hpoint
+
+/-- The multihole result from categorical initiality. Pointwise equal hole
+values are the same value assignment, hence define the same target algebra and
+the same unique arrow out of the template term algebra. -/
+theorem template_eval_fill_congr_categorical {ι : Type} {holeTy : ι → Ty}
+    {t : Ty} (C : Expr.Template ι holeTy t)
+    (ρ σ : ∀ j, Expr (holeTy j))
+    (h : ∀ j, (ρ j).eval = (σ j).eval) :
+    (C.fill ρ).eval = (C.fill σ).eval := by
+  have hvalues : (fun j => (ρ j).eval) = (fun j => (σ j).eval) := funext h
+  rw [eval_fill_as_initial_arrow C ρ, eval_fill_as_initial_arrow C σ,
+    hvalues]
+
+-- The two-hole example from `scratch_02_inductive_types.lean` now needs only
+-- equality of the values assigned to its two hole names.
+example (n : Nat) :
+    (Expr.twoHoleTemplate.fill (Expr.firstFilling n)).eval =
+      (Expr.twoHoleTemplate.fill (Expr.secondFilling n)).eval := by
+  apply template_eval_fill_congr_categorical
+  intro j
+  cases j <;> rfl
+
 end PolynomialTrees.Category
