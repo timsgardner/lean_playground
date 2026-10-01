@@ -1,5 +1,7 @@
 import Mathlib.Data.List.Basic
 
+set_option pp.fieldNotation false
+
 /-!
 # Inductive types: things to build and things to prove
 
@@ -38,24 +40,62 @@ end Tree
 
 -- 1. The induction hypothesis has to be used once for each child.
 example (t : Tree α) : Tree.mirror (Tree.mirror t) = t := by
-  sorry
+  induction t with
+  | leaf a => dsimp only [Tree.mirror]
+  | branch l r hli hri =>
+      conv =>
+        lhs
+        congr
+        dsimp only [Tree.mirror]
+      dsimp only [Tree.mirror]
+      rw [hli, hri]
+
 
 -- 2. Follow how `map` passes through both recursive branches. The order of
 -- function composition matters here.
 example (f : α → β) (g : β → γ) (t : Tree α) :
     Tree.map g (Tree.map f t) = Tree.map (g ∘ f) t := by
-  sorry
+  induction t with
+  | leaf a =>
+      dsimp only [Tree.map]
+      rw [Function.comp]
+  | branch l r hli hri =>
+      dsimp only [Tree.map]
+      rw [hli]
+      rw [hri]
+
 
 -- 3. The branch case needs a list identity in addition to the two induction
 -- hypotheses. See what `simp` knows about reversing an append.
 example (t : Tree α) :
     (Tree.mirror t).leaves = t.leaves.reverse := by
-  sorry
+  induction t with
+  | leaf a =>
+      dsimp only [Tree.leaves]
+      dsimp only [Tree.mirror]
+      dsimp only [Tree.leaves]
+      rfl
+  | branch l r hl hr =>
+      dsimp only [Tree.mirror]
+      dsimp only [Tree.leaves]
+      rw [hl]
+      rw [hr]
+      simp
 
 -- 4. There is no empty-tree case. Extract an actual leaf value without
 -- assuming that `α` is inhabited.
 example (t : Tree α) : ∃ a : α, a ∈ t.leaves := by
-  sorry
+  induction t with
+  | leaf a =>
+      refine ⟨?_, ?_⟩
+      · exact a
+      · dsimp only [Tree.leaves]
+        simp
+  | branch l r hl hr =>
+      obtain ⟨a, ha⟩ := hl
+      refine ⟨a, ?_⟩
+      dsimp only [Tree.leaves]
+      exact (Tree.leaves l).mem_append_left (Tree.leaves r) ha
 
 /-!
 ## Inductively defined paths
