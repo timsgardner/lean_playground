@@ -240,9 +240,27 @@ example (xs : Vec α (m + n)) :
 /-!
 ## Typed syntax trees
 
-An `Expr t` can only evaluate to a value of type `Ty.denote t`. The constructors
-encode which operations are allowed at each type. The desugaring pass removes
-`twice` while recursively visiting the rest of the expression.
+`Expr` is an indexed family in `Type`, like `Vec`: `Expr .nat` and `Expr .bool`
+are different types of syntax trees. `Ty.denote` maps those indices to Lean's
+`Nat` and `Bool`, so `eval` returns a value of the right type. For example,
+`.add` only builds an `Expr .nat`, while `.isZero` builds an `Expr .bool` from
+an `Expr .nat`. An `.ite` has a Boolean condition and two branches with the
+same result index. For instance,
+`Expr.ite (.boolean true) (.num 2) (.num 3) : Expr .nat`; replacing only its
+last branch with `.boolean false` would be ill-typed.
+
+The exercises use `change`, `rw`, and structural induction, as in the tree
+section. If `e : Expr .bool`, a case split rules out the natural-number
+constructors. For `e : Expr t` with an arbitrary `t`, induction considers all
+constructors, specializes `t` in each case, and gives hypotheses for recursive
+subexpressions. Those subexpressions may have different indices: the condition
+of `.ite` is Boolean even when the whole expression is natural-number-valued.
+No explicit index transport is needed here.
+
+`desugar` replaces each `.twice e` with `.add e e` and visits every other
+constructor recursively. The main question is whether that change of syntax
+preserves what `eval` computes. Prove the small congruence lemma first so the
+`.ite` case of the induction can use it directly.
 -/
 
 inductive Ty where
@@ -282,25 +300,30 @@ def desugar : Expr t → Expr t
 
 end Expr
 
--- 14. Build the specified Boolean expression and connect its syntax to its
--- meaning. The conditional chooses the opposite of the zero test.
-example (n : Nat) :
-    ∃ e : Expr .bool,
-      e = .ite (.isZero (.twice (.num n))) (.boolean false) (.boolean true) ∧
-      e.eval = !(n + n == 0) := by
+-- 14. If the condition and both branches evaluate equally, the two
+-- conditionals evaluate equally. Unfold only the outer `eval`, then rewrite
+-- with the three hypotheses. This lemma will handle the `.ite` case below.
+theorem Expr.eval_ite_congr {t : Ty}
+    {c c' : Expr .bool} {yes yes' no no' : Expr t}
+    (hc : c.eval = c'.eval)
+    (hy : yes.eval = yes'.eval)
+    (hn : no.eval = no'.eval) :
+    (Expr.ite c yes no).eval = (Expr.ite c' yes' no').eval := by
   sorry
 
--- 15. Prove the pass preserves the meaning of every well-typed expression.
--- The dependent index changes between some induction cases; inspect each goal.
-example {t : Ty} (e : Expr t) :
+-- 15. This is the one structural-induction proof for the pass. In each case,
+-- expose the outer `desugar` and `eval`. The recursive cases use their
+-- induction hypotheses; for `.ite`, use `Expr.eval_ite_congr` with all three.
+theorem Expr.eval_desugar {t : Ty} (e : Expr t) :
     (Expr.desugar e).eval = e.eval := by
   sorry
 
--- 16. Combine the previous semantic idea with a nested conditional. The
--- condition is itself an expression, not a Lean proposition.
+-- 16. These syntax trees differ in two places, but evaluate the same. Reuse
+-- both named lemmas rather than doing another induction or expanding the
+-- entire expression. The condition and the branches can be handled separately.
 example (c : Expr .bool) (x y : Expr .nat) :
-    (Expr.ite c (.twice x) (.twice y)).eval =
-      if c.eval then x.eval + x.eval else y.eval + y.eval := by
+    (Expr.ite (Expr.desugar c) (.twice (Expr.desugar x)) y).eval =
+      (Expr.ite c (.add x x) y).eval := by
   sorry
 
 end InductiveTypesScratch
