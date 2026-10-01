@@ -309,14 +309,34 @@ theorem Expr.eval_ite_congr {t : Ty}
     (hy : yes.eval = yes'.eval)
     (hn : no.eval = no'.eval) :
     (Expr.ite c yes no).eval = (Expr.ite c' yes' no').eval := by
-  sorry
+  unfold eval
+  rw [hc]
+  rw [hy]
+  rw [hn]
+
 
 -- 15. This is the one structural-induction proof for the pass. In each case,
 -- expose the outer `desugar` and `eval`. The recursive cases use their
 -- induction hypotheses; for `.ite`, use `Expr.eval_ite_congr` with all three.
 theorem Expr.eval_desugar {t : Ty} (e : Expr t) :
     (Expr.desugar e).eval = e.eval := by
-  sorry
+  induction e with
+  | num n => dsimp only [eval, desugar]
+  | boolean b => dsimp only [eval, desugar]
+  | add l r l_ih r_ih =>
+      dsimp only [eval, desugar]
+      rw [l_ih, r_ih]
+  | twice a a_ih =>
+      change eval (desugar a) + eval (desugar a) = eval a + eval a
+      rw [a_ih]
+  | isZero e e_ih =>
+      dsimp [desugar]
+      dsimp [eval]
+      rw [e_ih]
+  | ite c yes no c_ih yes_ih no_ih =>
+      dsimp [desugar]
+      exact Expr.eval_ite_congr c_ih yes_ih no_ih
+
 
 -- 16. These syntax trees differ in two places, but evaluate the same. Reuse
 -- both named lemmas rather than doing another induction or expanding the
@@ -324,6 +344,11 @@ theorem Expr.eval_desugar {t : Ty} (e : Expr t) :
 example (c : Expr .bool) (x y : Expr .nat) :
     (Expr.ite (Expr.desugar c) (.twice (Expr.desugar x)) y).eval =
       (Expr.ite c (.add x x) y).eval := by
-  sorry
+  have hc: (Expr.desugar c).eval = c.eval := by
+    exact Expr.eval_desugar c
+  have ht: (Expr.twice (Expr.desugar x)).eval = (Expr.add x x).eval := by
+    dsimp [Expr.eval]
+    rw [Expr.eval_desugar]
+  exact Expr.eval_ite_congr hc ht rfl
 
 end InductiveTypesScratch
