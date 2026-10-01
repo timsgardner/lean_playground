@@ -182,36 +182,60 @@ def map (f : α → β) : Vec α n → Vec β n
   | .nil => .nil
   | .cons a tail => .cons (f a) (map f tail)
 
-def append : Vec α m → Vec α n → Vec α (m + n)
-  | .nil, ys => by simpa using ys
-  | .cons a xs, ys => by
-      simpa [Nat.succ_add] using Vec.cons a (append xs ys)
+-- Writing the index as `n + m` lets the two equations reduce directly:
+-- `n + 0 = n` and `n + (m + 1) = (n + m) + 1` by computation.
+def append : Vec α m → Vec α n → Vec α (n + m)
+  | .nil, ys => ys
+  | .cons a xs, ys => .cons a (append xs ys)
 
 end Vec
 
 -- 9. Construct a vector of exactly three elements using only constructors.
 example (a b c : α) : Vec α 3 := by
-  sorry
+  exact Vec.nil |> Vec.cons c |> Vec.cons b |> Vec.cons a
 
 -- 10. A vector of length zero has only one possible shape.
 example (xs : Vec α 0) : xs = .nil := by
-  sorry
+  cases xs
+  · rfl
 
 -- 11. A positive length rules out `nil` and exposes the tail's exact length.
 example {n : Nat} (xs : Vec α (n + 1)) :
     ∃ (a : α) (tail : Vec α n), xs = .cons a tail := by
-  sorry
+  cases xs with
+  | cons a tail =>
+      exact ⟨a, tail, rfl⟩
 
 -- 12. The index arithmetic in `append` has already been handled by its
 -- definition. Prove that its contents agree with ordinary list append.
 example (xs : Vec α m) (ys : Vec α n) :
     (Vec.append xs ys).toList = xs.toList ++ ys.toList := by
-  sorry
+  let xys := Vec.append xs ys
+  induction xs with
+  | nil =>
+      dsimp only [Vec.append]
+      simp [Vec.toList]
+  | cons a tail tail_ih =>
+      dsimp only [Vec.append]
+      conv =>
+        rhs
+        dsimp only [Vec.toList]
+        simp
+      dsimp only [Vec.toList]
+      simp at *
+      exact tail_ih
 
--- 13. Produce a vector whose length is the sum in the other order. This is
--- an exercise in transporting data across an equality of indices.
-example (xs : Vec α (m + n)) : Vec α (n + m) := by
-  sorry
+-- 13. Transport the length index across commutativity, but keep the contents
+-- unchanged. First consider what transport along an arbitrary index equality
+-- does to `toList`; specializing immediately to `Nat.add_comm` obscures that.
+example (xs : Vec α (m + n)) :
+    ∃ ys : Vec α (n + m), ys.toList = xs.toList := by
+  have toList_transport {i j : Nat} (h : i = j) (v : Vec α i) :
+      (h ▸ v : Vec α j).toList = v.toList := by
+    cases h
+    rfl
+  let h : m + n = n + m := Nat.add_comm m n
+  exact ⟨h ▸ xs, toList_transport h xs⟩
 
 /-!
 ## Typed syntax trees
