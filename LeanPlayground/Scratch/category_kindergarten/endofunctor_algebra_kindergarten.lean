@@ -4,6 +4,35 @@ import Mathlib.CategoryTheory.Types.Basic
 /-!
 # Endofunctor algebras: doing arithmetic with syntax
 
+Let `C` be a category. An *algebra* `(A, α)` of an endofunctor `F : C ⥤ C` is an
+object `A : C` with a morphism `α : F A ⟶ A` of `C`. `A` is called the
+*carrier*, `α` is called the *structure map*.
+
+From `F` we form the *category of F-algebras*. Note that "F-algebra" here just
+means the category of algebras of the endofunctor `F`. If we were looking at the
+category of algebras of the endofunctor `G`, we would call it the "category of
+G-algebras."
+
+The category of F-algebras is defined as follows:
+- Objects: algebras (`(A, α)`, `(B, β)`, etc) of `F`.
+- Morphisms: morphisms `f: (A, α) ⟶ (B, β)` in the category of F-algebras are
+  those morphisms `f: A ⟶ B` in `C` that make this square commute:
+
+       F A  ─── F f ───→  F B
+        │                  │
+        α                  β
+        │                  │
+        ↓                  ↓
+        A  ───── f ──────→ B
+
+- The identity morphism for `(A, α)` is just `𝟙 A`.
+- Composition is just composition of underlying morphisms in `C`. The
+  commutativity condition for `C` morphisms being included in the category of
+  F-algebras ensures this obeys the categorical composition law.
+
+In this file, `F` is the endofunctor `expressionF : Type ⥤ Type`, so we're examining the
+*category of `expressionF`-algebras*.
+
 ## The concrete task
 
 We want to manipulate expressions such as `(x * 1) + (2 + 3)`. An expression is
@@ -16,13 +45,13 @@ There are several things we might do with that same tree:
 
 The common pattern is **bottom-up processing**. First process each child of a
 node. Then do one operation at the parent, using the processed children. The
-type `Layer X` below describes the input to that *parent operation*: a choice
-of constructor, plus an `X` for each child position. For example,
-`Layer.add left right : Layer X` is an addition node with two child results of
-type `X`. A `Layer X` is only one node. A whole nested expression is an `Expr`.
+type `Layer X` below describes the input to that *parent operation*: a choice of
+constructor, plus an `X` for each child position. For example, `Layer.add left
+right : Layer X` is an addition node with two child results of type `X`. A
+`Layer X` is only one node. A whole nested expression is an `Expr`.
 
-Here are two choices for `X` at an addition node, followed by the operation
-that relates them:
+Here are two choices for `X` at an addition node, followed by the operation that
+relates them:
 
 * `Layer Expr`: the children are expression trees. The parent can construct
   `Expr.add left right`, or inspect the trees to simplify the addition.
@@ -31,30 +60,30 @@ that relates them:
 * `Layer.map f`: if `f : X → Y`, apply `f` to the children of a `Layer X` to
   obtain a `Layer Y`. The constructor at the parent stays the same.
 
-`expressionF` packages `Layer` and `Layer.map` as an endofunctor on types.
-An algebra for this functor consists of a carrier type `A` and a structure
-map `Layer A → A`: instructions for handling **one** already-processed node.
-The generic `fold` traverses an entire `Expr`, processing children recursively
-and then calling that structure map at each parent. Thus `values x` gives a
-fold into `Nat`, while `simplifiedSyntax` gives a fold back into `Expr`.
+`expressionF` packages `Layer` and `Layer.map` as an endofunctor on types. An
+algebra for this functor consists of a carrier type `A` and a structure map
+`Layer A → A`: instructions for handling **one** already-processed node. The
+generic `fold` traverses an entire `Expr`, processing children recursively and
+then calling that structure map at each parent. Thus `values x` gives a fold
+into `Nat`, while `simplifiedSyntax` gives a fold back into `Expr`.
 
 ## What the categorical part adds
 
 The `syntaxAlgebra` structure map assembles `Layer Expr → Expr` without
 rewriting. `foldHom` packages a fold as an algebra morphism. The morphism law
-says that folding after assembling one node equals processing its children
-first and then interpreting that node. We prove every morphism out of
-`syntaxAlgebra` is such a fold; this makes `syntaxAlgebra` an initial object
-in mathlib's category `Endofunctor.Algebra expressionF`.
+says that folding after assembling one node equals processing its children first
+and then interpreting that node. We prove every morphism out of `syntaxAlgebra`
+is such a fold; this makes `syntaxAlgebra` an initial object in mathlib's
+category `Endofunctor.Algebra expressionF`.
 
-Finally, `evaluateHom` says evaluation respects each local simplification
-rule. Composing it with the simplification fold gives a morphism from syntax
-to values. Initiality says this must be the ordinary evaluation fold, so
+Finally, `evaluateHom` says evaluation respects each local simplification rule.
+Composing it with the simplification fold gives a morphism from syntax to
+values. Initiality says this must be the ordinary evaluation fold, so
 simplifying any expression preserves its value.
 
-An endofunctor algebra supplies operations, not equations for those
-operations. Associativity, distributivity, and the correctness of our rewrite
-rules are separate facts. Here we prove only the rewrites implemented below.
+An endofunctor algebra supplies operations, not equations for those operations.
+Associativity, distributivity, and the correctness of our rewrite rules are
+separate facts. Here we prove only the rewrites implemented below.
 -/
 
 namespace EndofunctorAlgebraKindergarten
