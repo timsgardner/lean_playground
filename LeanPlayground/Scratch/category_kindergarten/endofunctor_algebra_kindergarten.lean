@@ -18,20 +18,46 @@ The category of F-algebras is defined as follows:
 - Morphisms: morphisms `f: (A, α) ⟶ (B, β)` in the category of F-algebras are
   those morphisms `f: A ⟶ B` in `C` that make this square commute:
 
+```
        F A  ─── F f ───→  F B
         │                  │
         α                  β
         │                  │
         ↓                  ↓
         A  ───── f ──────→ B
+```
 
 - The identity morphism for `(A, α)` is just `𝟙 A`.
 - Composition is just composition of underlying morphisms in `C`. The
   commutativity condition for `C` morphisms being included in the category of
   F-algebras ensures this obeys the categorical composition law.
 
-In this file, `F` is the endofunctor `expressionF : Type ⥤ Type`, so we're examining the
-*category of `expressionF`-algebras*.
+In this file, `F` is the endofunctor `layerF : Type ⥤ Type`, so we're examining the
+*category of `layerF`-algebras*. The condition on its morphisms is that any morphism
+`f : (A, α) ⟶ (B, β)` must make the following diagram commute:
+
+```
+layerF.obj A  ── layerF.map f ──→  layerF.obj B
+      │                                │
+      α                                β
+      │                                │
+      ↓                                ↓
+      A  ─────────── f ─────────────→  B
+```
+
+The action of `layerF` on objects is to construct the inductive wrapper `Layer`, and
+its action on morphisms is to apply `Layer.map`, so the diagram above translates to:
+
+```
+Layer A  ─── Layer.map f ───→  Layer B
+   │                              │
+   α                              β
+   │                              │
+   ↓                              ↓
+   A  ────────── f ─────────────→ B
+```
+
+
 
 ## The concrete task
 
@@ -46,9 +72,9 @@ There are several things we might do with that same tree:
 The common pattern is **bottom-up processing**. First process each child of a
 node. Then do one operation at the parent, using the processed children. The
 type `Layer X` below describes the input to that *parent operation*: a choice of
-constructor, plus an `X` for each child position. For example, `Layer.add left
-right : Layer X` is an addition node with two child results of type `X`. A
-`Layer X` is only one node. A whole nested expression is an `Expr`.
+constructor, plus an `X` for each child position. For example,
+`Layer.add left right : Layer X` is an addition node with two child results of
+type `X`. A `Layer X` is only one node. A whole nested expression is an `Expr`.
 
 Here are two choices for `X` at an addition node, followed by the operation that
 relates them:
@@ -60,7 +86,7 @@ relates them:
 * `Layer.map f`: if `f : X → Y`, apply `f` to the children of a `Layer X` to
   obtain a `Layer Y`. The constructor at the parent stays the same.
 
-`expressionF` packages `Layer` and `Layer.map` as an endofunctor on types. An
+`layerF` packages `Layer` and `Layer.map` as an endofunctor on types. An
 algebra for this functor consists of a carrier type `A` and a structure map
 `Layer A → A`: instructions for handling **one** already-processed node. The
 generic `fold` traverses an entire `Expr`, processing children recursively and
@@ -74,7 +100,7 @@ rewriting. `foldHom` packages a fold as an algebra morphism. The morphism law
 says that folding after assembling one node equals processing its children first
 and then interpreting that node. We prove every morphism out of `syntaxAlgebra`
 is such a fold; this makes `syntaxAlgebra` an initial object in mathlib's
-category `Endofunctor.Algebra expressionF`.
+category `Endofunctor.Algebra layerF`.
 
 Finally, `evaluateHom` says evaluation respects each local simplification rule.
 Composing it with the simplification fold gives a morphism from syntax to
@@ -116,7 +142,7 @@ arrows (functions here). `obj X := Layer X` gives the possible one-node inputs
 for an operation returning an `X`. `map f` converts a layer with `X` children
 to one with `Y` children. The final two fields prove that mapping an identity
 or a composite behaves as a functor should. -/
-def expressionF : Type ⥤ Type where
+def layerF : Type ⥤ Type where
   obj X := Layer X
   map f := TypeCat.ofHom (Layer.map f)
   map_id X := by
@@ -142,7 +168,7 @@ inductive Expr where
 /- Interpret one layer of *existing expression trees* by attaching a root
 constructor. This is the syntax algebra, with carrier `Expr` and structure map
 `Layer Expr → Expr`. It neither evaluates nor simplifies. -/
-def syntaxAlgebra : Algebra expressionF where
+def syntaxAlgebra : Algebra layerF where
   a := Expr
   str := TypeCat.ofHom fun
     | .lit n => .lit n
@@ -154,7 +180,7 @@ def syntaxAlgebra : Algebra expressionF where
 For an addition, recursively fold both subexpressions, obtaining two `A.a`s;
 then pass `Layer.add` of those results to `A.str`. This separates tree
 traversal from the meaning assigned to each constructor. -/
-def fold (A : Algebra expressionF) : Expr → A.a
+def fold (A : Algebra layerF) : Expr → A.a
   | .lit n => A.str (.lit n)
   | .var => A.str .var
   | .add a b => A.str (.add (fold A a) (fold A b))
@@ -163,12 +189,12 @@ def fold (A : Algebra expressionF) : Expr → A.a
 /- A morphism of algebras is a function between carriers that respects their
 one-node operations. For `fold A`, mathlib's `Hom.h` field asks for
 
-  `expressionF.map (fold A) ≫ A.str = syntaxAlgebra.str ≫ fold A`.
+  `layerF.map (fold A) ≫ A.str = syntaxAlgebra.str ≫ fold A`.
 
 At an addition layer, this means
 `A.str (.add (fold A left) (fold A right)) = fold A (.add left right)`.
 The equation follows directly from the recursive definition of `fold`. -/
-def foldHom (A : Algebra expressionF) : syntaxAlgebra ⟶ A where
+def foldHom (A : Algebra layerF) : syntaxAlgebra ⟶ A where
   f := TypeCat.ofHom (fold A)
   h := by
     apply TypeCat.Hom.ext
@@ -179,7 +205,7 @@ def foldHom (A : Algebra expressionF) : syntaxAlgebra ⟶ A where
 /- Conversely, an algebra morphism from syntax to `A` has no freedom once
 `A.str` is chosen. Its compatibility equation determines its result at each
 constructor from its results on the children. Induction gives the unique fold. -/
-theorem hom_eq_foldHom (A : Algebra expressionF) (f : syntaxAlgebra ⟶ A) :
+theorem hom_eq_foldHom (A : Algebra layerF) (f : syntaxAlgebra ⟶ A) :
     f = foldHom A := by
   apply Algebra.ext
   apply TypeCat.Hom.ext
@@ -203,7 +229,7 @@ theorem hom_eq_foldHom (A : Algebra expressionF) (f : syntaxAlgebra ⟶ A) :
       simpa only [fold, ← ha, ← hb] using h.symm
 
 /- "Initial" means exactly one algebra morphism from `syntaxAlgebra` to every
-other `expressionF` algebra. The previous two declarations supplied existence
+other `layerF` algebra. The previous two declarations supplied existence
 and uniqueness, respectively. -/
 def syntaxIsInitial : CategoryTheory.Limits.IsInitial syntaxAlgebra :=
   CategoryTheory.Limits.IsInitial.ofUniqueHom foldHom hom_eq_foldHom
@@ -211,7 +237,7 @@ def syntaxIsInitial : CategoryTheory.Limits.IsInitial syntaxAlgebra :=
 /- An algebra with carrier `Nat`: choose a value for the variable, then
 interpret addition and multiplication as ordinary natural-number operations.
 For instance, with `x = 7`, processing `Layer.add 7 2` returns `9`. -/
-def values (x : Nat) : Algebra expressionF where
+def values (x : Nat) : Algebra layerF where
   a := Nat
   str := TypeCat.ofHom fun
     | .lit n => n
@@ -251,7 +277,7 @@ def simplifyMul : Expr → Expr → Expr
 /- This algebra also has carrier `Expr`, but it handles addition and
 multiplication differently from `syntaxAlgebra.str`: its structure map may
 return one child or a folded literal instead of attaching the original root. -/
-def simplifiedSyntax : Algebra expressionF where
+def simplifiedSyntax : Algebra layerF where
   a := Expr
   str := TypeCat.ofHom fun
     | .lit n => .lit n
@@ -308,7 +334,7 @@ def evaluateHom (x : Nat) : simplifiedSyntax ⟶ values x where
 /- `forget` exposes the ordinary function underlying an algebra morphism.
 The morphism still carries its compatibility proof in the algebra category. -/
 example (x : Nat) :
-    (Algebra.forget expressionF).map (evaluateHom x) =
+    (Algebra.forget layerF).map (evaluateHom x) =
       TypeCat.ofHom (evaluate x) := rfl
 
 /- There are two routes from syntax to numbers:
