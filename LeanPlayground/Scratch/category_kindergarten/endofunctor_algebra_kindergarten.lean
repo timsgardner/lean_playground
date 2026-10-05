@@ -797,7 +797,14 @@ set_option pp.categoryTheory.hideConcreteHom true
 -/
 
 /-- A polynomial signature: node shapes together with the recursive child
-positions belonging to each shape. -/
+  positions belonging to each shape.
+
+Note that `Pos` is a function from the type `Shape` itself to `Type`. That is,
+it maps elements of the type `Shape` to types, regardless of what `Shape`
+actually is. This captures the idea of an abstract signature: if elements of
+shape are construed as slots in a parameter list, for example, `Pos` maps them
+to their type.
+-/
 structure Signature where
   Shape : Type
   Pos : Shape → Type
@@ -812,6 +819,12 @@ recursive child position of that shape.
 Mathematically:
 
     Layer P X = Σ s : P.Shape, P.Pos s → X.
+
+Note that this is a *dependent pair*. The Σ notation below is sugar for
+`Sigma (fun s : P.Shape => P.Pos s → X)`.
+
+A value of this type is `⟨s, children⟩`, with `s: P.Shape` and
+`children : P.Pos s ⟶ X`.
 -/
 abbrev Layer (P : Signature) (X : Type) :=
   Σ s : P.Shape, P.Pos s → X
@@ -1125,6 +1138,64 @@ def consLayer
     (tailResult : X) :
     (signature Elem).Layer X :=
   ⟨.cons head, fun _ => tailResult⟩
+
+
+/-!
+## List algebras and folds
+
+An algebra for this signature is exactly a choice of a result for `nil` and
+an operation taking a head and the already-processed tail. The two branches
+below eliminate the `Empty` and `Unit` child positions, respectively.
+-/
+
+/-- Build a list-polynomial algebra from its `nil` and `cons` operations. -/
+def algebra (Elem Carrier : Type) (nil : Carrier)
+    (cons : Elem → Carrier → Carrier) : Algebra (signature Elem).functor where
+  a := Carrier
+  str := TypeCat.ofHom fun layer =>
+    match layer with
+    | ⟨.nil, _⟩ => nil
+    | ⟨.cons head, children⟩ => cons head (children ())
+
+/-- Ordinary lists form an algebra by their constructors. -/
+def listAlgebra (Elem : Type) : Algebra (signature Elem).functor :=
+  algebra Elem (List Elem) [] List.cons
+
+/-- The same signature can count nodes instead of building a list. -/
+def lengthAlgebra (Elem : Type) : Algebra (signature Elem).functor :=
+  algebra Elem Nat 0 (fun _ length => length + 1)
+
+/-- Regard an ordinary list as a tree of the list signature. -/
+def toTree {Elem : Type} : List Elem → Tree (signature Elem)
+  | [] => .node .nil (fun p => nomatch p)
+  | head :: tail => .node (.cons head) (fun _ => toTree tail)
+
+/-- The generic tree fold specializes to the usual right fold on lists. -/
+theorem fold_toTree {Elem Carrier : Type} (nil : Carrier)
+    (cons : Elem → Carrier → Carrier) (xs : List Elem) :
+    (signature Elem).fold (algebra Elem Carrier nil cons) (toTree xs) =
+      xs.foldr cons nil := by
+  induction xs with
+  | nil => rfl
+  | cons head tail ih =>
+      simpa [toTree, Signature.fold, algebra, List.foldr] using
+        congrArg (cons head) ih
+
+/-- Folding into the constructor algebra recovers the original list. -/
+theorem fold_listAlgebra {Elem : Type} (xs : List Elem) :
+    (signature Elem).fold (listAlgebra Elem) (toTree xs) = xs := by
+  simpa [listAlgebra, algebra] using
+    (fold_toTree (Elem := Elem) ([] : List Elem) List.cons xs)
+
+/-- Changing only the algebra makes the same tree compute list length. -/
+theorem fold_lengthAlgebra {Elem : Type} (xs : List Elem) :
+    (signature Elem).fold (lengthAlgebra Elem) (toTree xs) = xs.length := by
+  have h : xs.foldr (fun _ length => length + 1) 0 = xs.length := by
+    induction xs with
+    | nil => rfl
+    | cons head tail ih => simp [ih]
+  exact (fold_toTree (Elem := Elem) (0 : Nat)
+    (fun _ length => length + 1) xs).trans h
 
 end ListExample
 
