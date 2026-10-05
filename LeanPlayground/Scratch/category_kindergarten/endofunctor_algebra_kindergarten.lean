@@ -1096,6 +1096,8 @@ noncomputable def rollIso (P : Signature) :
     exact P.roll_isIso
   exact asIso f
 
+end Signature
+
 
 /-!
 ## Recovering the list polynomial
@@ -1166,7 +1168,7 @@ def lengthAlgebra (Elem : Type) : Algebra (signature Elem).functor :=
   algebra Elem Nat 0 (fun _ length => length + 1)
 
 /-- Regard an ordinary list as a tree of the list signature. -/
-def toTree {Elem : Type} : List Elem → Tree (signature Elem)
+def toTree {Elem : Type} : List Elem → Signature.Tree (signature Elem)
   | [] => .node .nil (fun p => nomatch p)
   | head :: tail => .node (.cons head) (fun _ => toTree tail)
 
@@ -1231,8 +1233,6 @@ Everything proved above -- fold construction, uniqueness, initiality, fusion,
 and Lambek's lemma -- then applies without another constructor-by-constructor
 categorical proof.
 -/
-
-end Signature
 
 end PolynomialTrees
 
