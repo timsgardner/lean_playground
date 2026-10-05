@@ -1,5 +1,6 @@
 import Mathlib.CategoryTheory.Endofunctor.Algebra
 import Mathlib.CategoryTheory.Types.Basic
+import Mathlib.Data.PFunctor.Univariate.Basic
 import LeanPlayground.Scratch.category_kindergarten.common_tools
 
 
@@ -1100,6 +1101,115 @@ end Signature
 
 
 /-!
+## Comparison with mathlib's polynomial trees
+
+Mathlib packages the same shape-and-position data as `PFunctor`: its `A` is
+our `Shape`, and its `B` is our `Pos`. Applying a `PFunctor` to `X` gives the
+same dependent pair as `Signature.Layer P X`; its `map` acts on the children in
+the same way as `Signature.map`.
+
+Mathlib's `PFunctor.W` is the corresponding well-founded tree type. Its
+constructor `PFunctor.W.mk`, destructor `PFunctor.W.dest`, and `WType.elim`
+play the roles of our `roll`, root decomposition, and `fold`. The categorical
+`Algebra`, `foldHom`, initiality, and fusion arguments above use this same
+underlying data, but are supplied here as an additional categorical layer.
+-/
+
+namespace MathlibComparison
+
+/-- Package one of our signatures as a mathlib polynomial functor. -/
+def asPFunctor (P : Signature) : PFunctor where
+  A := P.Shape
+  B := P.Pos
+
+/-- Both one-layer types are definitionally the same sigma type. -/
+example (P : Signature) (X : Type) :
+    P.Layer X = asPFunctor P X := rfl
+
+/-- Both maps leave the shape fixed and apply the function to every child. -/
+theorem map_eq (P : Signature) {X Y : Type} (f : X → Y)
+    (layer : P.Layer X) :
+    P.map f layer = (asPFunctor P).map f layer := by
+  cases layer
+  rfl
+
+/-- Mathlib's constructor and destructor exhibit the same root decomposition
+as our `rollIso`, directly at the level of types. -/
+example (P : Signature) (layer : asPFunctor P ((asPFunctor P).W)) :
+    PFunctor.W.dest (PFunctor.W.mk layer) = layer :=
+  PFunctor.W.dest_mk layer
+
+example (P : Signature) (tree : (asPFunctor P).W) :
+    PFunctor.W.mk (PFunctor.W.dest tree) = tree :=
+  PFunctor.W.mk_dest tree
+
+/-- Translate our well-founded trees to mathlib's W-type. -/
+def toW (P : Signature) : Signature.Tree P → (asPFunctor P).W
+  | .node shape children =>
+      WType.mk shape (fun p => toW P (children p))
+
+/-- Translation takes our constructor to mathlib's constructor after mapping
+the translation over the children. -/
+theorem toW_roll (P : Signature) (layer : P.Layer (Signature.Tree P)) :
+    toW P (P.roll layer) =
+      PFunctor.W.mk ((asPFunctor P).map (toW P) layer) := by
+  cases layer
+  rfl
+
+/-- Translate mathlib's W-type back to our trees. -/
+def fromW (P : Signature) : (asPFunctor P).W → Signature.Tree P
+  | WType.mk shape children =>
+      .node shape (fun p => fromW P (children p))
+
+theorem fromW_toW (P : Signature) (tree : Signature.Tree P) :
+    fromW P (toW P tree) = tree := by
+  induction tree with
+  | node shape children ih =>
+      simp only [toW, fromW]
+      have hchildren : (fun p => fromW P (toW P (children p))) = children := by
+        funext p
+        exact ih p
+      rw [hchildren]
+
+theorem toW_fromW (P : Signature) (tree : (asPFunctor P).W) :
+    toW P (fromW P tree) = tree := by
+  induction tree with
+  | mk shape children ih =>
+      simp only [toW, fromW]
+      have hchildren : (fun p => toW P (fromW P (children p))) = children := by
+        funext p
+        exact ih p
+      rw [hchildren]
+
+/-- The two inductive tree presentations are equivalent. -/
+def treeEquiv (P : Signature) : Signature.Tree P ≃ (asPFunctor P).W where
+  toFun := toW P
+  invFun := fromW P
+  left_inv := fromW_toW P
+  right_inv := toW_fromW P
+
+/-- Under that equivalence, our generic fold is mathlib's W-type eliminator. -/
+theorem fold_eq_elim (P : Signature) (A : Algebra P.functor)
+    (tree : Signature.Tree P) :
+    P.fold A tree =
+      WType.elim A.a (fun layer : asPFunctor P A.a => A.str layer)
+        (toW P tree) := by
+  induction tree with
+  | node shape children ih =>
+      simp only [Signature.fold, toW, WType.elim]
+      have hchildren :
+          (fun p => P.fold A (children p)) =
+            (fun p => WType.elim A.a (fun layer : asPFunctor P A.a => A.str layer)
+              (toW P (children p))) := by
+        funext p
+        exact ih p
+      rw [hchildren]
+      rfl
+
+end MathlibComparison
+
+
+/-!
 ## Recovering the list polynomial
 
 For lists with elements of type `Elem`, there are two kinds of node:
@@ -1128,6 +1238,23 @@ def signature (Elem : Type) : Signature where
   Shape := Shape Elem
   Pos := pos
 
+/-
+Tracing it through:
+
+`signature Elem` is a value of type `Signature`, whose `Pos` field is `pos`.
+`(signature Elem).Layer X` is a type, definitionally equal to
+`Σ s : Shape Elem, pos s → X`.
+An element of this type (a "layer") is a pair `⟨s, children⟩`, where
+`s : Shape Elem` and `children : pos s → X`.
+`children` here is to be interpreted as a mapping from "child slots" to
+"child values", with the domain `pos s` of `children` the set of possible slots,
+and the codomain `X` being the type of those children.
+For `nil`, `pos s` is `Empty`, so there are no children -- the candidate slot `Empty`
+has no mappings out of it.
+For `cons head`, `pos s` is `Unit`, so `children ()` is the one tail result.
+-/
+
+
 /-- The polynomial encoding of a `nil` layer. -/
 def nilLayer (Elem X : Type) :
     (signature Elem).Layer X :=
@@ -1141,6 +1268,12 @@ def consLayer
     (signature Elem).Layer X :=
   ⟨.cons head, fun _ => tailResult⟩
 
+#print consLayer
+/-yields:
+def EndofunctorAlgebraKindergarten.PolynomialTrees.ListExample.consLayer : (Elem X : Type) →
+  Elem → X → (signature Elem).Layer X :=
+fun Elem X head tailResult => ⟨Shape.cons head, fun x => tailResult⟩
+-/
 
 /-!
 ## List algebras and folds
