@@ -540,7 +540,7 @@ inductive ListLayer (Elem X : Type) where
   | cons (head : Elem) (tailResult : X)
 
 
-example (Elem X : Type) (bla: Unit ⊕ (Elem × X)): true := by
+example (Elem X : Type): True := by
   #check Unit ⊕ (Elem × X)
   trivial
 
@@ -659,7 +659,7 @@ calls `listFold A`. The loop this establishes does not traverse `listF Elem`
 itself, nor could it: endofunctors in `Type` map types to types, they have no
 action on elements of those types. But this could be factored to reveal a
 function going in the direction of `listFold A`, from `A.a` to `listF Elem A.a`,
-namely that taking
+namely the mapping
 `(listFold A tail) ↦ (ListLayer Elem).cons head (listFold A tail)`
 in `listF Elem A.a`.
 
@@ -676,6 +676,8 @@ def listFoldHom {Elem : Type} (A : Algebra (listF Elem)) : listAlgebra Elem ⟶ 
     funext layer
     cases layer <;> rfl
 
+set_option pp.categoryTheory.hideConcreteHom true
+
 /- This proof uses only induction on the constructors of a list. In particular,
 it does not appeal to any pre-existing uniqueness theorem for `List.foldr`. -/
 theorem list_hom_eq_foldHom {Elem : Type} (A : Algebra (listF Elem))
@@ -688,11 +690,24 @@ theorem list_hom_eq_foldHom {Elem : Type} (A : Algebra (listF Elem))
   induction xs with
   | nil =>
       have h := congrArg (fun g : ListLayer Elem (List Elem) ⟶ A.a => g .nil) f.h
+      -- `exact h.symm` works here, but this is a little more revealing:
+      simp only [CategoryTheory.comp_apply, listF, listAlgebra] at h
+      conv at h =>
+        lhs
+        rhs
+        simp
+      conv at h =>
+        rhs
+        rhs
+        simp
+      conv =>
+        rhs
+        unfold listFold
       exact h.symm
-    | cons head tail ih =>
-      have h := congrArg (fun g : ListLayer Elem (List Elem) ⟶ A.a => g (.cons head tail)) f.h
-      change A.str (.cons head (f.f tail)) = f.f (head :: tail) at h
-      simpa only [listFold, ih] using h.symm
+  | cons head tail ih =>
+    have h := congrArg (fun g : ListLayer Elem (List Elem) ⟶ A.a => g (.cons head tail)) f.h
+    change A.str (.cons head (f.f tail)) = f.f (head :: tail) at h
+    simpa only [listFold, ih] using h.symm
 
 /- Equivalently, `listAlgebra Op` is initial: every target algebra receives
 exactly one algebra morphism, namely `listFoldHom`. -/
