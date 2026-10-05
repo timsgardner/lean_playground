@@ -633,13 +633,15 @@ def listAlgebra (Elem : Type) : Algebra (listF Elem) where
 functions) that takes an algebra of `listF Elem`, and produces a function from
 `List Elem` to the carrier set of that algebra.
 
-Since `ListElem` is the carrier set of `listAlgebra`, this produced function is
-a candidate morphism out of `listAlgebra` in the category of algebras for
-`listF`. By the proof of the relevant commutativity condition given in
-`listFoldHom.h`, it is in fact such a morphism.
+Since `List Elem` is the carrier set of `listAlgebra Elem`, this produced
+function is a candidate morphism out of `listAlgebra Elem` in the category of
+algebras for `listF`. By the proof of the relevant commutativity condition given
+in `listFoldHom.h`, it is in fact such a morphism.
 
-`listFold`, then, can also be seen as a factory of algebra morphisms out of
-`listF Elem`.
+`listFold Elem`, then, can also be seen as a factory of algebra morphisms out of
+`listAlgebra Elem`, into *any* algebra of `listF Elem`. We will see that each of
+these is in fact *the unique* algebra morphism out of `listF Elem`, making
+`listAlgebra Elem` initial.
 
 The action of the produced function on non-empty lists in `List Elem` can be
 considered in steps.
@@ -647,11 +649,19 @@ considered in steps.
 2. *Recursively* construct the image of `tail` under `listFold A`, landing in
    the carrier `A.a` of the algebra `A`. The recursion thereby descends on the
    tail of the list in `List Elem`.
-3. Construct a `ListLayer Elem A.a` from `head` and this value
-   `(listFold A tail)` in `A.a`. This `ListLayer` is in `listF(A.a)`.
+3. Construct a `ListLayer Elem A.a` from `head` and this value `(listFold A
+   tail)` in `A.a`. This `ListLayer` is in `listF(A.a)`.
 4. Use the structure map `A.str` to send this instance of `ListLayer Elem A.a`
    back to the carrier `A.a`.
 
+It is worth noting that the manifest recursion happens in step 2: `listFold A`
+calls `listFold A`. The loop this establishes does not traverse `listF Elem`
+itself, nor could it: endofunctors in `Type` map types to types, they have no
+action on elements of those types. But this could be factored to reveal a
+function going in the direction of `listFold A`, from `A.a` to `listF Elem A.a`,
+namely that taking
+`(listFold A tail) ↦ (ListLayer Elem).cons head (listFold A tail)`
+in `listF Elem A.a`.
 
  -/
 def listFold {Elem : Type} (A : Algebra (listF Elem)) : List Elem → A.a
