@@ -800,11 +800,12 @@ set_option pp.categoryTheory.hideConcreteHom true
 /-- A polynomial signature: node shapes together with the recursive child
   positions belonging to each shape.
 
-Note that `Pos` is a function from the type `Shape` itself to `Type`. That is,
-it maps elements of the type `Shape` to types, regardless of what `Shape`
+Note that `Pos` is a function from the type at `Shape` itself to `Type`. That is,
+it maps elements of the type at `Shape` to types, regardless of what `Shape`
 actually is. This captures the idea of an abstract signature: if elements of
 shape are construed as slots in a parameter list, for example, `Pos` maps them
 to their type.
+
 -/
 structure Signature where
   Shape : Type
@@ -1212,16 +1213,15 @@ end MathlibComparison
 /-!
 ## Recovering the list polynomial
 
-For lists with elements of type `Elem`, there are two kinds of node:
-
-* `nil`, with no recursive positions;
-* `cons head`, with one recursive position.
-
-So its polynomial is
+For a type `X` of recursive child values, the list polynomial is
 
     1 + Elem × X.
 
-The `head` belongs to the node shape; only the tail is a recursive position.
+The `nil` shape has no recursive positions, so its position type is `Empty`.
+For each `head : Elem`, the shape `cons head` has one recursive position,
+whose position type is `Unit`. This position represents the tail argument
+of `cons`; an `X` value is assigned to it. The head is the `Elem` value
+used to choose the shape `cons head`.
 -/
 
 namespace ListExample
@@ -1242,6 +1242,9 @@ def signature (Elem : Type) : Signature where
 Tracing it through:
 
 `signature Elem` is a value of type `Signature`, whose `Pos` field is `pos`.
+Here `X` is the type of the value supplied at the tail position. In
+`listAlgebra` below, `X = List Elem`, so this value is the tail list. In
+`lengthAlgebra`, `X = Nat`, so it is the length already computed for the tail.
 `(signature Elem).Layer X` is a type, definitionally equal to
 `Σ s : Shape Elem, pos s → X`.
 An element of this type (a "layer") is a pair `⟨s, children⟩`, where
@@ -1249,31 +1252,13 @@ An element of this type (a "layer") is a pair `⟨s, children⟩`, where
 `children` here is to be interpreted as a mapping from "child slots" to
 "child values", with the domain `pos s` of `children` the set of possible slots,
 and the codomain `X` being the type of those children.
-For `nil`, `pos s` is `Empty`, so there are no children -- the candidate slot `Empty`
-has no mappings out of it.
-For `cons head`, `pos s` is `Unit`, so `children ()` is the one tail result.
+For `nil`, `pos s` is `Empty`. The unique function `children : Empty → X`
+has no possible arguments, so it supplies no child values.
+For `cons head`, `pos s` is `Unit`, so `children () : X` is the tail value; in the
+case of `listAlgebra`, that is a particular instance of `List Elem` (so, a particular list).
+In the case of `lengthAlgebra`, that is a particular `Nat`.
 -/
 
-
-/-- The polynomial encoding of a `nil` layer. -/
-def nilLayer (Elem X : Type) :
-    (signature Elem).Layer X :=
-  ⟨.nil, fun p => nomatch p⟩
-
-/-- The polynomial encoding of `cons head tailResult`. -/
-def consLayer
-    (Elem X : Type)
-    (head : Elem)
-    (tailResult : X) :
-    (signature Elem).Layer X :=
-  ⟨.cons head, fun _ => tailResult⟩
-
-#print consLayer
-/-yields:
-def EndofunctorAlgebraKindergarten.PolynomialTrees.ListExample.consLayer : (Elem X : Type) →
-  Elem → X → (signature Elem).Layer X :=
-fun Elem X head tailResult => ⟨Shape.cons head, fun x => tailResult⟩
--/
 
 /-!
 ## List algebras and folds
@@ -1366,6 +1351,94 @@ Everything proved above -- fold construction, uniqueness, initiality, fusion,
 and Lambek's lemma -- then applies without another constructor-by-constructor
 categorical proof.
 -/
+
+namespace BinaryTreeExample
+
+inductive BinaryTreeShape (LeafElem BranchElem: Type) where
+  | leaf (payload: LeafElem)
+  | branch (payload: BranchElem)
+
+-- TODO: this would be more interesting if it did inspect its data
+def pos {LeafElem BranchElem: Type} : BinaryTreeShape LeafElem BranchElem → Type
+  | .leaf _ => Empty
+  | .branch _ => Fin 2
+
+def signature (LeafElem BranchElem: Type) : Signature where
+  Shape := BinaryTreeShape LeafElem BranchElem
+  Pos := pos
+
+def algebra
+    {CarrierF: (a b: Type) → Type}
+    (LeafElem BranchElem: Type)
+    (leaf: LeafElem → (CarrierF LeafElem BranchElem))
+    (branch: BranchElem →
+      (CarrierF LeafElem BranchElem) →
+      (CarrierF LeafElem BranchElem) →
+      (CarrierF LeafElem BranchElem)):
+    Algebra (signature LeafElem BranchElem).functor where
+  a := (CarrierF LeafElem BranchElem)
+  str := TypeCat.ofHom fun layer =>
+    match layer with
+    | ⟨.leaf payload, _⟩ => leaf payload
+    -- using tactics here just to make the state of things more clear
+    | ⟨.branch payload, children⟩ => by
+        conv at children =>
+          lhs
+          whnf
+        exact (branch payload (children 0) (children 1))
+
+/-
+ Now we can have some concrete cases. The following structure isn't intrinsic
+ to the operation of the abstract BinaryTreeExample algebra, it's a concrete
+ type we might find in the world that this can be applied to.
+-/
+
+inductive BinaryTree (LeafElem BranchElem: Type) where
+  | leaf (payload: LeafElem)
+  | branch
+      (payload: BranchElem)
+      (lhs: BinaryTree LeafElem BranchElem)
+      (rhs: BinaryTree LeafElem BranchElem)
+
+def binaryTreeAlgebra (LeafElem BranchElem: Type) :
+    Algebra (signature LeafElem BranchElem).functor :=
+  algebra LeafElem BranchElem BinaryTree.leaf BinaryTree.branch
+
+def toTree  (bt: BinaryTree LeafElem BranchElem) :
+    Signature.Tree (signature LeafElem BranchElem) :=
+  match bt with
+  /-
+  This also works:
+  `.leaf payload => .node (BinaryTreeShape.leaf payload) (fun position => nomatch position)
+  -/
+  | .leaf payload => by
+      let the_leaf_shape : BinaryTreeShape LeafElem BranchElem := (BinaryTreeShape.leaf payload)
+      unfold signature
+      apply Signature.Tree.node
+      case shape =>
+        simp
+        exact the_leaf_shape
+      case children =>
+        intro p
+        simp at p
+        cases p
+  | .branch payload lhs rhs =>
+      .node
+        (.branch payload)
+        (fun position: Fin 2 =>
+          match position with
+          | 0 => toTree lhs
+          | 1 => toTree rhs)
+
+
+
+
+
+
+
+
+
+end BinaryTreeExample
 
 end PolynomialTrees
 
