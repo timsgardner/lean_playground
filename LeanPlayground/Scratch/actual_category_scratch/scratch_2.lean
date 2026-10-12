@@ -3,6 +3,7 @@ import Mathlib.Tactic.Check
 
 set_option pp.deepTerms true
 set_option pp.proofs true
+set_option pp.coercions false
 
 section explicitVersion
 
@@ -49,12 +50,20 @@ end
 
 def Cell {A B: Type} (P: IndexedPartitions A B) : Set (Set A) := Set.range P.val
 
-/-- look up the cell of an `A`-/
-def to_cell (P: IndexedPartitions A B) (a: A) : Cell P :=
+/-- look up the cell of an `A`.
+
+The `val` slot gets the index of `a`, then pushes it back to cell so indexed.
+The `prop` slot is a proof that this `val` is indeed in the range of `↑P`,
+which goes from `B` to `Set A`. Here `P.val` is an implicit argument.
+-/
+def toCell (P: IndexedPartitions A B) (a: A) : Cell P :=
   ⟨P.val (P.index a), Set.mem_range_self (P.index a)⟩
 
 /-- `to_cell` does indeed look up the cell of an `a` -/
-theorem mem_index (P : IndexedPartitions A B) (a : A) : a ∈ (to_cell P a).val :=
+theorem mem_index
+    (P : IndexedPartitions A B)
+    (a : A)
+    : a ∈ (toCell P a).val :=
   (P.prop a).exists.choose_spec
 
 /-- you can't be in more than one cell -/
@@ -78,20 +87,21 @@ theorem cell_mem_unique {A B : Type}
   apply Subtype.ext
   rw [← hb, ← hb', hbb]
 
-
 noncomputable def toForwardFunction {A B : Type} (P : IndexedPartitions A B) : A → B :=
-  fun a => (P.property a).exists.choose
+  fun a => P.index a
 
-theorem mem_forward {A B : Type}
+theorem index_eq_iff
     (P: IndexedPartitions A B)
-    (a: A)
-    : a ∈ P.val (toForwardFunction P a) := by
-  unfold toForwardFunction
-  exact (P.property a).exists.choose_spec
-
-theorem forward_eq {A B : Type} (P : IndexedPartitions A B) {a : A} {b : B}
-    (h : a ∈ P.val b) : toForwardFunction P a = b :=
-  (P.property a).unique (mem_forward P a) h
+    {a: A}
+    {b: B}
+    : P.index a = b ↔ a ∈ P.val b := by
+  constructor
+  · intro h
+    subst h
+    #check mem_index P a
+    exact mem_index P a
+  · intro h
+    exact (P.prop a).unique (mem_index P a) h
 
 /-
 For the injective direction, we want to show that
@@ -101,8 +111,6 @@ function A -> B via toForwardFunction.
 In other words, we sant to show that if two IndexedPartitions
 A B *do* map to the same function A -> B via toForwardFunction,
 they are the same IndexedPartitions.
-
-
 -/
 
 theorem forward_function_bij {A B : Type}
@@ -113,56 +121,23 @@ theorem forward_function_bij {A B : Type}
     apply Subtype.ext
     funext b
     ext a
-    refine ⟨?p_to_p', ?p'_to_p⟩
-    case p_to_p' =>
-      intro ha
-      have blort : a ∈ p'.val (p'.toForwardFunction a) := by
-        apply mem_forward
-
-
-
-
-    case p'_to_p =>
+    #check congrFun h a
+    have h' : p.index a = p'.index a := congrFun h a
+    rw [← index_eq_iff p, ← index_eq_iff p', h']
   case surj =>
-    sorry
-
-
-
-
+    intro f
+    let p : IndexedPartitions A B :=
+      ⟨fun b => {a | f a = b}, by
+        intro a
+        refine ⟨f a, ?mem, ?uniq⟩
+        case mem => rfl
+        case uniq =>
+          intro b hb
+          exact hb.symm⟩
+    refine ⟨p, funext fun a => ?_⟩
+    apply (index_eq_iff p).mpr
+    rfl
 
 end IndexedPartitions
-
-
-
-
-noncomputable example : (A → B) ≃ IndexedPartitions A B := by
-  let toFun : (f: A → B) → IndexedPartitions A B :=
-    fun f => by
-      refine ⟨(fun b =>  f⁻¹' {b}), ?_⟩
-      intro a
-      refine ⟨?_, ?_⟩
-      · apply f
-        exact a
-      · simp
-        refine ⟨by trivial, ?_⟩
-        intro b h
-        exact h.symm
-  let invFun : (IndexedPartitions A B) → (A → B) :=
-    fun ips => by
-      intro a
-      have h : ∃! (b : B), a ∈ (ips.1 b) := ips.2 a
-      exact h.exists.choose
-
-  -- refine
-  --   { toFun := toFun
-  --     invFun := ?invFun
-  --     left_inv := ?left_inv
-  --     right_inv := ?right_inv }
-  -- case invFun =>
-  --   intro a
-  --   let F : B → Set A := a.1
-  --   let ah : ∀ a' : A, ∃! b : B, a' ∈ F b := a.2
-  --   exact fun a' => (ah a').choose
-  -- case left_inv =>
 
 end explicitVersion
