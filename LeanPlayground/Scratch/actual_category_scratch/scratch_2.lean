@@ -246,3 +246,103 @@ theorem sUnion_cell
 end IndexedPartition
 
 end explicitVersion
+
+/-! ## The same development, restructured
+
+Everything above, organised around one lemma (`index_eq_iff`) and the
+equivalence `IndexedPartition A B ≃ (A → B)`. Theorem names match the
+explicit version where they correspond, so the two can be compared side by side. -/
+
+namespace elegantVersion
+
+/-- a partition of `A` into cells indexed by elements of `B`.
+
+`@[ext]` generates `IndexedPartition.ext : x.lookupCell = y.lookupCell → x = y`;
+`partition_property` is a proof, so it adds no condition (proof irrelevance). -/
+@[ext]
+structure IndexedPartition (A B : Type) where
+  lookupCell : B → Set A
+  partition_property : ∀ a, ∃! b, a ∈ lookupCell b
+
+namespace IndexedPartition
+
+variable {A B : Type} (P : IndexedPartition A B)
+
+/-- the `B`-index of the cell containing `a` -/
+noncomputable def index (a : A) : B :=
+  (P.partition_property a).exists.choose
+
+theorem mem_lookupCell_index (a : A) : a ∈ P.lookupCell (P.index a) :=
+  (P.partition_property a).exists.choose_spec
+
+/-- The key lemma: `index` and `lookupCell` determine each other.
+Everything below is a consequence of this. -/
+@[simp] theorem index_eq_iff {a : A} {b : B} : P.index a = b ↔ a ∈ P.lookupCell b :=
+  ⟨(· ▸ P.mem_lookupCell_index a), (P.partition_property a).unique (P.mem_lookupCell_index a)⟩
+
+/-! ### Indexed partitions are functions -/
+
+/-- `B`-indexed partitions of `A` are the same thing as functions `A → B`:
+forward, send `a` to the index of its cell; backward, take fibers. -/
+noncomputable def equivFun : IndexedPartition A B ≃ (A → B) where
+  toFun P := P.index
+  invFun f := ⟨fun b => f ⁻¹' {b}, fun a => ⟨f a, rfl, fun _ h => h.symm⟩⟩
+  left_inv P := by ext b a; simp
+  right_inv f := by funext a; simp
+
+theorem forward_function_bij : Function.Bijective (@equivFun A B) :=
+  equivFun.bijective
+
+/-! ### Cells -/
+
+def Cell : Set (Set A) := Set.range P.lookupCell
+
+/-- the cell containing `a` -/
+def toCell (a : A) : P.Cell := ⟨P.lookupCell (P.index a), a |> P.index |> Set.mem_range_self⟩
+
+theorem mem_toCell (a : A) : a ∈ (P.toCell a).val := P.mem_lookupCell_index a
+
+/-- you can't be in more than one cell -/
+theorem cell_mem_unique {a : A} {c c' : P.Cell} (ha : a ∈ c.val) (ha' : a ∈ c'.val) :
+    c = c' := by
+  obtain ⟨_, b, rfl⟩ := c
+  obtain ⟨_, b', rfl⟩ := c'
+  obtain rfl := (P.partition_property a).unique ha ha'
+  rfl
+
+/-- the cells cover `A` -/
+theorem sUnion_cell : ⋃₀ P.Cell = Set.univ :=
+  Set.eq_univ_of_forall fun a => ⟨_, ⟨P.index a, rfl⟩, P.mem_lookupCell_index a⟩
+
+/-! ### Bridge to `Setoid`
+
+Forget the labels: `a ~ a'` iff they lie in the same cell. -/
+
+noncomputable def toSetoid : Setoid A := Setoid.ker P.index
+
+/-- the equivalence class of `a` is its cell -/
+theorem setOf_rel (a : A) : {x | P.toSetoid x a} = P.lookupCell (P.index a) := by
+  ext; exact P.index_eq_iff
+
+/-- the unlabelled partition is the labelled one minus the empty cell -/
+theorem classes_toSetoid : P.toSetoid.classes = P.Cell \ {∅} := by
+  ext s
+  constructor
+  · rintro ⟨a, rfl⟩
+    rw [setOf_rel]
+    exact ⟨⟨_, rfl⟩, Set.nonempty_iff_ne_empty.mp ⟨a, P.mem_lookupCell_index a⟩⟩
+  · rintro ⟨⟨b, rfl⟩, hne⟩
+    obtain ⟨a, ha⟩ := Set.nonempty_iff_ne_empty.mpr hne
+    exact ⟨a, by rw [setOf_rel, (P.index_eq_iff).mpr ha]⟩
+
+/-- if no cell is empty, the cells form a `Setoid.IsPartition` -/
+theorem isPartition_cell (hne : ∀ b, (P.lookupCell b).Nonempty) :
+    Setoid.IsPartition P.Cell := by
+  have : P.Cell \ {∅} = P.Cell :=
+    Set.sdiff_singleton_eq_self fun ⟨b, hb⟩ => (hne b).ne_empty hb
+  rw [← this, ← classes_toSetoid]
+  exact Setoid.isPartition_classes _
+
+end IndexedPartition
+
+end elegantVersion
