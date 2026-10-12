@@ -196,25 +196,49 @@ theorem classes_toSetoid
     rw [helper, hb] at hmem
     exact hmem
 
-
-
-
-
-
 /-- if no cell is empty, the cells form a `Setoid.IsPartition` -/
 theorem isPartition_cell
     (P : IndexedPartition A B)
     (hne : ∀ b, (P.lookupCell b).Nonempty)
     : Setoid.IsPartition (Cell P) := by
-  sorry
+  unfold Cell
+  unfold Setoid.IsPartition
+  constructor
+  · rintro ⟨b, hb⟩
+    have blort := hne b
+    exact (Set.nonempty_iff_ne_empty.mp blort) hb
+  · intro a
+    conv =>
+      congr
+      intro sA
+    refine ⟨?set_a, ?case_2, ?case_3⟩
+    case set_a =>
+      exact P.lookupCell (P.index a)
+    case case_2 =>
+      simp
+      apply mem_index
+    case case_3 =>
+      simp
+      intro b h
+      have h1 : a ∈ P.lookupCell (P.index a) := mem_index P a
+      have h2 : b = (P.index a) := by
+        apply (P.partition_property a).unique
+        exact h
+        exact h1
+      rw [h2]
 
 /-- the cells cover `A` -/
 theorem sUnion_cell
     (P : IndexedPartition A B)
     : ⋃₀ Cell P = Set.univ := by
-  #check Setoid.IsPartition.sUnion_eq_univ
-  apply Setoid.IsPartition.sUnion_eq_univ
-  sorry
+  rw [Set.eq_univ_iff_forall]
+  intro a
+  apply Set.mem_sUnion.mpr
+  refine ⟨?sA, ?_⟩
+  · exact P.lookupCell (P.index a)
+  · constructor
+    · exact Set.mem_range_self (P.index a)
+    · exact (index_eq_iff P).mp rfl
 
 
 end IndexedPartition
