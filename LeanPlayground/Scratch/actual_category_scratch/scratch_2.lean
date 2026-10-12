@@ -1,11 +1,12 @@
 import Mathlib.Data.Set.Basic
+import Mathlib.Data.Setoid.Partition
 import Mathlib.Tactic.Check
 
 set_option pp.deepTerms true
 set_option pp.proofs true
 set_option pp.coercions false
 
-section explicitVersion
+namespace explicitVersion
 
 /-- a partition of `A` into cells indexed by elements of `B`.
 
@@ -143,6 +144,78 @@ theorem forward_function_bij {A B : Type}
     refine ⟨p, funext fun a => ?_⟩
     apply (index_eq_iff p).mpr
     rfl
+
+/-! ### Bridge to `Setoid`
+
+Forget the labels: `a ~ a'` iff they lie in the same cell. -/
+
+/-- the equivalence relation "lies in the same cell" -/
+noncomputable def toSetoid(P : IndexedPartition A B) : Setoid A :=
+  Setoid.ker P.index
+
+theorem toSetoid_rel_iff
+    (P : IndexedPartition A B)
+    (a a' : A)
+    : (toSetoid P) a a' ↔ P.index a = P.index a' := by
+  apply Setoid.ker_def
+
+/-- the unlabelled partition is the labelled one minus the empty cell -/
+theorem classes_toSetoid
+    (P : IndexedPartition A B)
+    : (toSetoid P).classes = Cell P \ {∅} := by
+  ext sA
+  have helper : ∀ y : A, {x | toSetoid P x y} = P.lookupCell (P.index y) := by
+    sorry
+  constructor
+  · intro h
+    obtain ⟨y, rfl⟩ := h
+    simp
+    constructor
+    · rw [helper]
+      apply Set.mem_range_self
+    · intro hempty
+      let bla := Setoid.refl' (toSetoid P) y
+      rw [(helper y)] at hempty
+      set c := P.lookupCell (P.index y)
+      have h : y ∈ c := by
+        apply mem_index
+      rw [hempty] at h
+      exact h
+  · intro h
+    simp at h
+    #check Set.mem_singleton_iff
+    obtain ⟨⟨b, rfl⟩, hne⟩ := h
+    rw [← Set.mem_singleton_iff] at hne
+    change P.lookupCell b ≠ ∅ at hne
+    -- get a point
+    rw [← Set.nonempty_iff_ne_empty] at hne
+    obtain ⟨y, hy⟩ := hne
+    #check index_eq_iff
+    let hb := (index_eq_iff P).mpr hy
+    have hmem := Setoid.mem_classes (toSetoid P) y
+    rw [helper, hb] at hmem
+    exact hmem
+
+
+
+
+
+
+/-- if no cell is empty, the cells form a `Setoid.IsPartition` -/
+theorem isPartition_cell
+    (P : IndexedPartition A B)
+    (hne : ∀ b, (P.lookupCell b).Nonempty)
+    : Setoid.IsPartition (Cell P) := by
+  sorry
+
+/-- the cells cover `A` -/
+theorem sUnion_cell
+    (P : IndexedPartition A B)
+    : ⋃₀ Cell P = Set.univ := by
+  #check Setoid.IsPartition.sUnion_eq_univ
+  apply Setoid.IsPartition.sUnion_eq_univ
+  sorry
+
 
 end IndexedPartition
 
