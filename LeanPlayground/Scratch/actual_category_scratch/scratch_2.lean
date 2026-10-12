@@ -293,13 +293,39 @@ Everything below is a consequence of this. -/
 
 /-! ### Indexed partitions are functions -/
 
+/-- The partition of `A` into the fibers of `f`: cell `b` is `{a | f a = b}`.
+  We'll use this as invFun in the bijection. -/
+def ofFun (f : A → B) : IndexedPartition A B where
+  lookupCell b := f ⁻¹' {b}
+  partition_property a := by
+    -- ⊢ ∃! b, a ∈ f ⁻¹' {b}
+    refine ⟨f a, ?mem, ?uniq⟩
+    · -- ⊢ a ∈ f ⁻¹' {f a}, i.e. f a = f a
+      rfl
+    · -- ⊢ ∀ b, a ∈ f ⁻¹' {b} → b = f a
+      intro b hb -- hb : a ∈ f ⁻¹' {b}, i.e. f a = b
+      exact hb.symm
+
 /-- `B`-indexed partitions of `A` are the same thing as functions `A → B`:
 forward, send `a` to the index of its cell; backward, take fibers. -/
 noncomputable def equivFun : IndexedPartition A B ≃ (A → B) where
   toFun P := P.index
-  invFun f := ⟨fun b => f ⁻¹' {b}, fun a => ⟨f a, rfl, fun _ h => h.symm⟩⟩
-  left_inv P := by ext b a; simp
-  right_inv f := by funext a; simp
+  invFun f := ofFun f
+  left_inv P := by
+    dsimp only
+    -- ⊢ ofFun P.index = P
+    ext b a
+    -- ⊢ a ∈ (ofFun P.index).lookupCell b ↔ a ∈ P.lookupCell b
+    -- the left side unfolds to `P.index a = b`, so this is `index_eq_iff`
+    exact P.index_eq_iff
+  right_inv f := by
+    dsimp only
+    -- ⊢ (ofFun f).index = f
+    funext a
+    -- ⊢ (ofFun f).index a = f a
+    rw [index_eq_iff]
+    -- ⊢ a ∈ (ofFun f).lookupCell (f a), which unfolds to `f a = f a`
+    rfl
 
 theorem forward_function_bij : Function.Bijective (@equivFun A B) :=
   equivFun.bijective
