@@ -9,6 +9,7 @@ set_option pp.proofs true
 set_option pp.coercions false
 
 /- Ramming monos and epis through my head -/
+/- Start with a very naive hand-rolled toy category theory -/
 
 @[ext]
 structure Object where
@@ -26,20 +27,34 @@ axiom comp : Morphism → Morphism → Morphism
 axiom comp_dom {f g : Morphism} (h : composable f g) : (comp f g).dom = f.dom
 axiom comp_cod {f g : Morphism} (h : composable f g) : (comp f g).cod = g.cod
 
+def Hom (A X : Object) : Set Morphism := { f | f.dom = A ∧ f.cod = X }
+
+/-- Elegant, but too fancy for this file as more than a sidenote. We're trying
+  to avoid thought. -/
+def mono' (m: Morphism) : Prop :=
+  ∀ Z : Object, Set.InjOn (fun f => comp f m) (Hom Z m.dom)
+
 def mono (m : Morphism) : Prop :=
-  ∀ f g : Morphism,
-    composable f m → composable g m →
-    f.dom = g.dom →
-    comp f m = comp g m → f = g
+  ∀ (A: Object)
+    (f g : Morphism),
+      (f ∈ (Hom A m.dom) ∧ g ∈ (Hom A m.dom)) →
+        (comp f m) = (comp g m) → f = g
 
 theorem mono_comp_cancels
-  (f g m : Morphism)
-  (h_mono : mono m)
-  (hf : composable f m)
-  (hg : composable g m)
-  (h_same_dom : f.dom = g.dom)
-  : comp f m = comp g m → f = g :=
-  h_mono f g hf hg h_same_dom
+    (f g m : Morphism)
+    (h_mono: mono m)
+    (h_sig: {f, g} ⊆ (Hom f.dom m.dom))
+    (h_comp_eq :(comp f m) = (comp g m))
+    : f = g := by
+  apply (h_mono f.dom)
+  constructor
+  · apply h_sig
+    simp
+  · apply h_sig
+    simp
+  exact h_comp_eq
+
+
 
 
 end section
