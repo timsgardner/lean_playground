@@ -165,7 +165,9 @@ theorem classes_toSetoid
     : (toSetoid P).classes = Cell P \ {∅} := by
   ext sA
   have helper : ∀ y : A, {x | toSetoid P x y} = P.lookupCell (P.index y) := by
-    sorry
+    intro a
+    ext a'
+    rw [@Set.mem_setOf_eq, toSetoid_rel_iff, (index_eq_iff P)]
   constructor
   · intro h
     obtain ⟨y, rfl⟩ := h
