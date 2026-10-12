@@ -277,8 +277,19 @@ theorem mem_lookupCell_index (a : A) : a ∈ P.lookupCell (P.index a) :=
 
 /-- The key lemma: `index` and `lookupCell` determine each other.
 Everything below is a consequence of this. -/
-@[simp] theorem index_eq_iff {a : A} {b : B} : P.index a = b ↔ a ∈ P.lookupCell b :=
-  ⟨(· ▸ P.mem_lookupCell_index a), (P.partition_property a).unique (P.mem_lookupCell_index a)⟩
+@[simp] theorem index_eq_iff {a : A} {b : B} : P.index a = b ↔ a ∈ P.lookupCell b := by
+  have ha : a ∈ P.lookupCell (P.index a) := P.mem_lookupCell_index a
+  constructor
+  · -- `a` is in the cell at its own index, and that index is `b`
+    -- ⊢ a ∈ P.lookupCell b
+    intro h  -- h : P.index a = b
+    rw [← h] -- ⊢ a ∈ P.lookupCell (P.index a)
+    exact ha
+  · -- `a` is in cell `b` and in cell `P.index a`; cells don't overlap, so the indices agree
+    -- ⊢ a ∈ P.lookupCell b → P.index a = b
+    intro hb -- hb : a ∈ P.lookupCell b
+    -- ⊢ P.index a = b
+    exact (P.partition_property a).unique ha hb
 
 /-! ### Indexed partitions are functions -/
 
