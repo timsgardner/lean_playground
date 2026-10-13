@@ -128,7 +128,8 @@ example
     A2 --g1--+                         +--i2--> E2
 -/
 
-/- In any category: the signatures are the types, so there's nothing to spell out. -/
+/- The diagram in an arbitrary category. Each arrow's type records its endpoints
+  (`f1 : A1 ⟶ B`), so no separate hypotheses about where arrows go are needed. -/
 namespace Abstract
 
 variable
