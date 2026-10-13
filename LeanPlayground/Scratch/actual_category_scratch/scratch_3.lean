@@ -1,5 +1,6 @@
 import Mathlib.CategoryTheory.EpiMono
 import Mathlib.CategoryTheory.PathCategory.Basic
+import Mathlib.CategoryTheory.Types.Basic
 
 /- Ramming monos and epis through my head -/
 /- Now on top of Mathlib's category theory API. Rough translation from the
@@ -116,6 +117,194 @@ example
   simp only [← Category.assoc, h, Category.id_comp] at heq
   exact heq
 
+/- Contrapositives. To show something is *not* mono, exhibit two different
+  maps it fails to tell apart; or reduce to something already known not to be. -/
+
+example
+    {A X Y : 𝒞}
+    {m : X ⟶ Y}
+    (f g : A ⟶ X)
+    (hne : f ≠ g)
+    (heq : f ≫ m = g ≫ m)
+    : ¬ Mono m := by
+
+  sorry
+
+example
+    {X Y Z : 𝒞}
+    {e : X ⟶ Y}
+    (f g : Y ⟶ Z)
+    (hne : f ≠ g)
+    (heq : e ≫ f = e ≫ g)
+    : ¬ Epi e := by
+  sorry
+
+/-- If `m` isn't mono, nothing you put after it makes it mono. -/
+example
+    {X Y Z : 𝒞}
+    {m : X ⟶ Y} {n : Y ⟶ Z}
+    (h : ¬ Mono m)
+    : ¬ Mono (m ≫ n) := by
+  sorry
+
+/-- If `d` isn't epi, nothing you put before it makes it epi. -/
+example
+    {X Y Z : 𝒞}
+    {e : X ⟶ Y} {d : Y ⟶ Z}
+    (h : ¬ Epi d)
+    : ¬ Epi (e ≫ d) := by
+  sorry
+
+example
+    {X Y Z : 𝒞}
+    {m : X ⟶ Y} {n : Y ⟶ Z}
+    (hm : Mono m)
+    (h : ¬ Mono (m ≫ n))
+    : ¬ Mono n := by
+  sorry
+
+/-- A non-mono has no retraction. -/
+example
+    {X Y : 𝒞}
+    {m : X ⟶ Y}
+    (h : ¬ Mono m)
+    (r : Y ⟶ X)
+    : m ≫ r ≠ 𝟙 X := by
+  sorry
+
+/-- A non-epi has no section. -/
+example
+    {X Y : 𝒞}
+    {e : X ⟶ Y}
+    (h : ¬ Epi e)
+    (s : Y ⟶ X)
+    : s ≫ e ≠ 𝟙 Y := by
+  sorry
+
+/- Sections and retractions. If `m ≫ r = 𝟙 X`, then `r` is a retraction of `m`
+  and `m` is a section of `r`: same equation, two names. -/
+
+/-- A retraction is epi. -/
+example
+    {X Y : 𝒞}
+    (m : X ⟶ Y)
+    (r : Y ⟶ X)
+    (h : m ≫ r = 𝟙 X)
+    : Epi r := by
+  sorry
+
+/-- A section is mono. -/
+example
+    {X Y : 𝒞}
+    (s : Y ⟶ X)
+    (e : X ⟶ Y)
+    (h : s ≫ e = 𝟙 Y)
+    : Mono s := by
+  sorry
+
+/-- A left inverse and a right inverse of the same morphism are equal. -/
+example
+    {X Y : 𝒞}
+    (m : X ⟶ Y)
+    (r s : Y ⟶ X)
+    (hr : m ≫ r = 𝟙 X)
+    (hs : s ≫ m = 𝟙 Y)
+    : r = s := by
+  sorry
+
+/-- Retractions compose, in the opposite order. -/
+example
+    {X Y Z : 𝒞}
+    (m : X ⟶ Y) (n : Y ⟶ Z)
+    (r : Y ⟶ X) (r' : Z ⟶ Y)
+    (hr : m ≫ r = 𝟙 X)
+    (hr' : n ≫ r' = 𝟙 Y)
+    : (m ≫ n) ≫ (r' ≫ r) = 𝟙 X := by
+  sorry
+
+/-- If `m ≫ n` has a retraction, so does `m`. -/
+example
+    {X Y Z : 𝒞}
+    (m : X ⟶ Y) (n : Y ⟶ Z)
+    (r : Z ⟶ X)
+    (h : (m ≫ n) ≫ r = 𝟙 X)
+    : ∃ r' : Y ⟶ X, m ≫ r' = 𝟙 X := by
+  sorry
+
+/-- A section-retraction pair gives an idempotent. -/
+example
+    {X Y : 𝒞}
+    (m : X ⟶ Y)
+    (r : Y ⟶ X)
+    (h : m ≫ r = 𝟙 X)
+    : (r ≫ m) ≫ (r ≫ m) = r ≫ m := by
+  sorry
+
+/- Isos. `IsIso f` says `∃ g, f ≫ g = 𝟙 X ∧ g ≫ f = 𝟙 Y`; build one with
+  `⟨⟨g, h1, h2⟩⟩`. Given `IsIso f`, use `inv f`, `IsIso.hom_inv_id f`, and
+  `IsIso.inv_hom_id f` (these are fine to use). -/
+
+example
+    {X Y : 𝒞}
+    (f : X ⟶ Y)
+    (hf : IsIso f)
+    : Mono f := by
+  sorry
+
+example
+    {X Y : 𝒞}
+    (f : X ⟶ Y)
+    (hf : IsIso f)
+    : Epi f := by
+  sorry
+
+/-- Mono plus a section is iso. -/
+example
+    {X Y : 𝒞}
+    (m : X ⟶ Y)
+    (hm : Mono m)
+    (s : Y ⟶ X)
+    (h : s ≫ m = 𝟙 Y)
+    : IsIso m := by
+  sorry
+
+/-- Epi plus a retraction is iso. -/
+example
+    {X Y : 𝒞}
+    (e : X ⟶ Y)
+    (he : Epi e)
+    (r : Y ⟶ X)
+    (h : e ≫ r = 𝟙 X)
+    : IsIso e := by
+  sorry
+
+/-- A retraction of an iso is its inverse. -/
+example
+    {X Y : 𝒞}
+    (f : X ⟶ Y)
+    (hf : IsIso f)
+    (r : Y ⟶ X)
+    (h : f ≫ r = 𝟙 X)
+    : r = inv f := by
+  sorry
+
+example
+    {X Y Z : 𝒞}
+    (f : X ⟶ Y) (g : Y ⟶ Z)
+    (hf : IsIso f)
+    (hg : IsIso g)
+    : IsIso (f ≫ g) := by
+  sorry
+
+/-- If `m ≫ n` is iso and `n` is mono, then `m` is iso. -/
+example
+    {X Y Z : 𝒞}
+    (m : X ⟶ Y) (n : Y ⟶ Z)
+    (h : IsIso (m ≫ n))
+    (hn : Mono n)
+    : IsIso m := by
+  sorry
+
 
 /- The example diagram. `f2` and `g2` are parallel arrows from B to C.
 
@@ -150,6 +339,57 @@ example
     (h_neq : f2 ≠ g2)
     : f2 ≫ m ≠ g2 ≫ m :=
   fun h_eq => h_neq (h_mono.right_cancellation f2 g2 h_eq)
+
+/- Telling arrows apart through the diagram. -/
+
+/-- No mono needed for this direction: why? -/
+example
+    (h : f2 ≫ m ≠ g2 ≫ m)
+    : f2 ≠ g2 := by
+  sorry
+
+/-- Same idea, longer composite. -/
+example
+    (h : f1 ≫ f2 ≫ m ≠ f1 ≫ g2 ≫ m)
+    : f2 ≠ g2 := by
+  sorry
+
+example
+    (hm : Mono m)
+    (hi : Mono i1)
+    (hne : f2 ≠ g2)
+    : f2 ≫ m ≫ i1 ≠ g2 ≫ m ≫ i1 := by
+  sorry
+
+/-- On the other side, the epi does the work. -/
+example
+    (he : Epi f1)
+    (hne : f2 ≠ g2)
+    : f1 ≫ f2 ≠ f1 ≫ g2 := by
+  sorry
+
+/-- Epi on the left, mono on the right. -/
+example
+    (he : Epi f1)
+    (hm : Mono m)
+    (hne : f2 ≠ g2)
+    : f1 ≫ f2 ≫ m ≠ f1 ≫ g2 ≫ m := by
+  sorry
+
+/-- A retraction is enough; nobody said `Mono m`. -/
+example
+    (r : D ⟶ C)
+    (hr : m ≫ r = 𝟙 C)
+    (hne : f2 ≠ g2)
+    : f2 ≫ m ≠ g2 ≫ m := by
+  sorry
+
+/-- The parallel pair is a witness: if `m` can't tell them apart, it isn't mono. -/
+example
+    (hne : f2 ≠ g2)
+    (heq : f2 ≫ m = g2 ≫ m)
+    : ¬ Mono m := by
+  sorry
 
 end Abstract
 
@@ -189,6 +429,85 @@ example : f2 ≫ m ≠ g2 ≫ m :=
     simp [f2, g2, Quiver.Hom.toPath] at this
     cases this
 
+/-- Exercise: every morphism is epi too. Hint: `Quiver.Path.comp_inj_right`. -/
+theorem paths_epi {X Y : Paths Ob} (p : X ⟶ Y) : Epi p := by
+  sorry
+
+/-- Exercise: so `f2` is mono and epi, but not an iso: mono + epi ≠ iso in general.
+  Hint: an inverse `k` would make `f2 ≫ k` the empty path. Compare lengths with
+  `Quiver.Path.length_comp`. In `Paths`, `≫` is `Quiver.Path.comp` and `𝟙` is
+  `Quiver.Path.nil` by definition, but lemmas won't fire until you `change` the
+  goal or hypothesis into that form. -/
+example : ¬ IsIso f2 := by
+  sorry
+
 end Concrete
+
+/- Concrete non-monos and non-epis live in `Type`, where morphisms are functions
+  (built with `TypeCat.ofHom`), mono means injective and epi means surjective. The
+  helper lemmas below handle the `Type` API so the exercises are pure mono/epi logic. -/
+namespace InType
+
+open TypeCat
+
+/-- Collapse both booleans to the one point. Not injective, so not mono. -/
+def toUnit : Bool ⟶ PUnit.{1} := ofHom fun _ => PUnit.unit
+/-- Pick out `true` and `false`. Not surjective, so not epi. -/
+def pickT : PUnit.{1} ⟶ Bool := ofHom fun _ => true
+def pickF : PUnit.{1} ⟶ Bool := ofHom fun _ => false
+def constT : Bool ⟶ Bool := ofHom fun _ => true
+
+theorem pickT_ne_pickF : pickT ≠ pickF := fun h => by
+  have := congrArg (fun f => f PUnit.unit) h
+  simp [pickT, pickF] at this
+
+theorem pickT_toUnit_eq : pickT ≫ toUnit = pickF ≫ toUnit := by
+  ext
+
+theorem id_ne_constT : 𝟙 Bool ≠ constT := fun h => by
+  have := congrArg (fun f => f false) h
+  simp [constT] at this
+
+theorem pickT_id_eq : pickT ≫ 𝟙 Bool = pickT ≫ constT := by
+  ext
+  rfl
+
+/-- `pickT` is a section of `toUnit`. -/
+theorem pickT_toUnit_id : pickT ≫ toUnit = 𝟙 PUnit.{1} := by
+  ext
+
+/-- Exercise. -/
+example : ¬ Mono toUnit := by
+  sorry
+
+/-- Exercise. -/
+example : ¬ Epi pickT := by
+  sorry
+
+/-- Exercise: `toUnit` is epi (it has a section) but not iso. -/
+example : Epi toUnit ∧ ¬ IsIso toUnit := by
+  sorry
+
+/- Exercises: in `Type`, mono means injective and epi means surjective. Mathlib has
+  these (`mono_iff_injective`, `epi_iff_surjective`), so don't use them. Useful API:
+    `ofHom (fun x => ...)`        builds a morphism from a function
+    `types_comp_apply`            `(f ≫ g) x = g (f x)`  (`ofHom_apply` likewise)
+    `types_congr_hom h x`         turns `h : f = g` into `f x = g x`
+    `ext x`                       proves two morphisms equal pointwise
+  `simp` is fine here for evaluating morphisms at points. -/
+
+/-- Hint for →: to test injectivity at `a b : X`, map the one-point type in twice,
+  once picking `a` and once picking `b`. -/
+theorem my_mono_iff_injective {X Y : Type} (f : X ⟶ Y) :
+    Mono f ↔ Function.Injective f := by
+  sorry
+
+/-- Hint for →: map `Y` into `Prop` twice: once to `True`, once to "is in the image
+  of `f`". These agree after `f`. -/
+theorem my_epi_iff_surjective {X Y : Type} (f : X ⟶ Y) :
+    Epi f ↔ Function.Surjective f := by
+  sorry
+
+end InType
 
 end section
