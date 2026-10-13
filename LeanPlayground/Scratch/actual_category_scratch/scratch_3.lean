@@ -582,7 +582,6 @@ inductive Ob
   | A1 | A2 | B | C | D | E1 | E2
 deriving DecidableEq
 
-/--
 /-- The arrows, as an indexed family: a multidigraph. -/
 inductive Arrow : Ob → Ob → Type
   | f1 : Arrow .A1 .B
@@ -598,9 +597,13 @@ instance : Quiver Ob := ⟨Arrow⟩
 /- `Paths Ob` is the free category on the quiver: morphisms are paths of arrows,
   composition is concatenation. `Paths.of Ob` sends each arrow to a length-1 path. -/
 
-def f2 : (Paths.of Ob).obj .B ⟶ (Paths.of Ob).obj .C := (Paths.of Ob).map Arrow.f2
-def g2 : (Paths.of Ob).obj .B ⟶ (Paths.of Ob).obj .C := (Paths.of Ob).map Arrow.g2
-def m  : (Paths.of Ob).obj .C ⟶ (Paths.of Ob).obj .D := (Paths.of Ob).map Arrow.m
+/-- Morphisms in `Paths Ob`, with objects stated as plain `Ob`s so goals show `Ob.B`
+  rather than `(Paths.of Ob).obj Ob.B`. Type `⟶ₚ` as `\hom\_p`. -/
+local notation:10 X " ⟶ₚ " Y => @Quiver.Hom (Paths Ob) _ X Y
+
+def f2 : .B ⟶ₚ .C := (Paths.of Ob).map Arrow.f2
+def g2 : .B ⟶ₚ .C := (Paths.of Ob).map Arrow.g2
+def m  : .C ⟶ₚ .D := (Paths.of Ob).map Arrow.m
 
 /-- In a free category every morphism is mono: paths cancel on the right. -/
 theorem paths_mono {X Y : Paths Ob} (p : X ⟶ Y) : Mono p :=
@@ -614,7 +617,11 @@ example : f2 ≫ m ≠ g2 ≫ m :=
 
 /-- Exercise: every morphism is epi too. Hint: `Quiver.Path.comp_inj_right`. -/
 theorem paths_epi {X Y : Paths Ob} (p : X ⟶ Y) : Epi p := by
-  sorry
+  constructor
+  intro pobj f1 f2
+  #check Quiver.Path.comp_inj_right (p:= p)
+  apply Quiver.Path.comp_inj_right.1
+
 
 /-- Exercise: so `f2` is mono and epi, but not an iso: mono + epi ≠ iso in general.
   Hint: an inverse `k` would make `f2 ≫ k` the empty path. Compare lengths with
@@ -622,7 +629,15 @@ theorem paths_epi {X Y : Paths Ob} (p : X ⟶ Y) : Epi p := by
   `Quiver.Path.nil` by definition, but lemmas won't fire until you `change` the
   goal or hypothesis into that form. -/
 example : ¬ IsIso f2 := by
-  sorry
+  intro hiso
+  -- An inverse gives `f2 ≫ inv f2 = 𝟙 B`; take the length of both sides.
+  have hlen := congrArg Quiver.Path.length (IsIso.hom_inv_id f2)
+  -- hlen : (f2 ≫ inv f2).length = (𝟙 B).length
+  -- `erw` sees through `≫ = Path.comp` and `𝟙 = Path.nil`, so no `change` needed.
+  erw [Quiver.Path.length_comp, Quiver.Path.length_nil] at hlen
+  -- hlen : f2.length + (inv f2).length = 0
+  have hf2 : f2.length = 1 := rfl
+  omega
 
 end Concrete
 
@@ -640,6 +655,7 @@ def pickT : PUnit.{1} ⟶ Bool := ofHom fun _ => true
 def pickF : PUnit.{1} ⟶ Bool := ofHom fun _ => false
 def constT : Bool ⟶ Bool := ofHom fun _ => true
 
+#exit
 theorem pickT_ne_pickF : pickT ≠ pickF := fun h => by
   have := congrArg (fun f => f PUnit.unit) h
   simp [pickT, pickF] at this
