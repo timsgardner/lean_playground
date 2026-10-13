@@ -394,7 +394,6 @@ example
   let h7 := Category.comp_id (r ≫ e) ▸ h6
   exact h7
 
-/--
 /-- A retraction of an iso is its inverse. -/
 example
     {X Y : 𝒞}
@@ -403,15 +402,32 @@ example
     (r : Y ⟶ X)
     (h : f ≫ r = 𝟙 X)
     : r = inv f := by
-  sorry
+  replace h := inv f ≫= h
+  rw [← Category.assoc,
+      IsIso.inv_hom_id,
+      Category.id_comp,
+      Category.comp_id] at h
+  exact h
 
+/-- composition of isos is iso -/
 example
     {X Y Z : 𝒞}
     (f : X ⟶ Y) (g : Y ⟶ Z)
     (hf : IsIso f)
     (hg : IsIso g)
     : IsIso (f ≫ g) := by
-  sorry
+  refine ⟨inv g ≫ inv f, ?_⟩
+  constructor
+  · simp only [Category.assoc]
+    rw [mid_assoc_eq,
+        IsIso.hom_inv_id,
+        Category.id_comp,
+        IsIso.hom_inv_id]
+  · simp only [Category.assoc]
+    rw [mid_assoc_eq,
+        IsIso.inv_hom_id,
+        Category.id_comp,
+        IsIso.inv_hom_id]
 
 /-- If `m ≫ n` is iso and `n` is mono, then `m` is iso. -/
 example
@@ -420,7 +436,18 @@ example
     (h : IsIso (m ≫ n))
     (hn : Mono n)
     : IsIso m := by
-  sorry
+  refine ⟨n ≫ inv (m ≫ n), ?_⟩
+  constructor
+  · rw [← Category.assoc,
+        IsIso.hom_inv_id]
+  · simp [Category.assoc]
+    apply hn.right_cancellation
+    have h1 := IsIso.inv_hom_id (m ≫ n)
+    replace h1 := (n ≫= h1) |> ((𝟙 Y) ≫= ·)
+    simp only [Category.comp_id] at h1
+    conv at h1 => lhs; simp only [Category.id_comp]
+    simp only [Category.assoc]
+    exact h1
 
 
 /- The example diagram. `f2` and `g2` are parallel arrows from B to C.
@@ -463,27 +490,40 @@ example
 example
     (h : f2 ≫ m ≠ g2 ≫ m)
     : f2 ≠ g2 := by
-  sorry
+  intro a
+  replace a := a =≫ m
+  absurd h a
+  tauto
 
 /-- Same idea, longer composite. -/
 example
     (h : f1 ≫ f2 ≫ m ≠ f1 ≫ g2 ≫ m)
     : f2 ≠ g2 := by
-  sorry
+  intro a
+  exact (a ▸ h) rfl
 
+-- alright alright jeez
 example
     (hm : Mono m)
     (hi : Mono i1)
     (hne : f2 ≠ g2)
     : f2 ≫ m ≫ i1 ≠ g2 ≫ m ≫ i1 := by
-  sorry
+  intro a
+  absurd hne
+  repeat rw [← Category.assoc] at a
+  rw [cancel_mono i1, cancel_mono m] at a
+  exact a
 
 /-- On the other side, the epi does the work. -/
 example
     (he : Epi f1)
     (hne : f2 ≠ g2)
     : f1 ≫ f2 ≠ f1 ≫ g2 := by
-  sorry
+  intro h
+  absurd hne
+  rw [cancel_epi f1] at h
+  exact h
+
 
 /-- Epi on the left, mono on the right. -/
 example
@@ -491,7 +531,10 @@ example
     (hm : Mono m)
     (hne : f2 ≠ g2)
     : f1 ≫ f2 ≫ m ≠ f1 ≫ g2 ≫ m := by
-  sorry
+  intro h
+  simp [← Category.assoc, cancel_mono m, cancel_epi f1] at h
+  absurd hne h
+  trivial
 
 /-- A retraction is enough; nobody said `Mono m`. -/
 example
@@ -499,14 +542,36 @@ example
     (hr : m ≫ r = 𝟙 C)
     (hne : f2 ≠ g2)
     : f2 ≫ m ≠ g2 ≫ m := by
-  sorry
+  intro h
+  -- Cheating!
+  have hrm := SplitMono.mono ⟨r, hr⟩
+  rw [cancel_mono m] at h
+  exact hne h
+
+/-- the cheat was fine but let's prove the general point:
+Any retraction gives you a mono-/
+
+theorem retraction_means_mono
+    (r : D ⟶ C)
+    (hr : m ≫ r = 𝟙 C)
+    : Mono m := by
+  constructor
+  intro c f1 f2 h
+  replace h := h =≫ r
+  repeat rw [Category.assoc] at h
+  repeat rw [hr] at h
+  repeat rw [Category.comp_id] at h
+  exact h
+
 
 /-- The parallel pair is a witness: if `m` can't tell them apart, it isn't mono. -/
 example
     (hne : f2 ≠ g2)
     (heq : f2 ≫ m = g2 ≫ m)
     : ¬ Mono m := by
-  sorry
+  intro h
+  rw [cancel_mono m] at heq
+  exact hne heq
 
 end Abstract
 
@@ -517,6 +582,7 @@ inductive Ob
   | A1 | A2 | B | C | D | E1 | E2
 deriving DecidableEq
 
+/--
 /-- The arrows, as an indexed family: a multidigraph. -/
 inductive Arrow : Ob → Ob → Type
   | f1 : Arrow .A1 .B
