@@ -374,6 +374,26 @@ example
       simp
       exact h
 
+#check Eq.mp
+/-- Another impl. -/
+example
+    {X Y : 𝒞}
+    (e : X ⟶ Y)
+    (he : Epi e)
+    (r : Y ⟶ X)
+    (h : e ≫ r = 𝟙 X)
+    : IsIso e := by
+  constructor
+  refine ⟨r, ?_⟩
+  refine ⟨h, ?_⟩
+  let h2 := h =≫ e |> (Category.assoc e r e ▸ ·)
+  let h3 := h2 =≫ 𝟙 Y
+  let h4 := Category.assoc e (r ≫ e) (𝟙 Y) ▸ h3
+  let h5 := Category.id_comp e ▸ h4
+  let h6 := he.left_cancellation ((r ≫ e) ≫ 𝟙 Y) (𝟙 Y) h5
+  let h7 := Category.comp_id (r ≫ e) ▸ h6
+  exact h7
+
 /--
 /-- A retraction of an iso is its inverse. -/
 example
