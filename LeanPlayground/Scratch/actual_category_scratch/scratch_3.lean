@@ -1,173 +1,92 @@
-import Mathlib.Data.Set.Basic
-import Mathlib.Data.Real.Basic
-import Mathlib.Data.Setoid.Partition
-import Mathlib.Tactic.Check
+import Mathlib.CategoryTheory.EpiMono
+import Mathlib.CategoryTheory.PathCategory.Basic
+
+/- Ramming monos and epis through my head -/
+/- Now on top of Mathlib's category theory API. Rough translation from the
+  hand-rolled version:
+
+    Object, Hom A B          ~> objects `X : 𝒞`, morphisms `X ⟶ Y`
+    comp f g  (f then g)     ~> `f ≫ g` (same arrow order)
+    Hom.id A                 ~> `𝟙 A`
+    comp_assoc etc.          ~> `Category.assoc`, `Category.id_comp`, `Category.comp_id`
+    mono m                   ~> `Mono m`  (field: `right_cancellation`)
+    epi e                    ~> `Epi e`   (field: `left_cancellation`)
+    MorphismGraph            ~> a `Quiver` (multidigraph)
+    Path, Path.compose       ~> `Quiver.Path`, `composePath`
+-/
+
+open CategoryTheory
 
 section
 set_option pp.deepTerms true
 set_option pp.proofs true
 set_option pp.coercions false
 
-/- Ramming monos and epis through my head -/
-/- Start with a very naive hand-rolled toy category theory -/
+universe v u
 
-@[ext]
-structure Object where
-  name: String
-deriving DecidableEq
+variable {𝒞 : Type u} [Category.{v} 𝒞]
 
-/-- Morphisms carry a name tag so parallel arrows are distinguishable. -/
-@[ext]
-structure Morphism where
-  name: String
-  dom: Object
-  cod: Object
-deriving DecidableEq
+/- Exercises: reprove these basics by hand from `Mono.mk`/`Epi.mk`,
+  `right_cancellation`/`left_cancellation`, and the category laws. Mathlib already
+  has them (`mono_comp`, `mono_of_mono`, `IsSplitMono.mono`, and the epi duals),
+  so `inferInstance` or `simp` would be cheating. -/
 
-@[simp]
-def composable (f g : Morphism) : Prop := f.cod = g.dom
+example (X : 𝒞) : Mono (𝟙 X) := by
+  sorry
 
-/-- Arrow order: `comp f g` is f then g. Requires a proof of composability. -/
-axiom comp (f g : Morphism) (h : composable f g) : Morphism
-axiom comp_dom {f g : Morphism} (h : composable f g) : (comp f g h).dom = f.dom
-axiom comp_cod {f g : Morphism} (h : composable f g) : (comp f g h).cod = g.cod
+example
+    {X Y Z : 𝒞}
+    {m : X ⟶ Y} {n : Y ⟶ Z}
+    (hm : Mono m)
+    (hn : Mono n)
+    : Mono (m ≫ n) := by
+  sorry
 
-def Hom (A X : Object) : Set Morphism := { f | f.dom = A ∧ f.cod = X }
+example
+    {X Y Z : 𝒞}
+    {m : X ⟶ Y} {n : Y ⟶ Z}
+    (h : Mono (m ≫ n))
+    : Mono m := by
+  sorry
 
-/-- Membership in `Hom A m.dom` supplies the composability proof (`.2`). -/
-def mono (m : Morphism) : Prop :=
-  ∀ (A: Object)
-    (f g : Morphism)
-    (hf : f ∈ (Hom A m.dom))
-    (hg : g ∈ (Hom A m.dom)),
-      (comp f m hf.2) = (comp g m hg.2) → f = g
+/-- A morphism with a left inverse (a retraction) is mono. -/
+example
+    {X Y : 𝒞}
+    {m : X ⟶ Y}
+    (r : Y ⟶ X)
+    (h : m ≫ r = 𝟙 X)
+    : Mono m := by
+  sorry
 
-theorem mono_comp_cancels
-    (f g m : Morphism)
-    (h_mono: mono m)
-    (hf : f ∈ (Hom f.dom m.dom))
-    (hg : g ∈ (Hom f.dom m.dom))
-    (h_comp_eq : (comp f m hf.2) = (comp g m hg.2))
-    : f = g :=
-  h_mono f.dom f g hf hg h_comp_eq
+example (X : 𝒞) : Epi (𝟙 X) := by
+  sorry
 
-structure Comps (dom cod: Object) where
-  path: List Morphism
-  h_path_composes: List.IsChain composable path
-  h_nempty: path ≠ []
-  h_dom_cod:
-    (path.head h_nempty).dom = dom
-    ∧ (path.getLast h_nempty).cod = cod
+example
+    {X Y Z : 𝒞}
+    {e : X ⟶ Y} {d : Y ⟶ Z}
+    (he : Epi e)
+    (hd : Epi d)
+    : Epi (e ≫ d) := by
+  sorry
 
--- theorem path_cons_cod_dom
---   (path: List Morphism)
---   (h_path_composes: List.IsChain composable path)
+example
+    {X Y Z : 𝒞}
+    {e : X ⟶ Y} {d : Y ⟶ Z}
+    (h : Epi (e ≫ d))
+    : Epi d := by
+  sorry
 
-def Comps.head (c: Comps dom cod) : Morphism :=
-  c.path.head c.h_nempty
-
-def Comps.tail (c: Comps dom cod) : Option (Comps (c.head.cod) cod) :=
-  match h : c.path with
-  | [] => absurd h c.h_nempty
-  | [_] => none
-  | m :: n :: rest => by
-      have h_tail : n :: rest = c.path.tail := by
-        rw [h]
-        simp
-
-      refine some {
-        path := n :: rest
-        h_path_composes := ?chain
-        h_nempty := ?ne
-        h_dom_cod := ?dc
-      }
-
-      case chain =>
-        have h2 := (List.IsChain.tail c.h_path_composes)
-        rw [← h_tail] at h2
-        exact h2
-
-      case ne =>
-        simp
-
-      case dc =>
-        simp
-        refine ⟨?_, ?_⟩
-        · have hc : List.IsChain composable (m :: n :: rest) := by
-            rw [← h]
-            exact c.h_path_composes
-          have h2 : n.dom = m.cod := by
-            rw [List.isChain_cons_cons] at hc
-            simp at hc
-            exact hc.1.symm
-          obtain ⟨_, _⟩ := c.h_dom_cod
-          calc
-            n.dom = m.cod := h2
-            _ = c.head.cod := by
-              unfold Comps.head
-              have : (c.path.head c.h_nempty = m) := by simp [h]
-              rw [this]
-        · conv =>
-            lhs
-            congr
-            congr
-            rw [h_tail]
-          simp [c.h_dom_cod]
+/-- A morphism with a right inverse (a section) is epi. -/
+example
+    {X Y : 𝒞}
+    {e : X ⟶ Y}
+    (s : Y ⟶ X)
+    (h : s ≫ e = 𝟙 Y)
+    : Epi e := by
+  sorry
 
 
-def Comps.cons
-    (m_head: Morphism)
-    (c: Comps dom cod)
-    (h: m_head.cod = dom)
-    : (Comps m_head.dom cod) := by
-  let path := m_head :: c.path
-  refine {
-    path := path,
-    h_path_composes := ?chain
-    h_nempty := ?ne
-    h_dom_cod := ?dc
-  }
-  case chain =>
-    rw [List.isChain_cons]
-    constructor
-    · intro m2 h2
-      rw [Option.mem_def] at h2
-      simp [List.head?_eq_some_head c.h_nempty] at h2
-      simp
-      rw [h]
-      obtain ⟨h3, _⟩ := c.h_dom_cod
-      rw [← h3, ← h2]
-    · exact c.h_path_composes
-
-  case ne =>
-    simp
-
-  case dc =>
-    simp [path]
-    rw [(List.getLast_cons c.h_nempty)]
-    simp [c.h_dom_cod]
-
-
-
-
-
-
--- def Comps.compose {dom cod : Object} (c: Comps dom cod) : Morphism :=
-
-
-
-/- slight yak-shave detour, a bit out of keeping with the
-deliberately underengineered style of this file -/
-
-/-- A finite multidigraph of morphisms; objects are implied by the edges. -/
-structure MorphismGraph where
-  edges: Finset Morphism
-
-def MorphismGraph.homs (G : MorphismGraph) (A B : Object) : Finset Morphism :=
-  G.edges.filter (fun f => f.dom = A ∧ f.cod = B)
-
-
-/- An example graph. `f2` and `g2` are parallel arrows from B to C.
+/- The example diagram. `f2` and `g2` are parallel arrows from B to C.
 
     A1 --f1--+                         +--i1--> E1
              |                         |
@@ -177,58 +96,67 @@ def MorphismGraph.homs (G : MorphismGraph) (A B : Object) : Finset Morphism :=
              |                         |
     A2 --g1--+                         +--i2--> E2
 -/
-namespace Example
 
-def A1 : Object := ⟨"A1"⟩
-def A2 : Object := ⟨"A2"⟩
-def B  : Object := ⟨"B"⟩
-def C  : Object := ⟨"C"⟩
-def D  : Object := ⟨"D"⟩
-def E1 : Object := ⟨"E1"⟩
-def E2 : Object := ⟨"E2"⟩
+/- In any category: the signatures are the types, so there's nothing to spell out. -/
+namespace Abstract
 
-def f1 : Morphism := ⟨"f1", A1, B⟩
-def g1 : Morphism := ⟨"g1", A2, B⟩
-def m  : Morphism := ⟨"m", C, D⟩
-def i1 : Morphism := ⟨"i1", D, E1⟩
-def i2 : Morphism := ⟨"i2", D, E2⟩
-
-/-- `f2` and `g2` are left abstract: all we know is that they are parallel
-  arrows from B to C. -/
-def G (f2 g2 : Morphism) : MorphismGraph := ⟨{f1, g1, f2, g2, m, i1, i2}⟩
-
-example (f2 g2 : Morphism) : m ∈ (G f2 g2).homs C D := by
-  simp [G, MorphismGraph.homs, m]
+variable
+  {A1 A2 B C D E1 E2 : 𝒞}
+  (f1 : A1 ⟶ B) (g1 : A2 ⟶ B)
+  (f2 g2 : B ⟶ C)
+  (m : C ⟶ D)
+  (i1 : D ⟶ E1) (i2 : D ⟶ E2)
 
 example
-    (f2 g2 : Morphism)
-    (hf2 : f2 ∈ Hom B C)
-    (hg2 : g2 ∈ Hom B C)
-    (h_mono : mono m)
-    (h_eq : comp f2 m hf2.2 = comp g2 m hg2.2)
+    (h_mono : Mono m)
+    (h_eq : f2 ≫ m = g2 ≫ m)
     : f2 = g2 :=
-  h_mono B f2 g2 hf2 hg2 h_eq
+  h_mono.right_cancellation f2 g2 h_eq
 
 example
-    (f2 g2 : Morphism)
-    (hf2 : f2 ∈ Hom B C)
-    (hg2 : g2 ∈ Hom B C)
-    (h_mono : mono m)
+    (h_mono : Mono m)
     (h_neq : f2 ≠ g2)
-    : (comp f2 m hf2.2) ≠ (comp g2 m hg2.2) := by
-  simp
-  intro h1
-  exact h_neq (h_mono B f2 g2 hf2 hg2 h1)
+    : f2 ≫ m ≠ g2 ≫ m :=
+  fun h_eq => h_neq (h_mono.right_cancellation f2 g2 h_eq)
 
+end Abstract
 
+/- The same diagram as concrete data: a quiver, and the free category on it. -/
+namespace Concrete
 
+inductive Ob
+  | A1 | A2 | B | C | D | E1 | E2
+deriving DecidableEq
 
+/-- The arrows, as an indexed family: a multidigraph. -/
+inductive Arrow : Ob → Ob → Type
+  | f1 : Arrow .A1 .B
+  | g1 : Arrow .A2 .B
+  | f2 : Arrow .B .C
+  | g2 : Arrow .B .C
+  | m  : Arrow .C .D
+  | i1 : Arrow .D .E1
+  | i2 : Arrow .D .E2
 
+instance : Quiver Ob := ⟨Arrow⟩
 
+/- `Paths Ob` is the free category on the quiver: morphisms are paths of arrows,
+  composition is concatenation. `Paths.of Ob` sends each arrow to a length-1 path. -/
 
-end Example
+def f2 : (Paths.of Ob).obj .B ⟶ (Paths.of Ob).obj .C := (Paths.of Ob).map Arrow.f2
+def g2 : (Paths.of Ob).obj .B ⟶ (Paths.of Ob).obj .C := (Paths.of Ob).map Arrow.g2
+def m  : (Paths.of Ob).obj .C ⟶ (Paths.of Ob).obj .D := (Paths.of Ob).map Arrow.m
 
+/-- In a free category every morphism is mono: paths cancel on the right. -/
+theorem paths_mono {X Y : Paths Ob} (p : X ⟶ Y) : Mono p :=
+  ⟨fun _ _ h => Quiver.Path.comp_inj_left.1 h⟩
 
+example : f2 ≫ m ≠ g2 ≫ m :=
+  fun h_eq => by
+    have := (paths_mono m).right_cancellation f2 g2 h_eq
+    simp [f2, g2, Quiver.Hom.toPath] at this
+    cases this
 
+end Concrete
 
 end section
