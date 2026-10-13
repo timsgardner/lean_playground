@@ -210,11 +210,17 @@ example
   h_mono B f2 g2 hf2 hg2 h_eq
 
 example
-  (f2 g2 : Morphism)
-  (hfg : {f2, g2} ⊆ (Hom B C))
-  (h_mono : mono m)
-  (hfg_neq : f2 != g2)
-  :=
+    (f2 g2 : Morphism)
+    (hf2 : f2 ∈ Hom B C)
+    (hg2 : g2 ∈ Hom B C)
+    (h_mono : mono m)
+    (h_neq : f2 ≠ g2)
+    : (comp f2 m hf2.2) ≠ (comp g2 m hg2.2) := by
+  simp
+  intro h1
+  exact h_neq (h_mono B f2 g2 hf2 hg2 h1)
+
+
 
 
 
