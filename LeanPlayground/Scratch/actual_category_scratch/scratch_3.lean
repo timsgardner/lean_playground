@@ -24,6 +24,7 @@ structure Morphism where
   cod: Object
 deriving DecidableEq
 
+@[simp]
 def composable (f g : Morphism) : Prop := f.cod = g.dom
 
 /-- Arrow order: `comp f g` is f then g. Requires a proof of composability. -/
@@ -58,6 +59,10 @@ structure Comps (dom cod: Object) where
     (path.head h_nempty).dom = dom
     ∧ (path.getLast h_nempty).cod = cod
 
+-- theorem path_cons_cod_dom
+--   (path: List Morphism)
+--   (h_path_composes: List.IsChain composable path)
+
 def Comps.head (c: Comps dom cod) : Morphism :=
   c.path.head c.h_nempty
 
@@ -69,10 +74,6 @@ def Comps.tail (c: Comps dom cod) : Option (Comps (c.head.cod) cod) :=
       have h_tail : n :: rest = c.path.tail := by
         rw [h]
         simp
-
-      have hc : List.IsChain composable (m :: n :: rest) := by
-        rw [← h]
-        exact c.h_path_composes
 
       refine some {
         path := n :: rest
@@ -92,11 +93,13 @@ def Comps.tail (c: Comps dom cod) : Option (Comps (c.head.cod) cod) :=
       case dc =>
         simp
         refine ⟨?_, ?_⟩
-        · have h2 : n.dom = m.cod := by
+        · have hc : List.IsChain composable (m :: n :: rest) := by
+            rw [← h]
+            exact c.h_path_composes
+          have h2 : n.dom = m.cod := by
             rw [List.isChain_cons_cons] at hc
-            obtain ⟨hmn, _⟩ := hc
-            rw [composable] at hmn
-            exact hmn.symm
+            simp at hc
+            exact hc.1.symm
           obtain ⟨_, _⟩ := c.h_dom_cod
           calc
             n.dom = m.cod := h2
@@ -111,6 +114,38 @@ def Comps.tail (c: Comps dom cod) : Option (Comps (c.head.cod) cod) :=
             rw [h_tail]
           simp [c.h_dom_cod]
 
+
+def Comps.cons
+    (m_head: Morphism)
+    (c: Comps dom cod)
+    (h: m_head.cod = dom)
+    : (Comps m_head.dom cod) := by
+  let path := m_head :: c.path
+  refine {
+    path := path,
+    h_path_composes := ?chain
+    h_nempty := ?ne
+    h_dom_cod := ?dc
+  }
+  case chain =>
+    rw [List.isChain_cons]
+    constructor
+    · intro m2 h2
+      rw [Option.mem_def] at h2
+      simp [List.head?_eq_some_head c.h_nempty] at h2
+      simp
+      rw [h]
+      obtain ⟨h3, _⟩ := c.h_dom_cod
+      rw [← h3, ← h2]
+    · exact c.h_path_composes
+
+  case ne =>
+    simp
+
+  case dc =>
+    simp [path]
+    rw [(List.getLast_cons c.h_nempty)]
+    simp [c.h_dom_cod]
 
 
 
