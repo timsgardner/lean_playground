@@ -236,6 +236,84 @@ def mkIso (P : PFunctor.{0, 0}) : P P.W ≅ P.W where
     funext tree
     exact PFunctor.W.mk_dest tree
 
+
+/-!
+## Induction from initiality
+
+`hom_eq_foldHom` used Lean's `induction` to prove that the tree algebra is
+initial. The converse also holds: initiality alone proves the induction
+principle. So the two carry the same information, and "initial algebra" is a
+way of saying "type with structural induction" without mentioning
+constructors.
+
+The argument, for an initial algebra `I` and a predicate `Q` on its carrier:
+
+1. The elements that satisfy `Q` form an algebra `subalgebra Q`. Its structure
+   map applies `I.str` and uses the induction step to show that the result
+   still satisfies `Q`. This is the only place the step is used.
+2. Forgetting the proofs, `Subtype.val : subalgebra Q ⟶ I`, is an algebra
+   morphism.
+3. Folding into `subalgebra Q` and then forgetting gives an algebra morphism
+   `I ⟶ I`. `I` is initial, so this is `𝟙 I`, because an initial object has only
+   one endomorphism.
+4. So every `x` is the underlying element of `fold x : {x // Q x}`, and that
+   element satisfies `Q`.
+
+The theorem is stated for *any* initial algebra of `functor P`, not only for
+`wAlgebra P`, so the proof cannot quietly use the inductive definition of
+`P.W`.
+-/
+
+/-- If `Q` is closed under the structure map of `I`, the elements satisfying
+`Q` form an algebra. -/
+def subalgebra (P : PFunctor.{0, 0}) (I : Algebra (functor P)) (Q : I.a → Prop)
+    (step : ∀ (shape : P.A) (children : P.B shape → I.a),
+      (∀ p, Q (children p)) → Q (I.str ⟨shape, children⟩)) :
+    Algebra (functor P) where
+  a := {x : I.a // Q x}
+  str := TypeCat.ofHom fun layer =>
+    ⟨I.str (P.map Subtype.val layer),
+      step layer.1 (fun p => (layer.2 p).1) (fun p => (layer.2 p).2)⟩
+
+/-- Forgetting the proofs is an algebra morphism `subalgebra ⟶ I`. -/
+def subalgebraVal (P : PFunctor.{0, 0}) (I : Algebra (functor P))
+    (Q : I.a → Prop)
+    (step : ∀ (shape : P.A) (children : P.B shape → I.a),
+      (∀ p, Q (children p)) → Q (I.str ⟨shape, children⟩)) :
+    subalgebra P I Q step ⟶ I where
+  f := TypeCat.ofHom Subtype.val
+  h := by
+    apply TypeCat.Hom.ext
+    apply TypeCat.Fun.ext
+    funext layer
+    rfl
+
+/-- Induction for any initial algebra of a polynomial functor, proved from
+initiality alone. -/
+theorem induction_of_isInitial {P : PFunctor.{0, 0}} {I : Algebra (functor P)}
+    (hI : Limits.IsInitial I) (Q : I.a → Prop)
+    (step : ∀ (shape : P.A) (children : P.B shape → I.a),
+      (∀ p, Q (children p)) → Q (I.str ⟨shape, children⟩))
+    (x : I.a) : Q x := by
+  let S := subalgebra P I Q step
+  -- Fold into the subalgebra, then forget: an endomorphism of `I`, so `𝟙 I`.
+  have hid : hI.to S ≫ subalgebraVal P I Q step = 𝟙 I := hI.hom_ext _ _
+  -- At `x`, that says the fold of `x` has underlying element `x`.
+  have hx : ((hI.to S).f x).1 = x :=
+    congrArg (fun g : I ⟶ I => g.f x) hid
+  exact hx ▸ ((hI.to S).f x).2
+
+/-- Structural induction on trees, as a special case.
+
+This goes through `wAlgebraIsInitial`, which was itself proved by induction,
+so it is not a new proof that `P.W` has induction. What it shows is that
+initiality is enough to get induction back. -/
+theorem w_induction (P : PFunctor.{0, 0}) (Q : P.W → Prop)
+    (step : ∀ (shape : P.A) (children : P.B shape → P.W),
+      (∀ p, Q (children p)) → Q (PFunctor.W.mk ⟨shape, children⟩))
+    (tree : P.W) : Q tree :=
+  induction_of_isInitial (wAlgebraIsInitial P) Q step tree
+
 end PolyAlgebra
 
 
@@ -317,7 +395,321 @@ example (tree : Tree Nat String) :
     (𝟙 _)
   exact (congrArg (fun g => g.f tree) h).symm
 
+/-- The number of leaves, as a `Nat`. (The carrier of `leafCount` is `Nat`
+only after unfolding, so we name the fold at type `Nat`.) -/
+def numLeaves (tree : Tree Leaf Branch) : Nat :=
+  PolyAlgebra.fold _ (leafCount Leaf Branch) tree
+
+/-- Every tree has at least one leaf, proved with `w_induction`. The step
+looks at one node, whose children are already known to satisfy the claim. -/
+theorem one_le_numLeaves (tree : Tree Leaf Branch) : 1 ≤ numLeaves tree := by
+  refine PolyAlgebra.w_induction _ (fun t => 1 ≤ numLeaves t) ?_ tree
+  intro shape children ih
+  unfold numLeaves
+  rw [PolyAlgebra.fold_mk]
+  cases shape with
+  | leaf payload => exact le_refl 1
+  | branch payload => exact Nat.le_add_right_of_le (ih (0 : Fin 2))
+
 end BinaryTreeExample
+
+
+/-!
+## Example: the natural numbers
+
+`ℕ` is the W-type of the polynomial `1 + X`. There are two shapes: `zero`, with
+no positions, and `succ`, with one. A tree for this signature is a chain
+`succ (succ (… zero))`.
+
+An algebra for `1 + X` is a carrier with a point and a step map. A fold sends
+`n` to `stepⁿ(point)`, which is primitive iteration.
+
+The plan:
+
+1. Make Lean's own `ℕ` an algebra, `natAlgebra`, with point `0` and step
+   `Nat.succ`.
+2. Show it is initial by transporting `wAlgebraIsInitial` along an algebra
+   isomorphism `wAlgebra pfunctor ≅ natAlgebra`.
+3. Read off Peano's axioms from initiality alone:
+   - **induction**, from `induction_of_isInitial`;
+   - **`succ` is injective** and **`0 ≠ succ n`**, from Lambek's lemma
+     (`1 + ℕ ≅ ℕ`).
+
+These facts are of course already true of `Nat`. The point is that they all
+follow from the single universal property, so "initial algebra of `1 + X`" is
+a complete description of the natural numbers.
+
+Step 2 is not free. Proving that `toNat` and `ofNat` are inverse uses Lean's
+recursion and induction on `Nat` once, to connect `Nat` to the W-type. After
+that, step 3 uses only `natIsInitial`.
+-/
+
+namespace NatExample
+
+/-- The two kinds of node. -/
+inductive Shape where
+  | zero
+  | succ
+
+/-- The signature `1 + X`: `zero` has no child positions, and `succ` has one. -/
+def pfunctor : PFunctor.{0, 0} where
+  A := Shape
+  B
+    | .zero => Empty
+    | .succ => Unit
+
+/-- Build a `(1 + X)`-algebra from a point and a step. -/
+def algebra {C : Type} (zero : C) (succ : C → C) :
+    Algebra (PolyAlgebra.functor pfunctor) where
+  a := C
+  str := TypeCat.ofHom fun
+    | ⟨.zero, _⟩ => zero
+    | ⟨.succ, children⟩ => succ (children ())
+
+/-- Lean's natural numbers, as an algebra. -/
+def natAlgebra : Algebra (PolyAlgebra.functor pfunctor) :=
+  algebra (0 : Nat) Nat.succ
+
+/-- Fold a `1 + X` tree into `ℕ`. -/
+def toNat (tree : pfunctor.W) : Nat :=
+  PolyAlgebra.fold _ natAlgebra tree
+
+/-- Build the `1 + X` tree with `n` successors. -/
+def ofNat : Nat → pfunctor.W
+  | 0 => WType.mk Shape.zero (fun p => nomatch p)
+  | n + 1 => WType.mk Shape.succ (fun _ => ofNat n)
+
+/-- Uses induction on `Nat`. This is the one place we rely on it. -/
+theorem toNat_ofNat (n : Nat) : toNat (ofNat n) = n := by
+  induction n with
+  | zero => rfl
+  | succ n ih => exact congrArg Nat.succ ih
+
+/-- Uses `w_induction`. -/
+theorem ofNat_toNat (tree : pfunctor.W) : ofNat (toNat tree) = tree := by
+  refine PolyAlgebra.w_induction _ (fun t => ofNat (toNat t) = t) ?_ tree
+  intro shape children ih
+  cases shape with
+  | zero => exact congrArg (WType.mk Shape.zero) (funext fun p => nomatch p)
+  | succ => exact congrArg (WType.mk Shape.succ) (funext fun u => ih u)
+
+/-- The tree algebra and `natAlgebra` are isomorphic algebras. The forward
+map is `toNat`, which is the fold, so it is an algebra morphism. -/
+def wAlgebraIsoNat : PolyAlgebra.wAlgebra pfunctor ≅ natAlgebra :=
+  Algebra.isoMk
+    (Equiv.toIso
+      { toFun := toNat
+        invFun := ofNat
+        left_inv := ofNat_toNat
+        right_inv := toNat_ofNat })
+    (by
+      apply TypeCat.Hom.ext
+      apply TypeCat.Fun.ext
+      funext layer
+      rcases layer with ⟨shape | shape, children⟩ <;> rfl)
+
+/-- `(ℕ, 0, succ)` is the initial `(1 + X)`-algebra. -/
+def natIsInitial : Limits.IsInitial natAlgebra :=
+  Limits.IsInitial.ofIso (PolyAlgebra.wAlgebraIsInitial pfunctor) wAlgebraIsoNat
+
+
+/-!
+### Peano's axioms from initiality
+
+From here on, everything uses only `natIsInitial`.
+-/
+
+/-- Induction on `ℕ`, from initiality. The `zero` shape has no children, so
+its case needs no hypothesis. The `succ` shape has one child `n`, so its case
+is `Q n → Q (n + 1)`. -/
+theorem nat_induction (Q : Nat → Prop) (zero : Q 0)
+    (succ : ∀ n, Q n → Q (n + 1)) (n : Nat) : Q n := by
+  refine PolyAlgebra.induction_of_isInitial natIsInitial Q ?_ n
+  intro shape children ih
+  cases shape with
+  | zero => exact zero
+  | succ => exact succ (children ()) (ih ())
+
+/-- Lambek's lemma for `ℕ`: the structure map `1 + ℕ → ℕ` is a bijection. -/
+theorem natAlgebra_str_bijective :
+    Function.Bijective natAlgebra.str :=
+  (isIso_iff_bijective _).mp (Algebra.Initial.str_isIso natIsInitial)
+
+/-- `succ` is injective: two `succ` layers with the same image are the same
+layer, so their children agree. -/
+theorem succ_injective : Function.Injective Nat.succ := by
+  intro a b h
+  have hlayer :
+      (⟨Shape.succ, fun _ => a⟩ : pfunctor Nat) = ⟨Shape.succ, fun _ => b⟩ :=
+    natAlgebra_str_bijective.1 h
+  exact congrFun (eq_of_heq (Sigma.mk.inj hlayer).2) ()
+
+/-- `0 ≠ succ n`: a `zero` layer and a `succ` layer have different shapes, so
+they cannot have the same image. -/
+theorem zero_ne_succ (n : Nat) : 0 ≠ n + 1 := by
+  intro h
+  have hlayer :
+      (⟨Shape.zero, fun p => nomatch p⟩ : pfunctor Nat) =
+        ⟨Shape.succ, fun _ => n⟩ :=
+    natAlgebra_str_bijective.1 h
+  exact Shape.noConfusion (congrArg Sigma.fst hlayer)
+
+/-- Recursion on `ℕ`: from a point and a step in any type, the fold gives a
+function out of `ℕ`. It is the unique algebra morphism, and the morphism
+condition is the pair of equations below. -/
+def natRec {C : Type} (zero : C) (succ : C → C) : Nat → C :=
+  (natIsInitial.to (algebra zero succ)).f
+
+/-- The morphism condition at a `zero` layer. -/
+theorem natRec_zero {C : Type} (zero : C) (succ : C → C) :
+    natRec zero succ 0 = zero :=
+  congrArg (fun g => g ⟨Shape.zero, fun p => nomatch p⟩)
+    (natIsInitial.to (algebra zero succ)).h.symm
+
+/-- The morphism condition at a `succ` layer. -/
+theorem natRec_succ {C : Type} (zero : C) (succ : C → C) (n : Nat) :
+    natRec zero succ (n + 1) = succ (natRec zero succ n) :=
+  congrArg (fun g => g ⟨Shape.succ, fun _ => n⟩)
+    (natIsInitial.to (algebra zero succ)).h.symm
+
+example : natRec (0 : Nat) (· + 2) 5 = 10 := rfl
+
+end NatExample
+
+
+/-!
+## Example: lists, and `foldl` as a fold
+
+Lists of `Elem` are the W-type of `1 + Elem · X`. There are two kinds of node:
+`nil`, with no positions, and `cons head`, with one position for the tail.
+
+An algebra for `1 + Elem · X` is a carrier `C` with a value for `nil` and a
+map `Elem → C → C` for `cons`. The fold processes the tail first and then
+combines it with the head, so the fold of a list is `foldr`:
+
+    fold [x₁, x₂, x₃]  =  cons x₁ (cons x₂ (cons x₃ nil)).
+
+### Why `foldl` does not fit directly
+
+`foldl f z [x₁, x₂, x₃] = f (f (f z x₁) x₂) x₃`. It threads an accumulator
+from the head towards the tail. At a `cons` node, the fold hands us the
+already-computed result for the tail, but `foldl` cannot compute the tail
+until it knows the accumulator coming in from the left. With carrier `C`,
+the information flows the wrong way.
+
+### The trick: fold into functions
+
+Use the carrier `C → C` instead. The result for a list is "what `foldl` will
+do with whatever accumulator it is given":
+
+- `nil` leaves the accumulator alone: `id`.
+- `cons head` receives the tail's function `rest`. Given an accumulator
+  `acc`, it first takes `f acc head` and then passes that on to `rest`.
+
+Folding builds this function, and applying it to `z` runs `foldl`. The fold
+itself still goes tail-first, as every fold does. What it builds is a chain
+of continuations that runs head-first once it is given `z`.
+-/
+
+namespace ListExample
+
+/-- The two kinds of node. A `cons` node carries its head as payload. -/
+inductive Shape (Elem : Type) where
+  | nil
+  | cons (head : Elem)
+
+/-- The signature `1 + Elem · X`: `nil` has no child positions, and
+`cons head` has one, for the tail. -/
+def pfunctor (Elem : Type) : PFunctor.{0, 0} where
+  A := Shape Elem
+  B
+    | .nil => Empty
+    | .cons _ => Unit
+
+/-- Lists, as the W-type of this signature. -/
+abbrev WList (Elem : Type) := (pfunctor Elem).W
+
+variable {Elem : Type}
+
+/-- The empty list. -/
+def nil : WList Elem :=
+  WType.mk Shape.nil (fun p => nomatch p)
+
+/-- Put `head` in front of `tail`. -/
+def cons (head : Elem) (tail : WList Elem) : WList Elem :=
+  WType.mk (Shape.cons head) (fun _ => tail)
+
+/-- Build a `(1 + Elem · X)`-algebra from a value for `nil` and a step for
+`cons`. At a `cons` node, `children ()` is the already-computed result for
+the tail. -/
+def algebra {C : Type} (onNil : C) (onCons : Elem → C → C) :
+    Algebra (PolyAlgebra.functor (pfunctor Elem)) where
+  a := C
+  str := TypeCat.ofHom fun
+    | ⟨.nil, _⟩ => onNil
+    | ⟨.cons head, children⟩ => onCons head (children ())
+
+/-- The fold of a list algebra is `foldr`. (The carrier of `algebra` is `C`
+only after unfolding, so we name the fold at type `C`.) -/
+def foldr {C : Type} (onNil : C) (onCons : Elem → C → C)
+    (xs : WList Elem) : C :=
+  PolyAlgebra.fold _ (algebra onNil onCons) xs
+
+theorem foldr_nil {C : Type} (onNil : C) (onCons : Elem → C → C) :
+    foldr onNil onCons (nil : WList Elem) = onNil := rfl
+
+theorem foldr_cons {C : Type} (onNil : C) (onCons : Elem → C → C)
+    (head : Elem) (tail : WList Elem) :
+    foldr onNil onCons (cons head tail) =
+      onCons head (foldr onNil onCons tail) := rfl
+
+/-- Convert to Lean's `List`, by folding into the `List` algebra. -/
+def toList (xs : WList Elem) : List Elem :=
+  foldr [] List.cons xs
+
+/-- `foldl`, as a fold into the carrier `C → C`. -/
+def foldl {C : Type} (f : C → Elem → C) (init : C) (xs : WList Elem) : C :=
+  foldr (C := C → C) id (fun head rest acc => rest (f acc head)) xs init
+
+/-- At `nil`, the accumulator comes out unchanged. -/
+theorem foldl_nil {C : Type} (f : C → Elem → C) (init : C) :
+    foldl f init (nil : WList Elem) = init := rfl
+
+/-- At `cons`, the head goes into the accumulator *before* the tail is
+processed. This is the `foldl` equation, even though the fold underneath
+handled the tail first. -/
+theorem foldl_cons {C : Type} (f : C → Elem → C) (init : C)
+    (head : Elem) (tail : WList Elem) :
+    foldl f init (cons head tail) = foldl f (f init head) tail := rfl
+
+/-- The rigged fold agrees with `List.foldl`.
+
+The carrier is a function type, so the claim must hold for *every* starting
+accumulator. The induction hypothesis for the tail is then used at the new
+accumulator `f init head`. -/
+theorem foldl_eq_list_foldl {C : Type} (f : C → Elem → C) (xs : WList Elem) :
+    ∀ init, foldl f init xs = (toList xs).foldl f init := by
+  refine PolyAlgebra.w_induction _
+    (fun t => ∀ init, foldl f init t = (toList t).foldl f init) ?_ xs
+  intro shape children ih init
+  cases shape with
+  | nil => rfl
+  | cons head => exact ih () (f init head)
+
+/-- The list `[1, 2, 3]`. -/
+def example1 : WList Nat :=
+  cons 1 (cons 2 (cons 3 nil))
+
+example : toList example1 = [1, 2, 3] := rfl
+
+-- Reading digits: `foldl` meets `1` first, `foldr` meets `3` first.
+example : foldl (fun acc x => 10 * acc + x) 0 example1 = 123 := rfl
+example : foldr 0 (fun x acc => 10 * acc + x) example1 = 321 := rfl
+
+-- Consing onto the accumulator reverses the list.
+example : foldl (fun acc x => x :: acc) [] example1 = [3, 2, 1] := rfl
+
+end ListExample
 
 
 /-!
@@ -340,7 +732,7 @@ so their layer is
 
     Leaf · X⁰ + Branch · X²  =  Leaf + Branch · X².
 
-Lists have `1 + Elem · X`.
+Lists (`ListExample`) have `1 + Elem · X`.
 
 This section makes that reading precise in four ways.
 
