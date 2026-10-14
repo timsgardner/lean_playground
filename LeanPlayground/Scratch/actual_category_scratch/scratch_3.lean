@@ -21,7 +21,7 @@ open CategoryTheory
 section
 set_option pp.deepTerms true
 set_option pp.proofs true
-set_option pp.coercions false
+-- set_option pp.coercions false
 
 universe v u
 
@@ -646,6 +646,8 @@ end Concrete
   helper lemmas below handle the `Type` API so the exercises are pure mono/epi logic. -/
 namespace InType
 
+scoped notation "cchom" => CategoryTheory.ConcreteCategory.hom
+
 open TypeCat
 
 /-- Collapse both booleans to the one point. Not injective, so not mono. -/
@@ -655,7 +657,6 @@ def pickT : PUnit.{1} ⟶ Bool := ofHom fun _ => true
 def pickF : PUnit.{1} ⟶ Bool := ofHom fun _ => false
 def constT : Bool ⟶ Bool := ofHom fun _ => true
 
-#exit
 theorem pickT_ne_pickF : pickT ≠ pickF := fun h => by
   have := congrArg (fun f => f PUnit.unit) h
   simp [pickT, pickF] at this
@@ -676,16 +677,34 @@ theorem pickT_toUnit_id : pickT ≫ toUnit = 𝟙 PUnit.{1} := by
   ext
 
 /-- Exercise. -/
-example : ¬ Mono toUnit := by
-  sorry
+theorem toUnit_not_mono : ¬ Mono toUnit := by
+  intro h
+  have h1 : pickT ≫ toUnit = pickF ≫ toUnit := by
+    ext
+  have h2 := h.right_cancellation pickT pickF
+  have h3 := h2 h1
+  exact pickT_ne_pickF h3
 
 /-- Exercise. -/
 example : ¬ Epi pickT := by
-  sorry
+  intro h
+  have h1 : pickT ≫ 𝟙 Bool = pickT ≫ constT := by
+    rfl
+  have h2 := (h.left_cancellation (𝟙 Bool) constT) h1
+  exact id_ne_constT h2
 
 /-- Exercise: `toUnit` is epi (it has a section) but not iso. -/
 example : Epi toUnit ∧ ¬ IsIso toUnit := by
-  sorry
+  refine ⟨?is_epi, ?n_iso⟩
+  · constructor
+    intro A f1 f2 h
+    replace h := pickT ≫= h
+    repeat rw [← Category.assoc, pickT_toUnit_id] at h
+    simp at h
+    exact h
+  · intro h
+    exact toUnit_not_mono h.mono_of_iso
+
 
 /- Exercises: in `Type`, mono means injective and epi means surjective. Mathlib has
   these (`mono_iff_injective`, `epi_iff_surjective`), so don't use them. Useful API:
@@ -699,13 +718,77 @@ example : Epi toUnit ∧ ¬ IsIso toUnit := by
   once picking `a` and once picking `b`. -/
 theorem my_mono_iff_injective {X Y : Type} (f : X ⟶ Y) :
     Mono f ↔ Function.Injective f := by
-  sorry
+  constructor
+  · intro hmf
+    intro a b h2
+    change f a = f b at h2
+    let pickA : PUnit.{1} ⟶ X := ofHom fun _ => a
+    let pickB : PUnit.{1} ⟶ X := ofHom fun _ => b
+    have h3 : pickA ≫ f = pickB ≫ f := by
+      ext x
+      show (pickA ≫ f) x = (pickB ≫ f) x
+      rw [types_comp_apply, types_comp_apply]
+      exact h2
+    rw [cancel_mono] at h3
+    replace h3 := types_congr_hom h3 PUnit.unit
+    repeat rw [ofHom_apply] at h3
+    exact h3
+  · intro h
+    constructor
+    intro A f1 f2 h2
+    -- Morphisms in `Type` are equal if they agree at every point.
+    ext x
+    -- `f` is injective, so it suffices that `f (f1 x) = f (f2 x)`.
+    apply h
+    -- Evaluate `h2 : f1 ≫ f = f2 ≫ f` at `x`.
+    have h3 := types_congr_hom h2 x
+    rw [types_comp_apply, types_comp_apply] at h3
+    exact h3
+
+
+/- partial reimpl of `Function.ne_iff` -/
+example
+    (A B : Type)
+    (f1 f2: A → B)
+    (h: f1 ≠ f2)
+    : ∃ a : A, f1 a ≠ f2 a := by
+  by_contra hind
+  simp at hind
+  have h2 : f1 = f2 := by
+    ext a
+    exact hind a
+  exact h h2
 
 /-- Hint for →: map `Y` into `Prop` twice: once to `True`, once to "is in the image
   of `f`". These agree after `f`. -/
 theorem my_epi_iff_surjective {X Y : Type} (f : X ⟶ Y) :
     Epi f ↔ Function.Surjective f := by
-  sorry
+  constructor
+  · intro hepi y
+    -- Two predicates on `Y`: "always true" and "is in the image of `f`".
+    let g1 : Y ⟶ Prop := ofHom fun _ => True
+    let g2 : Y ⟶ Prop := ofHom fun y' => ∃ x, f x = y'
+    -- They agree on everything in the image of `f`.
+    have h1 : f ≫ g1 = f ≫ g2 := by
+      ext x
+      show True ↔ ∃ x', f x' = f x
+      exact ⟨fun _ => ⟨x, rfl⟩, fun _ => trivial⟩
+    -- `f` is epi, so they agree everywhere.
+    have h2 : g1 = g2 := (cancel_epi f).mp h1
+    -- In particular at `y`: being in the image is as true as `True`.
+    have h3 : True = ∃ x, f x = y := types_congr_hom h2 y
+    exact h3 ▸ trivial
+  · intro hsurj
+    constructor
+    intro A g1 g2 h
+    -- Check `g1 = g2` pointwise.
+    ext y
+    -- Every `y` is `f x` for some `x`.
+    obtain ⟨x, rfl⟩ := hsurj y
+    -- Evaluate `h : f ≫ g1 = f ≫ g2` at `x`.
+    have h2 := types_congr_hom h x
+    rw [types_comp_apply, types_comp_apply] at h2
+    exact h2
 
 end InType
 
