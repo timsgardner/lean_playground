@@ -61,21 +61,83 @@ import LeanPlayground.Scratch.category_kindergarten.common_tools
   giving its components (the `app` field) and a proof that those components are
   natural (the `naturality` field).
 
+  The statements of `left_triangle` and `right_triangle` use two operations on
+  natural transformations, whiskering and the associator.
+
+  Whiskering composes a natural transformation with a functor, producing a new
+  natural transformation. For `α : H ⟶ K` a natural transformation between functors
+  `H K : D ⥤ E`, and functors `F : C ⥤ D` and `L : E ⥤ E'`:
+
+    whiskerLeft F α  : F ⋙ H ⟶ F ⋙ K     (the functor `F` is applied first)
+    whiskerRight α L : H ⋙ L ⟶ K ⋙ L     (the functor `L` is applied last)
+
+  For any three composable functors `P`, `Q`, `R`, the associator
+  `Functor.associator P Q R : (P ⋙ Q) ⋙ R ≅ P ⋙ (Q ⋙ R)` is a natural isomorphism
+  between the two ways of bracketing their composite.
+  Every component of the associator is an identity morphism. The two bracketings are
+  even equal by `rfl`, but they are written differently, and `≫` needs the target of
+  its first argument to be written exactly like the source of its second.
+
+  That mismatch is why the associator appears in `left_triangle`. The two whiskered
+  natural transformations in `left_triangle` have these types:
+
+    whiskerRight unit F  : 𝟭 C ⋙ F ⟶ (F ⋙ G) ⋙ F
+    whiskerLeft F counit : F ⋙ (G ⋙ F) ⟶ F ⋙ 𝟭 D
+
+  The target of the first is `(F ⋙ G) ⋙ F` and the source of the second is
+  `F ⋙ (G ⋙ F)`, so `(associator F G F).hom` is placed between them to convert one
+  bracketing into the other. In `right_triangle`, `(associator G F G).inv` does the
+  same job in the opposite direction, from `G ⋙ (F ⋙ G)` to `(G ⋙ F) ⋙ G`. Because
+  every component of the associator is an identity, the associator disappears once
+  the triangle identities are reduced to components.
+
   The fields `left_triangle` and `right_triangle` are the triangle identities stated
   as equations between whole natural transformations, rather than one component at
-  a time as in `Adjunction`. To prove either of them, run `ext X` to reduce the
-  equation to its component at `X`. Then simplify that component using these simp
-  lemmas, which compute the component of each piece of the equation:
+  a time as in `Adjunction`. To prove either of them, first run `ext X` to reduce
+  the equation to its component at `X`. In `Type`, `ext X` keeps going and also
+  reduces to an arbitrary element; `ext X : 2` stops at the component, and
+  `ext X ⟨x, a⟩` goes to an element and splits it when it is a pair.
+
+  Next, compute the component of each piece of the equation. These simp lemmas do
+  that:
 
     Functor.whiskerRight_app : (whiskerRight α F).app X = F.map (α.app X)
     Functor.whiskerLeft_app  : (whiskerLeft F α).app X  = α.app (F.obj X)
-    Functor.associator_hom_app : (associator F G H).hom.app X = 𝟙 _
-    Functor.associator_inv_app : (associator F G H).inv.app X = 𝟙 _
+    Functor.associator_hom_app : (associator P Q R).hom.app X = 𝟙 _
+    Functor.associator_inv_app : (associator P Q R).inv.app X = 𝟙 _
     NatTrans.comp_app        : (α ≫ β).app X = α.app X ≫ β.app X
     NatTrans.id_app'         : (NatTrans.id F).app X = 𝟙 (F.obj X)
 
-  After that simplification, the goal is the componentwise triangle identity, in
-  the same form as `left_triangle_components` or `right_triangle_components` above.
+  With these lemmas alone, the left triangle gets stuck at
+
+    F.map (unit.app X) ≫ 𝟙 (((F ⋙ G) ⋙ F).obj X) ≫ counit.app (F.obj X) = 𝟙 ((𝟭 C ⋙ F).obj X)
+
+  The `𝟙` left over from the associator should cancel by `Category.id_comp`, but it
+  does not. The `𝟙` is written at the object `((F ⋙ G) ⋙ F).obj X`, while
+  `counit.app (F.obj X)` starts at the object `(G ⋙ F).obj (F.obj X)`. These two
+  objects are equal by definition but are written differently, and simp needs them
+  to match as written. Plain `simp` gets stuck in the same place.
+
+  The fix is to unfold every `(P ⋙ Q).obj X` into `Q.obj (P.obj X)` first, so that
+  both objects are written `F.obj (G.obj (F.obj X))`. The lemma that does this,
+  `Functor.comp_obj`, is ignored by `dsimp` in this version of Mathlib unless the
+  option `backward.defeqAttrib.useBackward` is on. With the option on, this
+  sequence reaches the componentwise triangle identity, in the same form as
+  `left_triangle_components` or `right_triangle_components` above:
+
+    set_option backward.defeqAttrib.useBackward true in
+    ...
+      ext X        -- in `Type`, use `ext X : 2` to stop at the component
+      dsimp        -- computes the components and unfolds `⋙`
+      simp only [Category.id_comp]
+
+  Without the option, `erw [Category.id_comp]` after the simp lemmas also removes
+  the `𝟙`, because `erw` compares the objects by definitional equality rather than
+  as written.
+
+  For a concrete adjunction such as the currying example below, none of this is
+  necessary: both sides of each triangle identity compute to the identity, so
+  `rfl` closes it directly.
 
   ## Using an adjunction
 
@@ -164,17 +226,65 @@ def expRight : Type ⥤ Type where
 with `Adjunction.mkOfHomEquiv`. -/
 def curryAdj : prodRight A ⊣ expRight A :=
   Adjunction.mkOfHomEquiv
-    { homEquiv := sorry
-      homEquiv_naturality_left_symm := sorry
-      homEquiv_naturality_right := sorry }
+    { homEquiv := by
+        intro X Y
+        constructor
+        case toFun =>
+          intro m1
+          dsimp [prodRight] at m1
+          dsimp [expRight]
+          exact ↾(fun (x: X) (a: A) => m1 (x, a))
+        case invFun =>
+          dsimp [expRight, prodRight]
+          intro m1
+          exact ↾(fun (p: X × A) => m1 p.1 p.2)
+        case left_inv =>
+          dsimp [autoParam, Function.LeftInverse, prodRight]
+          intro p
+          rfl
+        case right_inv =>
+          dsimp [autoParam, Function.RightInverse, Function.LeftInverse, expRight]
+          intro m
+          rfl
+      homEquiv_naturality_left_symm := by
+        dsimp
+        intro B C D f g
+        dsimp [prodRight]
+        rfl
+      homEquiv_naturality_right := by
+        cat_disch }
 
 /-- The currying adjunction `(- × A) ⊣ (A → -)` again, this time built from a unit
 and a counit with `Adjunction.mkOfUnitCounit`. -/
 def curryAdj' : prodRight A ⊣ expRight A :=
   Adjunction.mkOfUnitCounit
-    { unit := sorry
-      counit := sorry
-      left_triangle := sorry
-      right_triangle := sorry }
+    { unit := by
+        constructor
+        case app =>
+          intro B
+          apply TypeCat.ofHom
+          dsimp
+          intro b
+          dsimp [Functor.comp, expRight, prodRight]
+          exact (fun a => (b, a))
+        case naturality =>
+          dsimp [autoParam, prodRight, expRight]
+          intro X Y f
+          rfl
+      counit := by
+        constructor
+        case app =>
+          intro X
+          dsimp [Functor.comp, prodRight, expRight]
+          exact ↾(fun p => p.1 p.2) -- ie, eval
+        case naturality =>
+          dsimp [autoParam]
+          intro X Y f
+          dsimp [prodRight, expRight]
+          rfl
+      left_triangle := by
+        cat_disch
+      right_triangle := by
+        cat_disch}
 
 end
