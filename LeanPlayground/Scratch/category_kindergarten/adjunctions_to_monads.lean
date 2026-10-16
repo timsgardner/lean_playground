@@ -1,4 +1,5 @@
 import Mathlib.CategoryTheory.Adjunction.Basic
+import Mathlib.CategoryTheory.Monad.Adjunction
 import Mathlib.CategoryTheory.Types.Basic
 import LeanPlayground.Scratch.category_kindergarten.common_tools
 
@@ -286,5 +287,128 @@ def curryAdj' : prodRight A ⊣ expRight A :=
         cat_disch
       right_triangle := by
         cat_disch}
+
+/- ## The induced monad: State
+
+  Every adjunction `adj : F ⊣ G` gives a monad `adj.toMonad` on `C`. Its functor is
+  `F ⋙ G`, its unit is the unit of the adjunction, and its multiplication is the
+  counit, whiskered so that it fits between two copies of `G`:
+
+    adj.toMonad.η = adj.unit
+    adj.toMonad.μ = whiskerRight (whiskerLeft F adj.counit) G
+      component at X:  G.map (adj.counit.app (F.obj X))
+
+  Dually, `adj.toComonad` is a comonad on `D` with functor `G ⋙ F`, counit
+  `adj.counit`, and comultiplication built from `adj.unit` in the same way.
+
+  For the currying adjunction, `F ⋙ G` sends `X` to `A → X × A`. That is the state
+  monad with state type `A`; Lean's `StateM A X` is this same type. Writing `T` for
+  the monad:
+
+    T.obj X   = A → X × A
+    T.map f m = fun a => (f (m a).1, (m a).2)   -- change the result, keep the state
+    η x       = fun a => (x, a)                 -- return `x`, leave the state alone
+    μ m       = fun a => (m a).1 (m a).2        -- run `m`, then run the computation
+                                                -- it returned on the new state
+
+  Here `μ` is `G.map` of the counit, and the counit is evaluation `(f, a) ↦ f a`.
+  So `μ` runs `m` to get a pair (computation, state) and evaluates the computation
+  at the state.
+
+  Bind is `μ` after `T.map`: `m >>= k = μ (T.map k m)`. Unfolding gives
+  `fun a => k (m a).1 (m a).2`, which is `StateM`'s bind.
+
+  The comonad `G ⋙ F` sends `Y` to `(A → Y) × A`, the store comonad. Its counit
+  `ε (f, a) = f a` reads the stored value, and its comultiplication
+  `δ (f, a) = (fun a' => (f, a'), a)` replaces the value at each position `a'` with
+  the whole store focused on `a'`.
+
+  `curryAdj` has no `@[simps]` attribute, so `dsimp` and `simp` do not unfold these
+  components. They hold by `rfl`, as the examples below check. -/
+
+/-- The state monad with state type `A`, induced by the currying adjunction. -/
+abbrev stateMonad : Monad Type := (curryAdj A).toMonad
+
+example (X : Type) : (stateMonad A).obj X = (A → X × A) := rfl
+example (X : Type) : (stateMonad A).obj X = StateM A X := rfl
+
+example (X Y : Type) (f : X ⟶ Y) (m : A → X × A) :
+    (stateMonad A).map f m = fun a => (f (m a).1, (m a).2) := rfl
+
+example (X : Type) (x : X) : (stateMonad A).η.app X x = fun a => (x, a) := rfl
+
+example (X : Type) (m : A → (A → X × A) × A) :
+    (stateMonad A).μ.app X m = fun a => (m a).1 (m a).2 := rfl
+
+/-- Bind for `stateMonad A`, built from `μ` and `map`. -/
+def stateBind {X Y : Type} (m : (stateMonad A).obj X) (k : X → (stateMonad A).obj Y) :
+    (stateMonad A).obj Y :=
+  (stateMonad A).μ.app Y ((stateMonad A).map (↾k) m)
+
+example {X Y : Type} (m : A → X × A) (k : X → A → Y × A) :
+    stateBind A m k = fun a => k (m a).1 (m a).2 := rfl
+
+/-- `η` and `stateBind` agree with Lean's `pure` and `>>=` for `StateM A`. -/
+example {X : Type} (x : X) : (stateMonad A).η.app X x = (pure x : StateM A X) := rfl
+example {X Y : Type} (m : StateM A X) (k : X → StateM A Y) :
+    stateBind A m k = (m >>= k) := rfl
+
+/- ### Running the state monad on strings
+
+  Take the state type to be `ℕ`, used to count how many operations have run, and
+  let the results be strings. Each operation below builds a string and adds one
+  to the count:
+
+    greet   s = fun n => ("hello, " ++ s, n + 1)
+    exclaim s = fun n => (s ++ "!", n + 1)
+
+  `pipeline` greets `"world"`, then exclaims twice. Each step receives the
+  previous step's string, and bind carries the count from one step to the next.
+  Run from a count of `0`, it gives `("hello, world!!", 3)`: the final string, and
+  the three operations it took to get there.
+
+  Binding is `μ` after `map`, and the two can be run separately. `map exclaim`
+  applied to `greet "world"` runs only the greeting. Its result is the computation
+  `exclaim "hello, world"`, which has not run yet, and the count stands at `1`.
+  `μ` runs that leftover computation, giving `("hello, world!", 2)`. -/
+
+/-- Prepend `"hello, "`, counting one operation. -/
+def greet (s : String) : (stateMonad ℕ).obj String := fun n => ("hello, " ++ s, n + 1)
+
+/-- Append `"!"`, counting one operation. -/
+def exclaim (s : String) : (stateMonad ℕ).obj String := fun n => (s ++ "!", n + 1)
+
+/-- Greet `"world"`, then exclaim twice. -/
+def pipeline : (stateMonad ℕ).obj String :=
+  stateBind ℕ (greet "world") fun s =>
+  stateBind ℕ (exclaim s) fun t =>
+  exclaim t
+
+#eval pipeline 0  -- ("hello, world!!", 3)
+example : pipeline 0 = ("hello, world!!", 3) := rfl
+
+/-- `map` changes the result and leaves the count alone. -/
+example : (stateMonad ℕ).map (↾String.length) pipeline 0 = (14, 3) := rfl
+
+/-- `map exclaim` without `μ`: the greeting has run, and the exclaim is left over
+as the result. -/
+def greetThenExclaim : (stateMonad ℕ).obj ((stateMonad ℕ).obj String) :=
+  (stateMonad ℕ).map (↾exclaim) (greet "world")
+
+example : (greetThenExclaim 0).2 = 1 := rfl
+example : (greetThenExclaim 0).1 1 = ("hello, world!", 2) := rfl
+
+#eval (stateMonad ℕ).μ.app String greetThenExclaim 0  -- ("hello, world!", 2)
+example : (stateMonad ℕ).μ.app String greetThenExclaim 0 = ("hello, world!", 2) := rfl
+
+/-- The store comonad with position type `A`, induced by the currying adjunction. -/
+abbrev storeComonad : Comonad Type := (curryAdj A).toComonad
+
+example (Y : Type) : (storeComonad A).obj Y = ((A → Y) × A) := rfl
+
+example (Y : Type) (p : (A → Y) × A) : (storeComonad A).ε.app Y p = p.1 p.2 := rfl
+
+example (Y : Type) (p : (A → Y) × A) :
+    (storeComonad A).δ.app Y p = (fun a' => (p.1, a'), p.2) := rfl
 
 end
