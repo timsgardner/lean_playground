@@ -3,6 +3,8 @@
 -/
 
 import Mathlib.CategoryTheory.Functor.Const
+import Mathlib.CategoryTheory.Limits.Cones
+import Mathlib.CategoryTheory.Limits.IsLimit
 import Mathlib.CategoryTheory.Yoneda
 import Mathlib.CategoryTheory.Types.Basic
 import LeanPlayground.Scratch.category_kindergarten.common_tools
@@ -16,7 +18,7 @@ universe v₁ v₂ u₁ u₂
 
 variable {𝒞 : Type u₁} [Category.{v₁} 𝒞]
 variable {𝒥 : Type u₂} [Category.{v₂} 𝒥]
-variable (F : 𝒞 ⥤ 𝒥)
+variable (F : 𝒥 ⥤ 𝒞)
 
 -- Definition 3.1.1: Constant functor and constant diagram functor
 #print Functor.const
@@ -50,3 +52,77 @@ example {c₁ c₂ : 𝒞} (f : c₁ ⟶ c₂) (j : 𝒥) :
 
 -- Likewise `Δc` sends every object of `𝒥` to `c`.
 example {c : 𝒞} (j : 𝒥) : ((Functor.const 𝒥).obj c).obj j = c := rfl
+
+-- Definition 3.1.2: Cone
+/-
+Riehl: a cone over a diagram `F : 𝒥 ⥤ 𝒞` with summit `c : 𝒞` is a natural
+transformation `λ : Δc ⇒ F`, i.e. a term of
+`(Functor.const 𝒥).obj c ⟶ F`.
+
+Mathlib's `Cone F` bundles the summit with the cone: a `Cone F` is a structure
+with a field `pt : 𝒞` (the summit) and a field `π : (Functor.const 𝒥).obj pt ⟶ F`.
+So Riehl's "cone over `F` with summit `c`" is the type of `π` for `pt := c`, and
+`Cone F` is the type of pairs of a summit and such a cone.
+-/
+#print Limits.Cone
+
+/-
+Riehl's explicit description: the legs `λ j : c ⟶ F.obj j`, subject to the
+triangle `λ j ≫ F.map f = λ k` for every `f : j ⟶ k`. Mathlib has the triangle
+as `Limits.Cone.w`.
+-/
+example (K : Limits.Cone F) {j k : 𝒥} (f : j ⟶ k) :
+    K.π.app j ≫ F.map f = K.π.app k := K.w f
+
+/-- Riehl's explicit description is enough to define a cone: legs together with
+commuting triangles give the natural transformation `Δc ⇒ F`. -/
+def coneOfLegs (c : 𝒞) (leg : ∀ j : 𝒥, c ⟶ F.obj j)
+    (triangle : ∀ {j k : 𝒥} (f : j ⟶ k), leg j ≫ F.map f = leg k) :
+    (Functor.const 𝒥).obj c ⟶ F where
+  app := leg
+  naturality := by
+    intro j k f
+    exact (Category.id_comp _).trans (triangle f).symm
+
+
+-- Definition 3.1.5: Limits and colimits I
+/-
+Riehl's `Cone(−, F) := Hom(Δ(−), F) : 𝒞ᵒᵖ ⥤ Set` is Mathlib's `F.cones`,
+literally defined as `(Functor.const 𝒥).op ⋙ yoneda.obj F`.
+-/
+#print Functor.cones
+
+example : F.cones = (Functor.const 𝒥).op ⋙ yoneda.obj F := rfl
+
+-- On objects: `Cone(c, F)` is the set of natural transformations `Δc ⇒ F`.
+example (c : 𝒞) : F.cones.obj (Opposite.op c) = ((Functor.const 𝒥).obj c ⟶ F) := rfl
+
+-- On morphisms: `f : c ⟶ d` acts by precomposing the legs with `f`.
+example {c d : 𝒞} (f : c ⟶ d) (μ : (Functor.const 𝒥).obj d ⟶ F) (j : 𝒥) :
+    (F.cones.map f.op μ).app j = f ≫ μ.app j := rfl
+
+/-
+A limit of `F` is a representation of `Cone(−, F)`. In Mathlib the cone together
+with its universal property is `Limits.IsLimit t` for a `t : Limits.Cone F`, and
+this is equivalent to `F.cones` being represented by `t.pt`.
+-/
+#print Limits.IsLimit
+
+example (t : Limits.Cone F) (h : Limits.IsLimit t) : F.cones.RepresentableBy t.pt :=
+  h.representableBy
+
+-- The natural isomorphism `C(−, lim F) ≅ Cone(−, F)` (up to a `ULift`).
+#check @Limits.IsLimit.natIso
+
+/-
+Dually, `Cone(F, −) := Hom(F, Δ(−)) : 𝒞 ⥤ Set` is `F.cocones`, and a colimit is a
+corepresentation of it.
+-/
+#print Functor.cocones
+
+example : F.cocones = Functor.const 𝒥 ⋙ coyoneda.obj (Opposite.op F) := rfl
+
+example (t : Limits.Cocone F) (h : Limits.IsColimit t) : F.cocones.CorepresentableBy t.pt :=
+  h.corepresentableBy
+
+#check @Limits.IsColimit.natIso
