@@ -35,6 +35,7 @@ Work through it in two passes:
 
 namespace Ex1
 
+@[ext]
 structure Evn where
   half : ℕ
 
@@ -55,24 +56,46 @@ instance : Mul Evn := ⟨Evn.mul⟩
 -- Transport lemmas. Proving them forces you to unfold `+` and `*` through the
 -- instances; note what those goals look like, and consider stating `rfl`
 -- lemmas such as `Evn.add_def : a + b = Evn.add a b` first.
+-- set_option pp.explicit true in
+set_option pp.coercions false in
+set_option pp.explicit true in
 theorem Evn.toNat_add (a b : Evn) : ((a + b : Evn) : ℕ) = (a : ℕ) + b := by
-  sorry
+  conv =>
+    rhs
+    unfold Evn.toNat
+    unfold Evn.half
+    rw [← mul_add]
+  conv =>
+    lhs
+    unfold Evn.toNat
+    unfold Evn.half
+    dsimp only [HAdd.hAdd, Add.add, Evn.add]
+  dsimp
 
 theorem Evn.toNat_mul (a b : Evn) : ((a * b : Evn) : ℕ) = (a : ℕ) * b := by
-  sorry
+  dsimp only [HMul.hMul, Mul.mul, Evn.mul, Evn.toNat]
+  dsimp
+  ring
 
 theorem Evn.toNat_ofNat (n : ℕ) : ((Evn.ofNat n : Evn) : ℕ) = 2 * n := by
-  sorry
+  dsimp [ofNat, toNat]
 
 theorem Evn.toNat_inj {a b : Evn} : (a : ℕ) = (b : ℕ) ↔ a = b := by
-  sorry
+  dsimp [toNat, Evn.half]
+  simp
+  rw [Evn.ext_iff]
+
 
 /-- The nested sexpr shape, written with explicit function names. -/
 example (a b : Evn) :
     Evn.toNat (Evn.ofNat (Evn.toNat a + Evn.toNat b) * a)
       = 2 * ((a : ℕ) + b) * a := by
-  sorry
+  dsimp only [Evn.toNat, Evn.ofNat]
+  dsimp only [HMul.hMul, Mul.mul, Evn.mul]
+  simp
+  ring
 
+#exit
 /-- A W1 fact used to prove a W2 fact. -/
 example (a b c d : Evn) (h : (a : ℕ) * b = (c : ℕ) + d) :
     ((a * b + c : Evn) : ℕ) = 2 * (c : ℕ) + d := by
