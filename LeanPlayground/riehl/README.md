@@ -4,9 +4,11 @@ This directory is for working through Riehl's Category Theory in Context somewha
 
 For reference, the pdf of Category Theory in Context can be found under `assets/riehl_category_theory_in_context.pdf`. This is personal use so it's fine to read and refer to it.
 
+**Edition:** the PDF is the *second* edition (Riehl, 2nd ed., 2026), not the 2016 Dover first edition. Wording, theorem/definition numbers and page numbers can differ between the two. In particular the second edition reordered sections in Chapters 3 and 4, added §4.6 (locally cartesian closed categories) and Prop. 4.3.8 (mates), and moved some exercises into the main text (e.g. Def. 2.4.13, Thm. 4.2.7, Lemmas 3.4.5-3.4.6). If you are reading a printed first edition, don't assume numbers in this README match it.
+
 ## Page numbers
 
-The PDF has 299 pages. The book's printed (Arabic) page numbers are offset from PDF page numbers:
+The PDF (second edition) has 299 pages. Its printed (Arabic) page numbers are offset from PDF page numbers:
 
 > **PDF page = book page + 20**
 
