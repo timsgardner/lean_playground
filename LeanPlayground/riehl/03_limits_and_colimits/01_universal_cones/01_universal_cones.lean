@@ -89,6 +89,16 @@ def coneOfLegs (c : 𝒞) (leg : ∀ j : 𝒥, c ⟶ F.obj j)
 /-
 Riehl's `Cone(−, F) := Hom(Δ(−), F) : 𝒞ᵒᵖ ⥤ Set` is Mathlib's `F.cones`,
 literally defined as `(Functor.const 𝒥).op ⋙ yoneda.obj F`.
+
+Recall that `yoneda.obj F` is `Hom(-, F)` (or `Nat(-, F)`), where the Hom is
+taken in the functor category `𝒥 ⥤ 𝒞`, so it is a functor
+`(𝒥 ⥤ 𝒞)ᵒᵖ ⥤ Type`. Precomposing with `Δ(−)ᵒᵖ : 𝒞ᵒᵖ ⥤ (𝒥 ⥤ 𝒞)ᵒᵖ` yields
+`Hom(Δ(−), F) : 𝒞ᵒᵖ ⥤ Type`. This sends an object `c` of `𝒞ᵒᵖ` to
+`Hom(Δ(c), F)`, the set of *natural transformations* from `Δ(c)` to `F`. Such
+a nat trans is a morphism `Δ(c) ⟶ F` in the functor category `𝒥 ⥤ 𝒞`, and its
+components are all morphisms out of `c` in `𝒞` (not `𝒞ᵒᵖ`) into the image of
+the diagram `F`. This can be pictured as a radial pattern from `c` to the
+image of `F`, hence a "cone."
 -/
 #print Functor.cones
 
