@@ -17,19 +17,9 @@ args = [
 cwd = "/home/timsg/code/lean_playground"
 
 [mcp_servers.tikz-cd]
-command = "docker"
-args = [
-    "run",
-    "--rm",
-    "-i",
-    "--network=none",
-    "--read-only",
-    "--cap-drop=ALL",
-    "--security-opt=no-new-privileges",
-    "--memory=512m",
-    "--cpus=1",
-    "--pids-limit=64",
-    "--tmpfs",
-    "/tmp:rw,nosuid,nodev,size=128m",
-    "tikz-cd-mcp",
-]
+command = "uv"
+args = ["run", "--quiet", "--project", "/home/timsg/code/tikz-cd-mcp", "tikz-cd-mcp"]
+cwd = "/home/timsg/code/lean_playground"
+
+[mcp_servers.tikz-cd.env]
+PATH = "/home/timsg/.local/texlive/2026/bin/x86_64-linux:/home/timsg/.local/bin:/usr/local/bin:/usr/bin:/bin"
