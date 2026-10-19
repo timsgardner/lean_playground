@@ -9,7 +9,7 @@ import Mathlib.CategoryTheory.Yoneda
 import Mathlib.CategoryTheory.Types.Basic
 import LeanPlayground.Scratch.category_kindergarten.common_tools
 
-open CategoryTheory
+open CategoryTheory Opposite
 open scoped CategoryKindergarten
 
 set_option pp.categoryTheory.hideConcreteHom true
@@ -104,10 +104,15 @@ image of `F`, hence a "cone."
 
 example : F.cones = (Functor.const 𝒥).op ⋙ yoneda.obj F := rfl
 
--- On objects: `Cone(c, F)` is the set of natural transformations `Δc ⇒ F`.
-example (c : 𝒞) : F.cones.obj (Opposite.op c) = ((Functor.const 𝒥).obj c ⟶ F) := rfl
+-- On objects: the functor `F.cones` sends `op c` (the image of `c : 𝒞` in `𝒞ᵒᵖ`)
+-- to the set `Cone(c, F)` of natural transformations `Δc ⇒ F`.
+example (c : 𝒞) : F.cones.obj (op c) = ((Functor.const 𝒥).obj c ⟶ F) := rfl
 
--- On morphisms: `f : c ⟶ d` acts by precomposing the legs with `f`.
+-- On morphisms: the functor `F.cones` sends `f.op : op d ⟶ op c` (the image of
+-- `f : c ⟶ d` in `𝒞ᵒᵖ`) to the function `Cone(d, F) → Cone(c, F)` that sends a
+-- cone `μ` with summit `d` to the cone with summit `c` whose `j`-th leg is
+-- `f ≫ μ.app j`: first `f`, then the old leg.
+-- Diagram: assets/cones_functor_on_morphisms.svg
 example {c d : 𝒞} (f : c ⟶ d) (μ : (Functor.const 𝒥).obj d ⟶ F) (j : 𝒥) :
     (F.cones.map f.op μ).app j = f ≫ μ.app j := rfl
 
@@ -130,7 +135,7 @@ corepresentation of it.
 -/
 #print Functor.cocones
 
-example : F.cocones = Functor.const 𝒥 ⋙ coyoneda.obj (Opposite.op F) := rfl
+example : F.cocones = Functor.const 𝒥 ⋙ coyoneda.obj (op F) := rfl
 
 example (t : Limits.Cocone F) (h : Limits.IsColimit t) : F.cocones.CorepresentableBy t.pt :=
   h.corepresentableBy
