@@ -3,7 +3,9 @@
 -/
 
 import Mathlib.CategoryTheory.Functor.Const
+import Mathlib.CategoryTheory.Limits.ConeCategory
 import Mathlib.CategoryTheory.Limits.Cones
+import Mathlib.CategoryTheory.Limits.HasLimits
 import Mathlib.CategoryTheory.Limits.IsLimit
 import Mathlib.CategoryTheory.Yoneda
 import Mathlib.CategoryTheory.Types.Basic
@@ -120,17 +122,86 @@ example {c d : 𝒞} (f : c ⟶ d) (μ : (Functor.const 𝒥).obj d ⟶ F) (j : 
     (F.cones.map f.op μ).app j = f ≫ μ.app j := rfl
 
 /-
-A limit of `F` is a representation of `Cone(−, F)`. In Mathlib the cone together
-with its universal property is `Limits.IsLimit t` for a `t : Limits.Cone F`, and
-this is equivalent to `F.cones` being represented by `t.pt`.
+A limit of `F` is a representation of `Cone(−, F)`. Unpacked, that is two
+pieces of data:
+* a *representing object* `lim F : 𝒞`, and
+* a natural isomorphism `𝒞(−, lim F) ≅ Cone(−, F)` of functors `𝒞ᵒᵖ ⥤ Set`.
+
+`lim F` is Riehl's notation for the representing object. It is an object of `𝒞`
+(the summit of the limit cone), not a cone. By the Yoneda lemma the natural
+isomorphism is determined by where it sends `𝟙 (lim F)`: an element of
+`Cone(lim F, F)`, namely the *universal cone* `λ : Δ(lim F) ⇒ F`. At an object
+`c`, the isomorphism sends `g : c ⟶ lim F` to the cone with legs `g ≫ λ j`
+(the action of `F.cones` on `g.op`, as above). That it is a bijection is the
+universal property: every cone over `F` with summit `c` has the form `g ≫ λ`
+for exactly one `g : c ⟶ lim F`.
+
+Mathlib splits this up differently:
+* `Limits.Cone F` is just the bundle of a summit `pt` and a cone `π`.
+* `Limits.IsLimit t`, for `t : Limits.Cone F`, says that `t` is universal. Its
+  fields `lift`, `fac` and `uniq` are the universal property spelled out:
+  existence and uniqueness of the factorization `g`. Here `t.pt` plays the role
+  of `lim F` and `t.π` the role of `λ`.
+* `Limits.HasLimit F` is the proposition that some such `t` exists.
+
+So the pair (`lim F`, isomorphism) corresponds to a pair (`t`, `h : IsLimit t`).
 -/
 #print Limits.IsLimit
 
+-- The same thing phrased as "`F.cones` is represented by `t.pt`", where the
+-- data is an equivalence `(X ⟶ t.pt) ≃ Cone(X, F)` natural in `X`.
 example (t : Limits.Cone F) (h : Limits.IsLimit t) : F.cones.RepresentableBy t.pt :=
   h.representableBy
 
--- The natural isomorphism `C(−, lim F) ≅ Cone(−, F)` (up to a `ULift`).
+/-
+The *universal element*. A representation of a functor `G : 𝒞ᵒᵖ ⥤ Set` is the
+same as a universal element: a pair `(Y, u)` of an object `Y` and an element
+`u ∈ G(Y)` such that every element of every `G(c)` is `G(g.op) u` for exactly
+one `g : c ⟶ Y`. For `G = Cone(−, F)` this is `(lim F, λ)`, the limit object
+together with the universal cone `λ ∈ Cone(lim F, F)`.
+
+In Lean, for a limit cone `t` with `h : IsLimit t`, the universal element is
+`t.π`, which is literally an element of `F.cones.obj (op t.pt)`. For the chosen
+limit it is `(Limits.limit.cone F).π`.
+-/
+example (t : Limits.Cone F) : F.cones.obj (op t.pt) := t.π
+
+-- The representation sends `𝟙 t.pt` to the universal element...
+example (t : Limits.Cone F) (h : Limits.IsLimit t) :
+    h.representableBy.homEquiv (𝟙 t.pt) = t.π := by
+  show (Functor.const 𝒥).map (𝟙 t.pt) ≫ t.π = t.π
+  simp
+
+-- ...and `g : c ⟶ t.pt` to the image of the universal element under `F.cones`
+-- acting on `g.op`, i.e. the cone whose `j`-th leg is `g ≫ t.π.app j`.
+example (t : Limits.Cone F) (h : Limits.IsLimit t) {c : 𝒞} (g : c ⟶ t.pt) :
+    h.representableBy.homEquiv g = F.cones.map g.op t.π := rfl
+
+example (t : Limits.Cone F) (h : Limits.IsLimit t) {c : 𝒞} (g : c ⟶ t.pt) (j : 𝒥) :
+    (h.representableBy.homEquiv g).app j = g ≫ t.π.app j := rfl
+
+/-
+The natural isomorphism `𝒞(−, lim F) ≅ Cone(−, F)`, with `t.pt` for `lim F`.
+It is stated up to `ULift`: hom-sets of `𝒞` live in `Type v₁` while `F.cones`
+takes values in `Type (max u₂ v₁)`, so the left side is lifted to match.
+-/
 #check @Limits.IsLimit.natIso
+
+/-
+Translating the notation `lim F` into Lean: given `[Limits.HasLimit F]`, the
+representing object is `Limits.limit F : 𝒞`, a chosen one (noncomputably) out of
+the possibly many limit cones. The universal cone `λ` is `Limits.limit.cone F`,
+whose summit is `limit F` by definition, and `Limits.limit.isLimit F` is the
+proof that it is universal. Its legs are `Limits.limit.π F j : limit F ⟶ F.obj j`,
+and the factorization `g : c ⟶ lim F` of a cone `s` is `Limits.limit.lift F s`.
+-/
+example [Limits.HasLimit F] : (Limits.limit.cone F).pt = Limits.limit F := rfl
+
+noncomputable example [Limits.HasLimit F] : Limits.IsLimit (Limits.limit.cone F) :=
+  Limits.limit.isLimit F
+
+#check @Limits.limit.π
+#check @Limits.limit.lift
 
 /-
 Dually, `Cone(F, −) := Hom(F, Δ(−)) : 𝒞 ⥤ Set` is `F.cocones`, and a colimit is a
@@ -144,3 +215,60 @@ example (t : Limits.Cocone F) (h : Limits.IsColimit t) : F.cocones.Corepresentab
   h.corepresentableBy
 
 #check @Limits.IsColimit.natIso
+
+
+-- Definition 3.1.6: Limits and colimits II
+/-
+A limit is a terminal object in the category of cones over `F`: objects are
+cones over `F` with any summit, and a morphism from a cone `λ : Δc ⇒ F` to a
+cone `μ : Δd ⇒ F` is a morphism `f : c ⟶ d` such that `μ j ⋅ f = λ j` for all
+`j` (each leg of the domain cone factors through the corresponding leg of the
+codomain cone along `f`).
+
+Riehl presents this as the category of elements `∫Cone(−, F)`. Mathlib gives the
+category of cones directly: `Limits.Cone F` is a category whose morphisms are
+`Limits.ConeMorphism`s, bundling `f` with the commuting triangles.
+-/
+#print Limits.ConeMorphism
+
+example {A B : Limits.Cone F} (f : A ⟶ B) (j : 𝒥) :
+    f.hom ≫ B.π.app j = A.π.app j := f.w j
+
+/-
+Riehl's category of elements is, in general, the comma category `(Δ ↓ F)`;
+Mathlib records this for cones as an equivalence with `CostructuredArrow`.
+-/
+#check @Limits.Cone.equivCostructuredArrow
+
+/-
+Terminality unpacks to the universal property from before. For a cone `t` to be
+terminal, every cone `s` needs a unique morphism `s ⟶ t`: that is `lift`, which
+makes the legs of `s` factor through those of `t` (`fac`), together with its
+uniqueness (`uniq`). In Mathlib, `IsLimit t` and `IsTerminal t` are equivalent,
+and so a limit exists iff the category of cones has a terminal object.
+-/
+#check @Limits.Cone.isLimitEquivIsTerminal
+
+example (t : Limits.Cone F) : Limits.IsLimit t ≃ Limits.IsTerminal t :=
+  Limits.Cone.isLimitEquivIsTerminal t
+
+example : Limits.HasLimit F ↔ Limits.HasTerminal (Limits.Cone F) :=
+  Limits.hasLimit_iff_hasTerminal_cone F
+
+-- The unique morphism from any cone `s` to a limit cone `t`.
+example (t : Limits.Cone F) (h : Limits.IsLimit t) (s : Limits.Cone F) : s ⟶ t :=
+  h.liftConeMorphism s
+
+example (t : Limits.Cone F) (h : Limits.IsLimit t) (s : Limits.Cone F) (m : s ⟶ t) :
+    m = h.liftConeMorphism s := h.uniq_cone_morphism
+
+/-
+Dually, a colimit is an initial object in the category of cocones under `F`,
+where a morphism `λ ⟶ μ` of cocones with nadirs `c`, `d` is `f : c ⟶ d` with
+`μ j = λ j ⋅ f`.
+-/
+example {A B : Limits.Cocone F} (f : A ⟶ B) (j : 𝒥) :
+    A.ι.app j ≫ f.hom = B.ι.app j := f.w j
+
+#check @Limits.Cocone.isColimitEquivIsInitial
+#check @Limits.hasColimit_iff_hasInitial_cocone
