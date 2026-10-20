@@ -20,7 +20,9 @@ import Mathlib.Tactic.Check
 open CategoryTheory Limits Opposite
 open scoped CategoryKindergarten
 
-set_option pp.categoryTheory.hideConcreteHom true
+-- set_option pp.categoryTheory.hideConcreteHom true
+set_option pp.proofs true          -- print proof terms instead of ⋯
+set_option pp.deepTerms true       -- don't elide deeply nested subterms
 
 universe v₁ v₂ u₁ u₂
 
@@ -426,40 +428,155 @@ is, `TypeCat.ofHom φ`) turns `φ : X → Y` into `X ⟶ Y`, and a morphism
 universe w
 
 /-
-Exercise 1. The dependent function type `∀ b, X b`, with the evaluation maps
-`x ↦ x b` as legs, is a product of the family `X` in `Type w`.
+Exercise 1. Binary products first: the cartesian product `X × Y`, with
+`Prod.fst` and `Prod.snd` as legs, is a binary product in `Type w`.
+
+Mathlib's binary products have their own small API, parallel to `Fan`:
+* A `BinaryFan X Y` is a cone over the two-object discrete diagram `X, Y`
+  (indexed by `WalkingPair`, which has two objects `left` and `right`). It has a
+  summit `pt` and two legs `fst : pt ⟶ X` and `snd : pt ⟶ Y`.
+* `BinaryFan.mk fst snd` builds one from its two legs.
+* `BinaryFan.IsLimit.mk` proves one is a limit, given: a `lift` that turns any
+  pair of maps `f : T ⟶ X`, `g : T ⟶ Y` into a map `T ⟶ pt`; the two laws
+  `lift f g ≫ fst = f` and `lift f g ≫ snd = g`; and uniqueness of `lift f g`.
+  (Try `apply BinaryFan.IsLimit.mk` and look at the goals.)
+-/
+example (X Y : Type w) :
+    IsLimit (BinaryFan.mk (P := X × Y) (↾Prod.fst) (↾Prod.snd)) := by
+  apply BinaryFan.IsLimit.mk
+  case lift =>
+    intro T tx ty
+    exact ↾(fun x => (tx x, ty x))
+  case hl₁ =>
+    intro T tx ty
+    rfl
+  · intro T tx ty
+    conv =>
+      lhs
+      simp
+    rfl
+  · intro T tx ty tfanpt
+    simp
+    intro hx hy
+    ext tt
+    unfold BinaryFan.mk at tfanpt
+    simp at tfanpt
+    rw [← hx, ← hy]
+    rfl
+
+
+/-
+Exercise 2. The bridge: a pair is a dependent function out of `Bool`.
+
+Package `X` and `Y` as a family indexed by `Bool`: `fun b => cond b X Y` sends
+`true` to `X` and `false` to `Y`. An element `p : ∀ b : Bool, cond b X Y` is a
+function whose *output type depends on its input*: `p true : X` and
+`p false : Y`. That is exactly the data of a pair, one element of `X` and one
+of `Y`.
+
+(2a) Show this as an equivalence of types. Hint: to define a function out of
+`Bool` whose output type depends on the input, use `match b with | true => …
+| false => …`; to prove two such functions equal, `funext b` and then
+`cases b`.
+-/
+example (X Y : Type w) : (∀ b : Bool, cond b X Y) ≃ X × Y := by
+  let toFun : (∀ b : Bool, cond b X Y) → X × Y :=
+    (fun b => (b true, b false))
+  let invFun : X × Y → (∀ b : Bool, cond b X Y) :=
+    (fun p b =>
+      match b with
+      | true => p.1
+      | false => p.2)
+  constructor
+  case toFun => exact toFun
+  case invFun => exact invFun
+  case left_inv =>
+    show (Function.LeftInverse invFun toFun)
+    intro df
+    simp only [invFun, toFun]
+    ext b
+    cases b <;> simp
+  case right_inv =>
+    -- same idea, yada yada
+    cat_disch
+
+theorem beetle {A B: Type w} (f: A → B) (a: A) :
+    (cchom (↾ f)) a = f a := by
+  cat_disch
+
+/-
+(2b) The same bridge, categorically: `X × Y` with legs `Prod.fst` (at `true`)
+and `Prod.snd` (at `false`) is a product, in the `Fan` sense of 3.1.9, of the
+`Bool`-indexed family. Use `apply Fan.IsLimit.mk`, and expect `cases` on the
+index `j : Bool` in the laws.
+-/
+example (X Y : Type w) :
+    IsLimit
+      (Fan.mk
+        (f := fun b => cond b X Y)
+        (X × Y) -- the summit
+        (fun b => match b with
+          | true => ↾Prod.fst
+          | false => ↾Prod.snd)) := by
+  apply Fan.IsLimit.mk
+  case lift =>
+    intro fan
+    apply TypeCat.ofHom
+    intro fan_pt
+    dsimp [Fan.mk]
+    #check TypeCat.homEquiv (fan.proj true)
+    let true_fn := TypeCat.homEquiv (fan.proj true)
+    let false_fn := TypeCat.homEquiv (fan.proj false)
+    exact (true_fn fan_pt, false_fn fan_pt)
+  · cat_disch
+  · simp
+    intro bf m1 true_fn false_fn
+    change bf.pt ⟶ (X × Y) at m1
+    ext bf_pt
+    · simp
+      conv => rhs; change TypeCat.homEquiv (bf.proj true) bf_pt; simp
+      rw [← false_fn]
+      rfl
+    · simp
+      conv => rhs; congr; erw [beetle]
+      conv => rhs; simp
+      rw [←true_fn]
+      rfl
+
+/-
+Exercise 3. The general case: for any index type `β` and family `X : β → Type w`,
+the dependent function type `∀ b, X b`, with the evaluation maps `x ↦ x b` as
+legs, is a product of the family `X`. Exercise 2 is the case `β := Bool`.
 Hint: `Fan.IsLimit.mk` asks for a `lift` and the two laws; given a cone `s`,
 what function `s.pt → ∀ b, X b` do its legs determine?
 -/
 example {β : Type w} (X : β → Type w) :
-    IsLimit (Fan.mk (∀ b, X b) (fun b => ↾(fun x => x b))) :=
+    IsLimit (Fan.mk (∀ b, X b) (fun b => ↾(fun x => x b))) := by
+  constructor
+  case lift =>
+    intro s
+    apply TypeCat.ofHom
+    intro spt
+    -- refine Fan.IsLimit.mk _ (fun s => ?lift) ?fac ?uniq
+
+
+    sorry
   sorry
 
 /-
-Exercise 2. The binary case: the cartesian product `X × Y`, with `Prod.fst` and
-`Prod.snd` as legs, is a binary product. (Mathlib's binary products use
-`BinaryFan`, a cone over a diagram indexed by the two-object discrete category
-`WalkingPair`; look at `BinaryFan.IsLimit.mk`.)
--/
-example (X Y : Type w) :
-    IsLimit (BinaryFan.mk (P := X × Y) (↾Prod.fst) (↾Prod.snd)) :=
-  sorry
-
-/-
-Exercise 3. Mathlib's chosen product `∏ᶜ X` (the summit of *some* limit cone,
+Exercise 4. Mathlib's chosen product `∏ᶜ X` (the summit of *some* limit cone,
 picked by `HasProduct`) is isomorphic in `Type w` to the dependent function type.
-Try it with `Pi.lift` and `Pi.π`, or derive it from Exercise 1 and essential
+Try it with `Pi.lift` and `Pi.π`, or derive it from Exercise 3 and essential
 uniqueness of limits (Prop. 3.1.7, `IsLimit.conePointUniqueUpToIso`).
 -/
 example {β : Type w} (X : β → Type w) : ∏ᶜ X ≅ (∀ b, X b) :=
   sorry
 
 /-
-Exercise 4. Riehl's trick from Example 3.1.10: probe the product with the point.
+Exercise 5. Riehl's trick from Example 3.1.10: probe the product with the point.
 Maps `PUnit ⟶ Z` in `Type w` are the same as elements of `Z`, so taking
 `c := PUnit` in `homProductEquiv` says the elements of `∏ᶜ X` are exactly the
 families `(x b)_b` with `x b : X b`. Build this as an equivalence of types.
 -/
 example {β : Type w} (X : β → Type w) : (∏ᶜ X : Type w) ≃ (∀ b, X b) :=
   sorry
-
