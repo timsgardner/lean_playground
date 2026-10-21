@@ -543,6 +543,7 @@ example (X Y : Type w) :
       rw [←true_fn]
       rfl
 
+
 /-
 Exercise 3. The general case: for any index type `β` and family `X : β → Type w`,
 the dependent function type `∀ b, X b`, with the evaluation maps `x ↦ x b` as
@@ -552,16 +553,26 @@ what function `s.pt → ∀ b, X b` do its legs determine?
 -/
 example {β : Type w} (X : β → Type w) :
     IsLimit (Fan.mk (∀ b, X b) (fun b => ↾(fun x => x b))) := by
-  constructor
+  apply Fan.IsLimit.mk
   case lift =>
-    intro s
+    intro fan
     apply TypeCat.ofHom
-    intro spt
-    -- refine Fan.IsLimit.mk _ (fun s => ?lift) ?fac ?uniq
-
-
-    sorry
-  sorry
+    change fan.pt → ∀ b, X b
+    intro spt b
+    exact (fan.proj b) spt
+  · cat_disch
+  case uniq =>
+    intro fan mpt hb
+    unfold id
+    conv =>
+      rhs
+      congr
+      intro fpt b
+      lhs
+      arg 1
+      erw [← hb]
+      simp
+    rfl
 
 /-
 Exercise 4. Mathlib's chosen product `∏ᶜ X` (the summit of *some* limit cone,
