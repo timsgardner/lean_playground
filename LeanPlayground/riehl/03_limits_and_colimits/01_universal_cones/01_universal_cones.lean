@@ -363,7 +363,7 @@ f)`), and Mathlib's product is the chosen limit cone from §3.1.5:
   `productIsProduct`.
 * `Pi.lift p`, for legs `p b : c ⟶ f b` of another cone with summit `c`,
   is the unique map `c ⟶ ∏ᶜ f` through which those legs factor
-  (`Pi.lift_π`, `Pi.hom_ext`).
+  (`Pi.lift_comp_π`, `Pi.hom_ext`).
 
 The first isomorphism, `𝒞(c, ∏ⱼ F j) ≅ ∏ₖ 𝒞(c, F k)`, is `(π k)_*`: it sends
 `g` to the family `(g ≫ π k)ₖ`, with inverse `Pi.lift`.
