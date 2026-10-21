@@ -549,7 +549,7 @@ legs, is a product of the family `X`. Exercise 2 is the case `β := Bool`.
 Hint: `Fan.IsLimit.mk` asks for a `lift` and the two laws; given a cone `s`,
 what function `s.pt → ∀ b, X b` do its legs determine?
 -/
-example {β : Type w} (X : β → Type w) :
+def dep_fan_is_limit {β : Type w} (X : β → Type w) :
     IsLimit (Fan.mk (∀ b, X b) (fun b => ↾(fun x => x b))) := by
   apply Fan.IsLimit.mk
   case lift =>
@@ -578,8 +578,24 @@ picked by `HasProduct`) is isomorphic in `Type w` to the dependent function type
 Try it with `Pi.lift` and `Pi.π`, or derive it from Exercise 3 and essential
 uniqueness of limits (Prop. 3.1.7, `IsLimit.conePointUniqueUpToIso`).
 -/
-example {β : Type w} (X : β → Type w) : ∏ᶜ X ≅ (∀ b, X b) :=
-  sorry
+noncomputable example {β : Type w} (X : β → Type w) : ∏ᶜ X ≅ (∀ b : β, X b) := by
+  -- Going through lift directly is too confusing at this point.
+  -- Extract the map to `∏ᶜ` by making a cone with summit `(∀ b : β, X b)`
+  -- and lifting to `∏ᶜ`.
+  -- `X` induces the diagram. The legs are indexed by `β` -- but don't confuse
+  -- this with a bijection between leg endpoints and `β`, or even legs and `β`.
+  -- What does it mean to have this cone? The annoying / confusing part here
+  -- is the semantic redundancy.
+  -- For every `b` in `β`, we can make a morphism `(∀ b : β, X b) ⟶ X b`
+  -- that "closes over" `b` and takes any dependent function
+  -- `df : (∀ b : β, X b)` to its action on that `b`, that is, to `df b`.
+  let prod_cone : Fan X := Fan.mk _ (Pi.π X)
+  have prod_cone_is_limit : IsLimit prod_cone := by
+    apply productIsProduct
+  let dep_cone : Fan X := Fan.mk (∀ b : β, X b) (fun b => ↾(fun df => df b))
+  have dep_cone_is_limit : IsLimit dep_cone := by
+    apply dep_fan_is_limit
+  exact IsLimit.conePointUniqueUpToIso prod_cone_is_limit dep_cone_is_limit
 
 /-
 Exercise 5. Riehl's trick from Example 3.1.10: probe the product with the point.
