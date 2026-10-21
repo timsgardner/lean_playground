@@ -578,7 +578,7 @@ picked by `HasProduct`) is isomorphic in `Type w` to the dependent function type
 Try it with `Pi.lift` and `Pi.π`, or derive it from Exercise 3 and essential
 uniqueness of limits (Prop. 3.1.7, `IsLimit.conePointUniqueUpToIso`).
 -/
-noncomputable example {β : Type w} (X : β → Type w) : ∏ᶜ X ≅ (∀ b : β, X b) := by
+noncomputable def productIsoPiType {β : Type w} (X : β → Type w) : ∏ᶜ X ≅ (∀ b : β, X b) := by
   -- Going through lift directly is too confusing at this point.
   -- Extract the map to `∏ᶜ` by making a cone with summit `(∀ b : β, X b)`
   -- and lifting to `∏ᶜ`.
