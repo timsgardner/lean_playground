@@ -377,7 +377,7 @@ noncomputable example {β : Type*} (f : β → 𝒞) [HasProduct f] :
     IsLimit (Fan.mk (∏ᶜ f) (Pi.π f)) :=
   productIsProduct f
 
-noncomputable def homProductEquiv {β : Type*} (f : β → 𝒞) [HasProduct f] (c : 𝒞) :
+noncomputable def homToProductEquivFamily {β : Type*} (f : β → 𝒞) [HasProduct f] (c : 𝒞) :
     (c ⟶ ∏ᶜ f) ≃ ∀ b, c ⟶ f b where
   toFun g b := g ≫ Pi.π f b
   invFun p := Pi.lift p
@@ -391,7 +391,7 @@ coincide: Riehl's isomorphism for products *is* the limit representation.
 Fix `g : c ⟶ ∏ᶜ f`. There are two ways to turn it into a cone over
 `Discrete.functor f` with summit `c`:
 1. Riehl's product-specific composite
-   `𝒞(c, ∏ⱼ F j) ≅ ∏ₖ 𝒞(c, F k) ≅ Cone(c, F)`: `homProductEquiv` sends `g` to
+   `𝒞(c, ∏ⱼ F j) ≅ ∏ₖ 𝒞(c, F k) ≅ Cone(c, F)`: `homToProductEquivFamily` sends `g` to
    the family of legs `(g ≫ Pi.π f b)_b`, and `coneEquivFamily.symm`
    assembles that family into a natural transformation.
 2. The general theory of limits: `productIsProduct f` says the product fan is a
@@ -409,7 +409,7 @@ same forward function are equal; naturality in `c` comes along with
 `representableBy`.
 -/
 example {β : Type*} (f : β → 𝒞) [HasProduct f] (c : 𝒞) (g : c ⟶ ∏ᶜ f) :
-    (coneEquivFamily f c).symm (homProductEquiv f c g) =
+    (coneEquivFamily f c).symm (homToProductEquivFamily f c g) =
       (productIsProduct f).representableBy.homEquiv g :=
   NatTrans.ext (funext fun _ => rfl)
 
@@ -597,11 +597,28 @@ noncomputable example {β : Type w} (X : β → Type w) : ∏ᶜ X ≅ (∀ b : 
     apply dep_fan_is_limit
   exact IsLimit.conePointUniqueUpToIso prod_cone_is_limit dep_cone_is_limit
 
+
+def pointEquiv (Z : Type w) : (PUnit.{w + 1} ⟶ Z) ≃ Z :=
+  TypeCat.homEquiv.trans (Equiv.punitArrowEquiv Z)
+
+#check TypeCat.homEquiv.trans
+
+example
+    (A B γ : Type)
+    (e : (A → B) ≃ γ)
+    : True := by
+  #check (TypeCat.homEquiv.trans e)
+  -- TypeCat.homEquiv.trans e : (A ⟶ B) ≃ γ
+  trivial
+
 /-
 Exercise 5. Riehl's trick from Example 3.1.10: probe the product with the point.
 Maps `PUnit ⟶ Z` in `Type w` are the same as elements of `Z`, so taking
-`c := PUnit` in `homProductEquiv` says the elements of `∏ᶜ X` are exactly the
+`c := PUnit` in `homToProductEquivFamily` says the elements of `∏ᶜ X` are exactly the
 families `(x b)_b` with `x b : X b`. Build this as an equivalence of types.
 -/
-example {β : Type w} (X : β → Type w) : (∏ᶜ X : Type w) ≃ (∀ b, X b) :=
-  sorry
+noncomputable example {β : Type w} (X : β → Type w) : (∏ᶜ X : Type w) ≃ (∀ b, X b) := by
+  calc
+    ∏ᶜ X ≃ (PUnit ⟶ ∏ᶜ X) := (pointEquiv (∏ᶜ X)).symm
+    _ ≃ ((b : β) → PUnit.{w + 1} ⟶ X b) := homToProductEquivFamily (f := X) (c := PUnit)
+    _ ≃ (∀ b, X b) := Equiv.piCongrRight (fun b => pointEquiv (X b))
