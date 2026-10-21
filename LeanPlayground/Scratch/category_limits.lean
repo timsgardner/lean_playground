@@ -120,7 +120,7 @@ def limitConeIso {J : Type*} [Category J] {F : J ⥤ C} {s t : Cone F}
 section Products
 variable [HasBinaryProducts C]
 
-def prodBraiding (X Y : C) : X ⨯ Y ≅ Y ⨯ X where
+noncomputable def prodBraiding (X Y : C) : X ⨯ Y ≅ Y ⨯ X where
   hom := prod.lift prod.snd prod.fst
   inv := sorry
   hom_inv_id := by
@@ -141,7 +141,7 @@ def prodBraiding (X Y : C) : X ⨯ Y ≅ Y ⨯ X where
 
 variable [HasTerminal C]
 
-def prodTerminalIso (X : C) : X ⨯ ⊤_ C ≅ X where
+noncomputable def prodTerminalIso (X : C) : X ⨯ ⊤_ C ≅ X where
   hom := prod.fst
   inv := prod.lift (𝟙 X) (terminal.from X)
   hom_inv_id := by

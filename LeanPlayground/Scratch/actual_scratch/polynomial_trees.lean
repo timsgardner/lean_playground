@@ -37,6 +37,7 @@ namespace Signature
 
 /-- One constructor of output sort `i`, with each child slot filled by a value
 from the family `X` at the slot's required sort. -/
+@[implicit_reducible]
 def Layer {I : Type u} (S : Signature.{u, v} I)
     (X : I → Type (max u v)) (i : I) : Type (max u v) :=
   Σ s : S.Shape i, (p : S.Pos s) → X (S.input s p)
@@ -52,7 +53,7 @@ def map {I : Type u} (S : Signature.{u, v} I)
     {X : I → Type (max u v)} {i : I} (x : S.Layer X i) :
     S.map (fun _ a => a) x = x := by
   rcases x with ⟨s, children⟩
-  simp [map]
+  rfl
 
 @[simp] theorem map_comp {I : Type u} (S : Signature.{u, v} I)
     {X Y Z : I → Type (max u v)} {i : I} (f : ∀ i, X i → Y i)

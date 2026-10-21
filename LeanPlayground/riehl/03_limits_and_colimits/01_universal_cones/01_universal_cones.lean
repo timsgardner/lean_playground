@@ -381,8 +381,8 @@ noncomputable def homProductEquiv {β : Type*} (f : β → 𝒞) [HasProduct f] 
     (c ⟶ ∏ᶜ f) ≃ ∀ b, c ⟶ f b where
   toFun g b := g ≫ Pi.π f b
   invFun p := Pi.lift p
-  left_inv _ := Pi.hom_ext _ _ fun b => Pi.lift_π _ b
-  right_inv p := funext fun b => Pi.lift_π p b
+  left_inv _ := Pi.hom_ext _ _ fun b => Pi.lift_comp_π _ b
+  right_inv p := funext fun b => Pi.lift_comp_π p b
 
 /-
 Products are limits in the sense of §3.1.5, not just objects that happen to
@@ -538,8 +538,6 @@ example (X Y : Type w) :
       rw [← false_fn]
       rfl
     · simp
-      conv => rhs; congr; erw [beetle]
-      conv => rhs; simp
       rw [←true_fn]
       rfl
 

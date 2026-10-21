@@ -1,5 +1,5 @@
 import Mathlib.Data.Set.Basic
-import Mathlib.Data.Setoid.Partition
+import Mathlib.Order.Setoid.Partition
 import Mathlib.Tactic.Check
 
 set_option pp.deepTerms true
@@ -64,7 +64,7 @@ The cell containing `a`, as an element of `Cell P`. This is a subtype instance
 The `val` is `P.lookupCell (P.index a)`: first find the index of the cell
 containing `a`, then look that cell up up that index. The `prop` is a proof that
 this set is in the range of `P.lookupCell`. -/
-def toCell (P: IndexedPartition A B) (a: A) : Cell P :=
+noncomputable def toCell (P: IndexedPartition A B) (a: A) : Cell P :=
   ⟨P.lookupCell (P.index a), Set.mem_range_self (P.index a)⟩
 
 /-- `to_cell` does indeed look up the cell of an `a` -/
@@ -167,7 +167,7 @@ theorem classes_toSetoid
   have helper : ∀ y : A, {x | toSetoid P x y} = P.lookupCell (P.index y) := by
     intro a
     ext a'
-    rw [@Set.mem_setOf_eq, toSetoid_rel_iff, (index_eq_iff P)]
+    rw [@Set.mem_ofPred_eq, toSetoid_rel_iff, (index_eq_iff P)]
   constructor
   · intro h
     obtain ⟨y, rfl⟩ := h
@@ -335,7 +335,7 @@ theorem forward_function_bij : Function.Bijective (@equivFun A B) :=
 def Cell : Set (Set A) := Set.range P.lookupCell
 
 /-- the cell containing `a` -/
-def toCell (a : A) : P.Cell := ⟨P.lookupCell (P.index a), a |> P.index |> Set.mem_range_self⟩
+noncomputable def toCell (a : A) : P.Cell := ⟨P.lookupCell (P.index a), a |> P.index |> Set.mem_range_self⟩
 
 theorem mem_toCell (a : A) : a ∈ (P.toCell a).val := P.mem_lookupCell_index a
 

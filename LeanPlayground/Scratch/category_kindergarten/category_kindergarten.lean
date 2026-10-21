@@ -438,8 +438,7 @@ theorem FirstSome_naturality_apply
       (fun k : PairSelf.obj X ⟶ OptionF.obj Y => k p)
       (FirstSome.naturality f)
 
-  rw [types_comp_apply] at h
-
+  -- `h` is the goal up to unfolding `cchom (f ≫ g)`, which is defeq to `cchom g ∘ cchom f`.
   exact h
 
 
@@ -616,6 +615,9 @@ def AppendNat : NatTrans ListPairF ListF where
           List.map (cchom f) (xs.1 ++ xs.2) := by
       rfl
 
+    change
+      List.map (cchom f) xs.1 ++ List.map (cchom f) xs.2 =
+        cchom (ListF.map f) (xs.1 ++ xs.2)
     rw [hlist]
     simp
 

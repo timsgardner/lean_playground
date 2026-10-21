@@ -102,7 +102,7 @@ def listAlgIsInitial : Limits.IsInitial (listAlg A) :=
     | cons a as ih =>
       change ConcreteCategory.hom m.f (a :: as) = ConcreteCategory.hom (foldHom A B).f (a :: as)
       have ih' : ConcreteCategory.hom m.f as = ConcreteCategory.hom (foldHom A B).f as := by
-        simpa using ih
+        exact ih
       rw [hcons a as, ih']
       rfl
 

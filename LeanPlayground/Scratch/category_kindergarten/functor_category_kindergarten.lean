@@ -159,15 +159,15 @@ end HorizontalComposition
 
 /-! ## The category of elements
 
-For a functor `F : C ⥤ Type`, Lean defines `F.Elements` as the dependent pair
-type `Σ X : C, F.obj X`. Thus an object truly is an ordered pair `(X, x)`,
-where `X : C` and `x : F.obj X`; its components are available as `p.fst` and
-`p.snd` (also written `p.1` and `p.2`). The type of the second component
-depends on the first: `p.snd : F.obj p.fst`.
+For a functor `F : C ⥤ Type`, Lean defines `F.Elements` as a structure with two
+fields. Thus an object truly is an ordered pair `(X, x)`, where `X : C` and
+`x : F.obj X`; its components are available as `p.obj` and `p.val`. The type of
+the second component depends on the first: `p.val : F.obj p.obj`. (The first
+field is implicit when you build an object with `F.elementsMk X x`.)
 
-Lean represents a morphism `g : p ⟶ q` as a subtype, rather than as a bare
-morphism in `C`. Its field `g.val : p.fst ⟶ q.fst` is the underlying morphism
-in `C`, and its field `g.property` proves `F.map g.val p.snd = q.snd`. So it
+Lean represents a morphism `g : p ⟶ q` as a structure, rather than as a bare
+morphism in `C`. Its field `g.hom : p.obj ⟶ q.obj` is the underlying morphism
+in `C`, and its field `g.map_val` proves `F.map g.hom p.val = q.val`. So it
 is a wrapper around a morphism in `C`, carrying exactly the evidence that the
 morphism transports the selected source element to the selected target element.
 -/
@@ -186,73 +186,73 @@ variable (h : F.map f x = y)
 -- Build the object `(X, x)` of that category.
 #check Functor.elementsMk F X x
 -- Build a morphism `(X, x) ⟶ (Y, y)` from `f`, using `h` as its compatibility proof.
-#check CategoryOfElements.homMk (Functor.elementsMk F X x)
-  (Functor.elementsMk F Y y) f h
+#check Functor.Elements.homMk
+  (x := Functor.elementsMk F X x) (y := Functor.elementsMk F Y y) f h
 -- Every element-category morphism satisfies its defining compatibility equation.
-#check CategoryOfElements.map_snd
+#check Functor.Elements.Hom.map_val
 -- Forget the selected element, retaining only its object and morphism in `C`.
-#check CategoryOfElements.π F
+#check Functor.Elements.π F
 
 /- An element-category object is a dependent pair. Its first component is the
 object of `C`; its second component is the chosen element of the functor. -/
 variable (t : F.Elements)
 
 -- The base object `X : C` chosen by `t`.
-#check t.1
+#check t.obj
 -- The element of `F.obj t.1` selected by `t`.
-#check t.2
+#check t.val
 -- For the explicitly constructed pair, recover its base object `X`.
-#check (Functor.elementsMk F X x).1
+#check (Functor.elementsMk F X x).obj
 -- For the explicitly constructed pair, recover its chosen element `x`.
-#check (Functor.elementsMk F X x).2
+#check (Functor.elementsMk F X x).val
 
 /- A morphism remembers both its underlying arrow in `C` and the equation
 showing that it sends the source element to the target element. -/
 variable {p q : F.Elements} (g : p ⟶ q)
 
 -- The underlying map `p.1 ⟶ q.1` in the original category `C`.
--- It is the `val` field of the subtype representing `g`.
-#check g.val
--- The proof that mapping `p.2` along `g.1` produces `q.2`.
-#check g.property
+-- It is the `hom` field of the structure representing `g`.
+#check g.hom
+-- The proof that mapping `p.val` along `g.hom` produces `q.val`.
+#check g.map_val
 -- Applying the projection functor to an element object returns its base object.
-#check (CategoryOfElements.π F).obj p
+#check (Functor.Elements.π F).obj p
 -- Applying the projection functor to an element morphism returns its underlying map.
-#check (CategoryOfElements.π F).map g
+#check (Functor.Elements.π F).map g
 
-example : (CategoryOfElements.π F).obj (Functor.elementsMk F X x) = X := rfl
-example : (CategoryOfElements.π F).map
-    (CategoryOfElements.homMk (Functor.elementsMk F X x)
-      (Functor.elementsMk F Y y) f h) = f := rfl
+example : (Functor.Elements.π F).obj (Functor.elementsMk F X x) = X := rfl
+example : (Functor.Elements.π F).map
+    (Functor.Elements.homMk
+      (x := Functor.elementsMk F X x) (y := Functor.elementsMk F Y y) f h) = f := rfl
 
 variable {G : C ⥤ Type u₃} (α : F ⟶ G)
 
 -- A natural transformation induces a functor between its two categories of elements.
-#check CategoryOfElements.map α
+#check NatTrans.mapElements α
 -- On `(X, x)`, that induced functor gives `(X, α.app X x)`.
-#check (CategoryOfElements.map α).obj (Functor.elementsMk F X x)
+#check (NatTrans.mapElements α).obj (Functor.elementsMk F X x)
 #check α.app X x
 -- (cchom (α.app X)) x : (fun X => X) (G.obj X)
-example : (CategoryOfElements.map α).obj (Functor.elementsMk F X x) =
-  (⟨X, α.app X x⟩ : G.Elements) := rfl
+example : (NatTrans.mapElements α).obj (Functor.elementsMk F X x) =
+  G.elementsMk X (α.app X x) := rfl
 
 -- On morphisms, it retains the underlying map in `C` and transports its proof.
-#check (CategoryOfElements.map α).map g
+#check (NatTrans.mapElements α).map g
 -- The induced functor commutes exactly with forgetting to `C`.
-#check CategoryOfElements.map_π α
+#check NatTrans.mapElements_comp_π α
 -- The category of elements is equivalent to the structured-arrow category `(*, F)`.
-#check CategoryOfElements.structuredArrowEquivalence F
+#check Functor.Elements.structuredArrowEquivalence F
 
-/- `CategoryOfElements.map α` applies `α` to the selected element, while
+/- `NatTrans.mapElements α` applies `α` to the selected element, while
 preserving the object and underlying morphism in `C`. -/
-example : ((CategoryOfElements.map α).obj (Functor.elementsMk F X x)).1 = X := rfl
-example : ((CategoryOfElements.map α).obj (Functor.elementsMk F X x)).2 = α.app X x := rfl
-example : ((CategoryOfElements.map α).map g).1 = g.1 := rfl
+example : ((NatTrans.mapElements α).obj (Functor.elementsMk F X x)).obj = X := rfl
+example : ((NatTrans.mapElements α).obj (Functor.elementsMk F X x)).val = α.app X x := rfl
+example : ((NatTrans.mapElements α).map g).hom = g.hom := rfl
 
 /- The induced functor lies over `C`: forgetting an element before or after
 applying `α` gives exactly the same functor to `C`. -/
-example : CategoryOfElements.map α ⋙ CategoryOfElements.π G = CategoryOfElements.π F :=
-  CategoryOfElements.map_π α
+example : NatTrans.mapElements α ⋙ Functor.Elements.π G = Functor.Elements.π F :=
+  NatTrans.mapElements_comp_π α
 
 #check (Fin 1) ⥤ (Cᵒᵖ ⥤ Type v₁)
 
@@ -270,7 +270,7 @@ why we need to dive into Lean's comma category machinery, which this isn't the
 file for. -/
 example (F : Cᵒᵖ ⥤ Type v₁) :
     F.Elementsᵒᵖ ≌ Comma yoneda (Functor.fromPUnit.{0} F) :=
-  CategoryOfElements.costructuredArrowYonedaEquivalence F
+  Functor.Elements.costructuredArrowYonedaEquivalence F
 
 
 /-
@@ -286,10 +286,10 @@ open Opposite
 example (c : C) : (coyoneda.obj (op c)).Elements ≌ Under c := by
   let toUnder : (coyoneda.obj (op c)).Elements ⥤ Under c :=
     { obj := fun p => Under.mk p.2
-      map := fun f => Under.homMk f.val f.property }
+      map := fun f => Under.homMk f.hom f.map_val }
   let fromUnder : Under c ⥤ (coyoneda.obj (op c)).Elements :=
-    { obj := fun p => ⟨p.right, p.hom⟩
-      map := fun f => ⟨f.right, Under.w f⟩ }
+    { obj := fun p => (coyoneda.obj (op c)).elementsMk p.right p.hom
+      map := fun f => Functor.Elements.homMk f.right (Under.w f) }
   exact {
     functor := toUnder
     inverse := fromUnder
@@ -310,12 +310,12 @@ to `Y`. This accounts for `Elementsᵒᵖ` in the second statement and for the
 example (c : C) : (yoneda.obj c).Elementsᵒᵖ ≌ Over c := by
   let toOver : (yoneda.obj c).Elementsᵒᵖ ⥤ Over c :=
     { obj := fun p => Over.mk (unop p).2
-      map := fun f => Over.homMk f.unop.val.unop f.unop.property }
+      map := fun f => Over.homMk f.unop.hom.unop f.unop.map_val }
   let fromOver : Over c ⥤ (yoneda.obj c).Elementsᵒᵖ :=
-    { obj := fun p => op ⟨op p.left, p.hom⟩
-      map := fun {X Y} f => Quiver.Hom.op (CategoryOfElements.homMk
-        (⟨op Y.left, Y.hom⟩ : (yoneda.obj c).Elements)
-        (⟨op X.left, X.hom⟩ : (yoneda.obj c).Elements)
+    { obj := fun p => op ((yoneda.obj c).elementsMk (op p.left) p.hom)
+      map := fun {X Y} f => Quiver.Hom.op (Functor.Elements.homMk
+        (x := (yoneda.obj c).elementsMk (op Y.left) Y.hom)
+        (y := (yoneda.obj c).elementsMk (op X.left) X.hom)
         f.left.op (Over.w f)) }
   exact {
     functor := toOver
@@ -343,37 +343,37 @@ in the presheaf convention for the category of elements. In Mathlib this is
 open Limits
 
 /-- An initial object `e = (X, x)` of `F.Elements` makes `F` corepresentable by
-`X = e.1`. Concretely, its unique maps out of `e` give the natural equivalence
+`X = e.obj`. Concretely, its unique maps out of `e` give the natural equivalence
 `(X ⟶ Y) ≃ F.obj Y`, sending `f` to `F.map f x`. -/
 private def corepresentableByOfInitialElement {F : C ⥤ Type v₁} (e : F.Elements)
-    (h : IsInitial e) : F.CorepresentableBy e.1 where
+    (h : IsInitial e) : F.CorepresentableBy e.obj where
   -- For each `Y : C`, this field has the full type
-  -- `homEquiv {Y : C} : (e.1 ⟶ Y) ≃ F.obj Y`.
+  -- `homEquiv {Y : C} : (e.obj ⟶ Y) ≃ F.obj Y`.
   -- We build the equivalence by giving its two functions and proving they are inverse.
   homEquiv {Y} :=
-    { -- `toFun : (e.1 ⟶ Y) → F.obj Y` transports `e.2` along `f`.
-      toFun := fun f => F.map f e.2
-      /- Given `y : F.obj Y`, initiality supplies `h.to ⟨Y, y⟩ : e ⟶ ⟨Y, y⟩`.
-         A morphism in `F.Elements` is a subtype: its `.val` is an arrow
-         `f : e.1 ⟶ Y`, and its `.property` proves `F.map f e.2 = y`.
-         Thus `.val` gives the required inverse function
-         `F.obj Y → (e.1 ⟶ Y)`. -/
-      invFun := fun y => (h.to ⟨Y, y⟩).val
-      -- `left_inv` says `invFun (toFun f) = f` for every `f : e.1 ⟶ Y`.
-      -- Here that means `(h.to ⟨Y, F.map f e.2⟩).val = f`.
+    { -- `toFun : (e.obj ⟶ Y) → F.obj Y` transports `e.val` along `f`.
+      toFun := fun f => F.map f e.val
+      /- Given `y : F.obj Y`, initiality supplies `h.to (F.elementsMk Y y) : e ⟶ (F.elementsMk Y y)`.
+         A morphism in `F.Elements` is a subtype: its `.hom` is an arrow
+         `f : e.obj ⟶ Y`, and its `.map_val` proves `F.map f e.val = y`.
+         Thus `.hom` gives the required inverse function
+         `F.obj Y → (e.obj ⟶ Y)`. -/
+      invFun := fun y => (h.to (F.elementsMk Y y)).hom
+      -- `left_inv` says `invFun (toFun f) = f` for every `f : e.obj ⟶ Y`.
+      -- Here that means `(h.to (F.elementsMk Y (F.map f e.val))).hom = f`.
       left_inv := by
         intro f
-        -- `f` itself is an element-category arrow to `(Y, F.map f e.2)`.
+        -- `f` itself is an element-category arrow to `(Y, F.map f e.val)`.
         -- By uniqueness, it is the arrow supplied by initiality.
-        have k : (⟨f, rfl⟩ : e ⟶ ⟨Y, F.map f e.2⟩) = h.to _ := h.hom_ext _ _
+        have k : (⟨f, rfl⟩ : e ⟶ F.elementsMk Y (F.map f e.val)) = h.to _ := h.hom_ext _ _
         -- Equality of element-category arrows gives equality of their base arrows.
-        exact (congrArg Subtype.val k).symm
+        exact (congrArg Functor.Elements.Hom.hom k).symm
       -- `right_inv` says `toFun (invFun y) = y` for every `y : F.obj Y`.
-      -- Here that means `F.map (h.to ⟨Y, y⟩).val e.2 = y`.
+      -- Here that means `F.map (h.to (F.elementsMk Y y)).hom e.val = y`.
       right_inv := by
         intro y
-        -- The arrow to `(Y, y)` must send `e.2` to `y` by definition.
-        exact (h.to ⟨Y, y⟩).property }
+        -- The arrow to `(Y, y)` must send `e.val` to `y` by definition.
+        exact (h.to (F.elementsMk Y y)).map_val }
   -- The forward map respects composition because `F` is a functor.
   homEquiv_comp g f := by simp [Functor.map_comp]
 
@@ -381,54 +381,54 @@ private def corepresentableByOfInitialElement {F : C ⥤ Type v₁} (e : F.Eleme
 name the functions and objects being constructed; the `have`s name the facts
 needed to turn those functions into a natural equivalence. -/
 private def corepresentableByOfInitialElementExplicit {F : C ⥤ Type v₁}
-    (e : F.Elements) (h : IsInitial e) : F.CorepresentableBy e.1 := by
-  -- We seek an equivalence `(e.1 ⟶ Y) ≃ F.obj Y` for every object `Y`.
+    (e : F.Elements) (h : IsInitial e) : F.CorepresentableBy e.obj := by
+  -- We seek an equivalence `(e.obj ⟶ Y) ≃ F.obj Y` for every object `Y`.
   -- First define its forward function for all `Y` at once. It applies `F.map f`
-  -- to the distinguished element `e.2 : F.obj e.1`.
-  let forward : ∀ Y : C, (e.1 ⟶ Y) → F.obj Y :=
-    fun Y f => F.map f e.2
+  -- to the distinguished element `e.val : F.obj e.obj`.
+  let forward : ∀ Y : C, (e.obj ⟶ Y) → F.obj Y :=
+    fun Y f => F.map f e.val
 
   -- For `y : F.obj Y`, the pair `(Y, y)` is an object of `F.Elements`.
-  -- Since `e` is initial, `h.to ⟨Y, y⟩` is an arrow from `e` to that pair.
-  -- Taking `.val` extracts its underlying arrow `e.1 ⟶ Y` in `C`.
-  let backward : ∀ Y : C, F.obj Y → (e.1 ⟶ Y) :=
-    fun Y y => (h.to (⟨Y, y⟩ : F.Elements)).val
+  -- Since `e` is initial, `h.to (F.elementsMk Y y)` is an arrow from `e` to that pair.
+  -- Taking `.hom` extracts its underlying arrow `e.obj ⟶ Y` in `C`.
+  let backward : ∀ Y : C, F.obj Y → (e.obj ⟶ Y) :=
+    fun Y y => (h.to (F.elementsMk Y y)).hom
 
-  -- Left inverse: start with `f : e.1 ⟶ Y`, map `e.2` along `f`, then use
+  -- Left inverse: start with `f : e.obj ⟶ Y`, map `e.val` along `f`, then use
   -- initiality to recover the arrow. We must get back exactly `f`.
-  have backward_forward : ∀ (Y : C) (f : e.1 ⟶ Y),
+  have backward_forward : ∀ (Y : C) (f : e.obj ⟶ Y),
       backward Y (forward Y f) = f := by
     intro Y f
     -- This is the target object selected by `forward Y f`.
-    let target : F.Elements := ⟨Y, forward Y f⟩
+    let target : F.Elements := F.elementsMk Y (forward Y f)
     -- The arrow `f` itself defines a morphism in `F.Elements` to `target`:
     -- its compatibility equation is true by the definition of `target`.
     let candidate : e ⟶ target := ⟨f, rfl⟩
     -- An initial object has only one morphism to a given target.
     have unique : candidate = h.to target := h.hom_ext _ _
     -- Forget the compatibility proofs to compare the underlying arrows.
-    have underlying_equal : candidate.val = (h.to target).val :=
-      congrArg Subtype.val unique
+    have underlying_equal : candidate.hom = (h.to target).hom :=
+      congrArg Functor.Elements.Hom.hom unique
     -- Unfold `backward` and `forward` in the goal. The local `let`s for
     -- `target` and `candidate` unfold to the pair and arrow built above.
-    change (h.to target).val = candidate.val
+    change (h.to target).hom = candidate.hom
     exact underlying_equal.symm
 
   -- Right inverse: start with `y : F.obj Y`, take the underlying arrow of
-  -- `h.to ⟨Y, y⟩`, then apply `F.map` to `e.2`. We must get back `y`.
+  -- `h.to (F.elementsMk Y y)`, then apply `F.map` to `e.val`. We must get back `y`.
   have forward_backward : ∀ (Y : C) (y : F.obj Y),
       forward Y (backward Y y) = y := by
     intro Y y
-    let arrow : e ⟶ (⟨Y, y⟩ : F.Elements) := h.to _
+    let arrow : e ⟶ F.elementsMk Y y := h.to _
     -- Every morphism in `F.Elements` carries a proof that it sends the
     -- selected source element to the selected target element.
-    have compatible : F.map arrow.val e.2 = y := arrow.property
+    have compatible : F.map arrow.hom e.val = y := arrow.map_val
     -- Unfold `forward` and `backward`; `arrow` is the chosen initial map.
-    change F.map arrow.val e.2 = y
+    change F.map arrow.hom e.val = y
     exact compatible
 
   -- Package the two functions and their inverse laws into an `Equiv` at `Y`.
-  let equivAt (Y : C) : (e.1 ⟶ Y) ≃ F.obj Y :=
+  let equivAt (Y : C) : (e.obj ⟶ Y) ≃ F.obj Y :=
     { toFun := forward Y
       invFun := backward Y
       left_inv := backward_forward Y
@@ -436,13 +436,13 @@ private def corepresentableByOfInitialElementExplicit {F : C ⥤ Type v₁}
 
   -- The family `equivAt` must also be natural in `Y`: following `f` by `g`
   -- corresponds to applying `F.map g` after `equivAt Y f`.
-  have naturality : ∀ {Y Y' : C} (g : Y ⟶ Y') (f : e.1 ⟶ Y),
+  have naturality : ∀ {Y Y' : C} (g : Y ⟶ Y') (f : e.obj ⟶ Y),
       equivAt Y' (f ≫ g) = F.map g (equivAt Y f) := by
     intro Y Y' g f
-    change F.map (f ≫ g) e.2 = F.map g (F.map f e.2)
+    change F.map (f ≫ g) e.val = F.map g (F.map f e.val)
     simp [Functor.map_comp]
 
-  -- These are precisely the two fields of `F.CorepresentableBy e.1`.
+  -- These are precisely the two fields of `F.CorepresentableBy e.obj`.
   exact { homEquiv := fun {Y} => equivAt Y
           homEquiv_comp := by
             intro Y Y' g f
@@ -451,28 +451,28 @@ private def corepresentableByOfInitialElementExplicit {F : C ⥤ Type v₁}
 
 /-- I bet we can do this by yoneda tho. This follows Riehl's proof on p.69 -/
 private noncomputable def corepresentableByOfInitialElementYoneda {F : C ⥤ Type v₁}
-    (e : F.Elements) (h : IsInitial e) : F.CorepresentableBy e.1 := by
-  have h_unique_mor : ∀ (d : C) (y : F.obj d), ∃! (f: e.1 ⟶ d), F.map f e.2 = y := by
+    (e : F.Elements) (h : IsInitial e) : F.CorepresentableBy e.obj := by
+  have h_unique_mor : ∀ (d : C) (y : F.obj d), ∃! (f: e.obj ⟶ d), F.map f e.val = y := by
     intro d y
-    let underlyingMor := (h.to ⟨d, y⟩).val
+    let underlyingMor := (h.to (F.elementsMk d y)).hom
     refine ⟨?_, ?_, ?_⟩
     · exact underlyingMor
-    #check (h.to ⟨d,y⟩).property
+    #check (h.to (F.elementsMk d y)).map_val
     · simpa [underlyingMor] using
-        (h.to ⟨d,y⟩).property
+        (h.to (F.elementsMk d y)).map_val
     · intro m hm
       have unique :
           -- ⟨m, hm⟩ below is a morphism in the category of elements F.Elements.
-          (⟨m, hm⟩ : e ⟶ (⟨d, y⟩ : F.Elements)) = h.to ⟨d, y⟩ := h.hom_ext _ _
-      -- `Subtype.val`, applied to a morphism in F.Elements (such as `unique`),
+          (⟨m, hm⟩ : e ⟶ (F.elementsMk d y)) = h.to (F.elementsMk d y) := h.hom_ext _ _
+      -- `Functor.Elements.Hom.hom`, applied to a morphism in F.Elements (such as `unique`),
       -- returns the underlying morphism in C. In the case of `⟨m, hm⟩`, that's
-      -- ↑⟨m, hm⟩ : e.fst ⟶ ⟨d, y⟩.fst
-      -- ie, e.1 ⟶ d
-      #check Subtype.val (⟨m, hm⟩ : e ⟶ (⟨d, y⟩ : F.Elements))
-      #check congrArg Subtype.val unique
-      exact congrArg Subtype.val unique
-  -- the nat trans C(e.1, -) ⟶ F, looked up by e.2 in F(e.1)
-  let η := coyonedaEquiv.symm e.2
+      -- ↑⟨m, hm⟩ : e.obj ⟶ (F.elementsMk d y).obj
+      -- ie, e.obj ⟶ d
+      #check Functor.Elements.Hom.hom (⟨m, hm⟩ : e ⟶ (F.elementsMk d y))
+      #check congrArg Functor.Elements.Hom.hom unique
+      exact congrArg Functor.Elements.Hom.hom unique
+  -- the nat trans C(e.obj, -) ⟶ F, looked up by e.val in F(e.obj)
+  let η := coyonedaEquiv.symm e.val
   have η_iso : IsIso η := by
     rw [NatTrans.isIso_iff_isIso_app]
     intro d
@@ -480,8 +480,8 @@ private noncomputable def corepresentableByOfInitialElementYoneda {F : C ⥤ Typ
     simp -- unnecessary, but you can park the cursor here to see a denoised goal
     simpa only [η, coyonedaEquiv_symm_app_apply] using h_unique_mor d
   letI : IsIso η := η_iso
-  #check (Functor.CorepresentableBy.coyoneda (op e.1)).ofIso (asIso η)
-  exact (Functor.CorepresentableBy.coyoneda (op e.1)).ofIso (asIso η)
+  #check (Functor.CorepresentableBy.coyoneda (op e.obj)).ofIso (asIso η)
+  exact (Functor.CorepresentableBy.coyoneda (op e.obj)).ofIso (asIso η)
 
 
 
@@ -502,19 +502,19 @@ theorem isCorepresentable_iff_hasInitial_elements (F : C ⥤ Type v₁) :
 -- For a presheaf, an initial element of `F.Elements` represents F. Taking
 -- opposites expresses the same universal property as terminality.
 private def representableByOfInitialElement {F : Cᵒᵖ ⥤ Type v₁} (e : F.Elements)
-    (h : IsInitial e) : F.RepresentableBy e.1.unop where
+    (h : IsInitial e) : F.RepresentableBy e.obj.unop where
   homEquiv {X} :=
-    { toFun := fun f => F.map f.op e.2
-      invFun := fun y => (h.to (⟨Opposite.op X, y⟩ : F.Elements)).val.unop
+    { toFun := fun f => F.map f.op e.val
+      invFun := fun y => (h.to (F.elementsMk (Opposite.op X) y)).hom.unop
       left_inv := by
         intro f
-        have k : (⟨f.op, rfl⟩ : e ⟶ ⟨Opposite.op X, F.map f.op e.2⟩) = h.to _ :=
+        have k : (⟨f.op, rfl⟩ : e ⟶ F.elementsMk (Opposite.op X) (F.map f.op e.val)) = h.to _ :=
           h.hom_ext _ _
-        exact (congrArg (fun m : e ⟶ (⟨Opposite.op X, F.map f.op e.2⟩ : F.Elements) =>
-          m.val.unop) k).symm
+        exact (congrArg (fun m : e ⟶ (F.elementsMk (Opposite.op X) (F.map f.op e.val)) =>
+          m.hom.unop) k).symm
       right_inv := by
         intro y
-        exact (h.to (⟨Opposite.op X, y⟩ : F.Elements)).property }
+        exact (h.to (F.elementsMk (Opposite.op X) y)).map_val }
   homEquiv_comp f g := by simp [Functor.map_comp]
 
 /-- A presheaf is representable exactly when the opposite of its Mathlib
