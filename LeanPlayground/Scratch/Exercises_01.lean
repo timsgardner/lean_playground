@@ -1,4 +1,4 @@
-import Mathlib
+import Batteries.Tactic.Init
 
 section Logic
 

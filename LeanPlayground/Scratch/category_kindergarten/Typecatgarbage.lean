@@ -1,4 +1,6 @@
-import Mathlib
+import Mathlib.Algebra.Category.MonCat.Basic
+import Mathlib.CategoryTheory.Equivalence
+import Mathlib.Tactic.Ring
 
 /-!
 # Transport-garbage exercises

@@ -1,4 +1,4 @@
-import Mathlib
+import Mathlib.CategoryTheory.Iso
 
 /-
 Some basic but non-trivial facts about isomorphisms in an arbitrary category.

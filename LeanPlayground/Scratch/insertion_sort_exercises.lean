@@ -1,4 +1,6 @@
-import Mathlib
+import Mathlib.Data.List.Pairwise
+import Mathlib.Tactic.SplitIfs
+import Mathlib.Tactic.Tauto
 
 namespace AlgoExercises
 

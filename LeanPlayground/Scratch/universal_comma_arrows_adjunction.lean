@@ -13,7 +13,7 @@
 
 -/
 
-import Mathlib
+import Mathlib.CategoryTheory.Adjunction.Comma
 
 open CategoryTheory Limits
 

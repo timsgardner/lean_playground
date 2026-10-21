@@ -1,4 +1,5 @@
-import Mathlib
+import Mathlib.Algebra.Ring.Parity
+import Mathlib.Algebra.Order.Ring.Int
 
 #check Even
 #check Odd
