@@ -808,9 +808,17 @@ and `w : a ≫ f = a ≫ g`, the factorization `k` is `equalizer.lift a w`.
 /-
 Exercise 1. Riehl's main claim: a cone over `parallelPair f g` with summit `c`
 is the same as a morphism `a : c ⟶ A` with `a ≫ f = a ≫ g`. Prove it as an
-equivalence. The left side is a raw natural transformation (as in
-`coneEquivFamily` for 3.1.9), so its naturality squares are what you have to
-work with.
+equivalence of types.
+
+The first type in the equivalence,
+`(Functor.const WalkingParallelPair).obj c ⟶ parallelPair f g`,
+is Riehl's `Cone(c, F)` from 3.1.5: the type of natural
+transformations `Δc ⇒ parallelPair f g`, as in `coneEquivFamily` for 3.1.9. An
+element `π` of it is a plain natural transformation, with only the fields
+`π.app` (its components) and `π.naturality` (its naturality squares). It is not
+a `Fork`, so the fork API (`ι`, `condition`, `Fork.app_one_eq_ι_comp_left`) is
+not available for it. The equation `π.app zero ≫ f = π.app zero ≫ g` has to be
+derived from the naturality squares, and that derivation is Riehl's argument.
 * `toFun`: take the leg at `zero`; the condition comes from the naturality
   squares at `left` and at `right` (`π.naturality .left`, after `simp`).
 * `invFun`: assemble a natural transformation. You may build it by hand, or
@@ -820,7 +828,42 @@ work with.
 -/
 def coneEquivEqualizing {A B : 𝒞} (f g : A ⟶ B) (c : 𝒞) :
     ((Functor.const WalkingParallelPair).obj c ⟶ parallelPair f g) ≃
-      {a : c ⟶ A // a ≫ f = a ≫ g} := sorry
+      {a : c ⟶ A // a ≫ f = a ≫ g} := by
+  constructor
+  case toFun =>
+    intro π
+    -- I think this is the leg C -> A
+    #check π.app WalkingParallelPair.zero
+    -- And this is the leg C -> B
+    #check π.app WalkingParallelPair.one
+    -- yep:
+    set a_leg : c ⟶ A := π.app .zero with ha_leg
+    set b_leg : c ⟶ B := π.app .one with hb_leg
+      -- zero goes to A, one goes to B
+    have ha : (parallelPair f g).obj .zero = A := by rfl
+    have hb : (parallelPair f g).obj .one = B := by rfl
+    -- `(Functor.const WalkingParallelPair).obj c` is the constant functor
+    -- `WalkingParallelPair ⥤ 𝒞` out of the category `WalkingParallelPair` that
+    -- sends every object to `c` in `𝒞` and every morphism to `𝟙 c`.
+    have h_triv : ((Functor.const WalkingParallelPair).obj c).map WalkingParallelPairHom.left = 𝟙 c := by
+      rfl
+    refine ⟨a_leg, ?_⟩
+    -- .left goes to f, .right goes to g in `parallelPair f g`
+    have hl := h_triv ▸ (π.naturality .left)
+    erw [Category.id_comp, ←hb_leg, ← ha_leg] at hl
+    simp at hl
+    have hr := π.naturality .right
+    -- this next bit is stupid. there should be an easier way, without another h_triv
+    conv at hr =>
+      lhs
+      lhs
+      change 𝟙 c
+    simp [←hb_leg, ←ha_leg] at hr
+    -- done with this
+    cat_disch
+  case invFun =>
+    sorry
+  sorry
 
 /-
 Exercise 2. Equalizers in `Type w`: the equalizer of `f g : X → Y` is the
