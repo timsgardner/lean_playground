@@ -16,6 +16,8 @@ import Mathlib.CategoryTheory.Types.Basic
 import LeanPlayground.Scratch.category_kindergarten.common_tools
 import Mathlib.CategoryTheory.Discrete.Basic
 import Mathlib.Tactic.Check
+import Mathlib.CategoryTheory.IsoCat
+import Mathlib.CategoryTheory.Category.Cat.Terminal
 
 open CategoryTheory Limits Opposite
 open scoped CategoryKindergarten
@@ -622,3 +624,103 @@ noncomputable example {β : Type w} (X : β → Type w) : (∏ᶜ X : Type w) �
     ∏ᶜ X ≃ (PUnit ⟶ ∏ᶜ X) := (pointEquiv (∏ᶜ X)).symm
     _ ≃ ((b : β) → PUnit.{w + 1} ⟶ X b) := homToProductEquivFamily (f := X) (c := PUnit)
     _ ≃ (∀ b, X b) := Equiv.piCongrRight (fun b => pointEquiv (X b))
+
+
+-- Definition 3.1.11: Terminal objects
+/-
+A terminal object is a limit of the empty diagram. A cone over an empty diagram
+is just its summit, and any morphism of summits is a cone morphism, since every
+leg, triangle and naturality square is indexed by some `j : 𝒥` and there are
+none (`isEmptyElim j` discharges each). So the category of cones is isomorphic
+to `𝒞`, and a terminal cone is a terminal object of `𝒞`.
+-/
+section EmptyDiagram
+
+variable [IsEmpty 𝒥]
+
+/-- Any object is the summit of a (unique) cone over the empty diagram. -/
+def emptyCone (c : 𝒞) : Cone F where
+  pt := c
+  π := { app := fun j => isEmptyElim j, naturality := fun j => isEmptyElim j }
+
+/-- Any morphism of summits is a morphism of empty cones. -/
+def emptyConeHom {s t : Cone F} (f : s.pt ⟶ t.pt) : s ⟶ t where
+  hom := f
+  w j := isEmptyElim j
+
+/-- Every cone is the empty cone on its summit: there is no other data. -/
+theorem emptyCone_pt (s : Cone F) : emptyCone F s.pt = s := by
+  cases s with | mk pt π =>
+  show Cone.mk pt _ = Cone.mk pt π
+  congr
+  ext j; exact isEmptyElim j
+
+/-
+`Cone F ≅ 𝒞` as an isomorphism of categories (Riehl §1.3: functors whose
+composites *equal* the identities; Mathlib's `IsoCat`). `Functor.IsIso` is the
+criterion "fully faithful and bijective on objects", and `asIsomorphism`
+builds the `IsoCat` from it.
+-/
+theorem forget_isIso : (Cone.forget F).IsIso where
+  faithful := ⟨fun h => by ext; exact h⟩
+  full := ⟨fun f => ⟨emptyConeHom F f, rfl⟩⟩
+  bijective_obj :=
+    ⟨fun s t h => by rw [← emptyCone_pt F s, ← emptyCone_pt F t]; exact congrArg _ h,
+     fun c => ⟨emptyCone F c, rfl⟩⟩
+
+noncomputable def conesIsoCat : IsoCat (Cone F) 𝒞 :=
+  have := forget_isIso F
+  (Cone.forget F).asIsomorphism
+
+/-- A limit of the empty diagram is an object with a unique map from everywhere
+(Definition 1.6.14), and conversely. -/
+def isLimitEquivUnique (t : Cone F) : IsLimit t ≃ ∀ c : 𝒞, Unique (c ⟶ t.pt) where
+  toFun ht c :=
+    { default := ht.lift (emptyCone F c)
+      uniq m := ht.uniq (emptyCone F c) m (fun j => isEmptyElim j) }
+  invFun h :=
+    { lift s := (h s.pt).default
+      fac _ j := isEmptyElim j
+      uniq s m _ := (h s.pt).uniq m }
+  left_inv _ := Subsingleton.elim _ _
+  right_inv _ := Subsingleton.elim _ _
+
+end EmptyDiagram
+
+/-
+The Mathlib point: rather than proving this, Mathlib takes 3.1.11 as the
+*definition*. `IsTerminal X` is literally `IsLimit` of the empty cone on `X`
+(over `Functor.empty 𝒞 : Discrete PEmpty ⥤ 𝒞`), and Definition 1.6.14 is the
+theorem `isTerminalEquivUnique`. In practice: `IsTerminal.ofUniqueHom` to prove
+terminality, `IsTerminal.from` and `IsTerminal.hom_ext` to use it. The chosen
+terminal object `⊤_ 𝒞` is the chosen limit of the empty diagram.
+-/
+example (X : 𝒞) : IsTerminal X = IsLimit (asEmptyCone X) := rfl
+
+example [HasTerminal 𝒞] : (⊤_ 𝒞) = limit (Functor.empty.{0} 𝒞) := rfl
+
+example : IsTerminal (PUnit.{w + 1} : Type w) :=
+  IsTerminal.ofUniqueHom (fun _ => ↾(fun _ => PUnit.unit)) (fun _ _ => rfl)
+
+
+-- Example 3.1.12: The terminal category
+/-
+Riehl's `𝟙`, one object and only its identity, is `Discrete PUnit`, and it is
+terminal in `Cat`: every category has exactly one functor to it, sending every
+object to the point and every morphism to the identity. Uniqueness is an
+equality of *functors*, which holds because a functor into `𝟙` has no choice on
+objects (`Unique`) or on morphisms (`IsDiscrete`: hom-sets are subsingletons).
+Mathlib proves exactly that, `Cat.isTerminalOfUniqueOfIsDiscrete`, and
+specializes it to `Discrete PUnit`.
+
+Fun fact: Riehl wrote this one herself. The file
+`Mathlib/CategoryTheory/Category/Cat/Terminal.lean` is copyright Emily Riehl,
+with authors Robin Carlier and Emily Riehl.
+
+Mathlib's `Cat.{v, u}` is the category of categories with objects in `Type u`
+and morphisms in `Type v`, so Riehl's `Cat` and `CAT` are both instances of it
+at different universe levels.
+-/
+example : IsTerminal (Cat.of (Discrete PUnit)) := Cat.isTerminalDiscretePUnit
+
+#check @Cat.isTerminalOfUniqueOfIsDiscrete
