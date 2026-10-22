@@ -832,38 +832,43 @@ def coneEquivEqualizing {A B : 𝒞} (f g : A ⟶ B) (c : 𝒞) :
   constructor
   case toFun =>
     intro π
-    -- I think this is the leg C -> A
-    #check π.app WalkingParallelPair.zero
-    -- And this is the leg C -> B
-    #check π.app WalkingParallelPair.one
-    -- yep:
-    set a_leg : c ⟶ A := π.app .zero with ha_leg
-    set b_leg : c ⟶ B := π.app .one with hb_leg
-      -- zero goes to A, one goes to B
-    have ha : (parallelPair f g).obj .zero = A := by rfl
-    have hb : (parallelPair f g).obj .one = B := by rfl
-    -- `(Functor.const WalkingParallelPair).obj c` is the constant functor
-    -- `WalkingParallelPair ⥤ 𝒞` out of the category `WalkingParallelPair` that
-    -- sends every object to `c` in `𝒞` and every morphism to `𝟙 c`.
-    have h_triv : ((Functor.const WalkingParallelPair).obj c).map WalkingParallelPairHom.left = 𝟙 c := by
-      rfl
-    refine ⟨a_leg, ?_⟩
-    -- .left goes to f, .right goes to g in `parallelPair f g`
-    have hl := h_triv ▸ (π.naturality .left)
-    erw [Category.id_comp, ←hb_leg, ← ha_leg] at hl
-    simp at hl
-    have hr := π.naturality .right
-    -- this next bit is stupid. there should be an easier way, without another h_triv
-    conv at hr =>
-      lhs
-      lhs
-      change 𝟙 c
-    simp [←hb_leg, ←ha_leg] at hr
-    -- done with this
-    cat_disch
+    constructor
+    case val =>
+      exact π.app .zero
+    case property =>
+      calc
+        π.app .zero ≫ f = π.app .one := by
+          have hl := π.naturality .left
+          simp at hl
+          exact hl.symm
+        _ =  π.app .zero ≫ g := by
+          have hr := π.naturality .right
+          simp at hr
+          exact hr
   case invFun =>
-    sorry
-  sorry
+    intro x
+    -- x.1 is the "a" morphism c ⟶ A.
+    -- x.2 is the proof that a ≫ f = a ≫ g.
+    -- Fork.ofι makes a cone over the parallel pair diagram
+    -- (parallelPair f g).
+    -- The legs of this cone compose the natural transformation
+    -- we want here.
+    exact (Fork.ofι x.1 x.2).π
+  case left_inv =>
+    intro nat_trans
+    simp
+    ext j
+    cases j
+    case zero =>
+      rfl
+    case one =>
+      simp
+      have hl := nat_trans.naturality .left
+      simp at hl
+      simp [hl]
+  case right_inv =>
+    intro x
+    rfl
 
 /-
 Exercise 2. Equalizers in `Type w`: the equalizer of `f g : X → Y` is the
