@@ -741,20 +741,21 @@ In Mathlib:
   `f g : A ⟶ B`. It sends `zero ↦ A`, `one ↦ B`, `left ↦ f`, `right ↦ g`.
 * A `Fork f g` is by definition a `Cone (parallelPair f g)`.
 
-Riehl writes composition right to left (`f a` means "first `a`, then `f`"),
-while Lean writes it left to right (`a ≫ f`). Both conventions appear below.
+Riehl writes composition right to left (`f a` for "first `a`, then `f`"). The
+discussion below instead uses Lean's left-to-right notation throughout
+(`a ≫ f`), so its equations are reversed relative to hers.
 
 A cone over this diagram with summit `C` consists of a pair of morphisms
 `a : C ⟶ A` and `b : C ⟶ B` (the components of the natural transformation at
-`zero` and at `one`) such that `f a = b` and `g a = b`. These two equations are
+`zero` and at `one`) such that `a ≫ f = b` and `a ≫ g = b`. These two equations are
 the naturality conditions for the two non-identity morphisms `left` and
 `right` of the indexing category. For instance, naturality at `left` says
 `𝟙 C ≫ b = a ≫ f`, since the constant functor sends `left` to `𝟙 C` and
 `parallelPair f g` sends it to `f`. The naturality conditions for the identity
-morphisms hold automatically. Together, the two equations imply `f a = g a`,
+morphisms hold automatically. Together, the two equations imply `a ≫ f = a ≫ g`,
 and they force `b` to equal that common composite. A cone over `f, g` is
 therefore determined by the single morphism `a`, subject to the condition
-`f a = g a`.
+`a ≫ f = a ≫ g`.
 
 Mathlib's fork API is built around that observation. For a fork `t`, the leg
 `t.ι` is the component at `zero` (Riehl's `a`), and `t.condition` is the
@@ -774,7 +775,7 @@ example {A B : 𝒞} {f g : A ⟶ B} (t : Fork f g) :
 
 /-
 The equalizer is a limit cone over `f, g`. Call its summit `E` and its
-components `h : E ⟶ A` and `q : E ⟶ B`, so that `f h = q = g h`. Riehl's
+components `h : E ⟶ A` and `q : E ⟶ B`, so that `h ≫ f = q = h ≫ g`. Riehl's
 equalizer diagram leaves out `q`, for the reason just given. The diagram below
 includes it, together with a second cone `(a, b)` with summit `C`, so that it
 matches the general picture of a cone: one leg to each object of the diagram.
@@ -787,9 +788,10 @@ other arrows.
 
 The universal property of the limit cone says that for every cone `(a, b)` with
 summit `C` there is a unique morphism `k : C ⟶ E` through which both legs
-factor, that is, `h k = a` and `q k = b`. The second equation follows from the
-first: `q k = f h k = f a = b`. So, as Riehl states it, the universal property
-asserts that every `a : C ⟶ A` with `f a = g a` factors uniquely through `h`.
+factor, that is, `k ≫ h = a` and `k ≫ q = b`. The second equation follows from
+the first: `k ≫ q = k ≫ h ≫ f = a ≫ f = b`. So, as Riehl states it, the
+universal property asserts that every `a : C ⟶ A` with `a ≫ f = a ≫ g` factors
+uniquely through `h`.
 
 `Fork.IsLimit.mk` asks for exactly this reduced form: a function `lift`
 producing `k` from each fork `s`, a proof of the factorization
