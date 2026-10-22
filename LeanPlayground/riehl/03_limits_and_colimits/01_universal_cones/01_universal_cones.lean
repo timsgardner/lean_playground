@@ -18,6 +18,9 @@ import Mathlib.CategoryTheory.Discrete.Basic
 import Mathlib.Tactic.Check
 import Mathlib.CategoryTheory.IsoCat
 import Mathlib.CategoryTheory.Category.Cat.Terminal
+import Mathlib.CategoryTheory.Limits.Shapes.Equalizers
+import Mathlib.Algebra.Category.Grp.Basic
+import Mathlib.Algebra.Group.Subgroup.Basic
 
 open CategoryTheory Limits Opposite
 open scoped CategoryKindergarten
@@ -724,3 +727,131 @@ at different universe levels.
 example : IsTerminal (Cat.of (Discrete PUnit)) := Cat.isTerminalDiscretePUnit
 
 #check @Cat.isTerminalOfUniqueOfIsDiscrete
+
+
+-- Definition 3.1.13: Equalizers
+/-
+An equalizer is a limit of a diagram indexed by the parallel pair `• ⇉ •`.
+
+In Mathlib:
+* The indexing category is `WalkingParallelPair`, with objects `zero` and `one`
+  and morphisms `WalkingParallelPairHom`: `left, right : zero ⟶ one` plus
+  identities.
+* A diagram of that shape is `parallelPair f g : WalkingParallelPair ⥤ 𝒞`, for
+  `f g : A ⟶ B`. It sends `zero ↦ A`, `one ↦ B`, `left ↦ f`, `right ↦ g`.
+* A `Fork f g` is by definition a `Cone (parallelPair f g)`.
+
+Riehl writes composition right to left (`f a` means "first `a`, then `f`"),
+while Lean writes it left to right (`a ≫ f`). Both conventions appear below.
+
+A cone over this diagram with summit `C` consists of a pair of morphisms
+`a : C ⟶ A` and `b : C ⟶ B` (the components of the natural transformation at
+`zero` and at `one`) such that `f a = b` and `g a = b`. These two equations are
+the naturality conditions for the two non-identity morphisms `left` and
+`right` of the indexing category. For instance, naturality at `left` says
+`𝟙 C ≫ b = a ≫ f`, since the constant functor sends `left` to `𝟙 C` and
+`parallelPair f g` sends it to `f`. The naturality conditions for the identity
+morphisms hold automatically. Together, the two equations imply `f a = g a`,
+and they force `b` to equal that common composite. A cone over `f, g` is
+therefore determined by the single morphism `a`, subject to the condition
+`f a = g a`.
+
+Mathlib's fork API is built around that observation. For a fork `t`, the leg
+`t.ι` is the component at `zero` (Riehl's `a`), and `t.condition` is the
+equation `t.ι ≫ f = t.ι ≫ g`. The component at `one` (Riehl's `b`) is still
+part of the data, but `Fork.app_one_eq_ι_comp_left` shows that it equals
+`t.ι ≫ f`. Conversely, `Fork.ofι a h` builds a fork from a morphism `a` and a
+proof `h : a ≫ f = a ≫ g`, supplying `a ≫ f` as the component at `one`.
+-/
+#print WalkingParallelPairHom
+
+example {A B : 𝒞} (f g : A ⟶ B) : Fork f g = Cone (parallelPair f g) := rfl
+
+example {A B : 𝒞} {f g : A ⟶ B} (t : Fork f g) : t.ι = t.π.app .zero := rfl
+
+example {A B : 𝒞} {f g : A ⟶ B} (t : Fork f g) :
+    t.π.app .one = t.ι ≫ f := Fork.app_one_eq_ι_comp_left t
+
+/-
+The equalizer is a limit cone over `f, g`. Call its summit `E` and its
+components `h : E ⟶ A` and `q : E ⟶ B`, so that `f h = q = g h`. Riehl's
+equalizer diagram leaves out `q`, for the reason just given. The diagram below
+includes it, together with a second cone `(a, b)` with summit `C`, so that it
+matches the general picture of a cone: one leg to each object of the diagram.
+
+[Diagram](assets/equalizer_universal_property.svg)
+
+In the diagram, the dashed arrow `k` is the unique factorization, and the dotted
+arrows `b` and `q` are the components at `one`, which are determined by the
+other arrows.
+
+The universal property of the limit cone says that for every cone `(a, b)` with
+summit `C` there is a unique morphism `k : C ⟶ E` through which both legs
+factor, that is, `h k = a` and `q k = b`. The second equation follows from the
+first: `q k = f h k = f a = b`. So, as Riehl states it, the universal property
+asserts that every `a : C ⟶ A` with `f a = g a` factors uniquely through `h`.
+
+`Fork.IsLimit.mk` asks for exactly this reduced form: a function `lift`
+producing `k` from each fork `s`, a proof of the factorization
+`lift s ≫ t.ι = s.ι` at `zero` only, and a proof of uniqueness.
+
+Given `[HasEqualizer f g]`, Mathlib's chosen equalizer has summit
+`equalizer f g` and leg `equalizer.ι f g : equalizer f g ⟶ A`. For `a : C ⟶ A`
+and `w : a ≫ f = a ≫ g`, the factorization `k` is `equalizer.lift a w`.
+-/
+#check @Fork.IsLimit.mk
+#check @equalizer.ι
+#check @equalizer.lift
+
+/-
+Exercise 1. Riehl's main claim: a cone over `parallelPair f g` with summit `c`
+is the same as a morphism `a : c ⟶ A` with `a ≫ f = a ≫ g`. Prove it as an
+equivalence. The left side is a raw natural transformation (as in
+`coneEquivFamily` for 3.1.9), so its naturality squares are what you have to
+work with.
+* `toFun`: take the leg at `zero`; the condition comes from the naturality
+  squares at `left` and at `right` (`π.naturality .left`, after `simp`).
+* `invFun`: assemble a natural transformation. You may build it by hand, or
+  borrow the one inside `Fork.ofι`.
+* `left_inv`: compare components with `ext j`, then `cases j`. At `one`, this
+  is Riehl's "`b` is necessarily equal to this common composite".
+-/
+def coneEquivEqualizing {A B : 𝒞} (f g : A ⟶ B) (c : 𝒞) :
+    ((Functor.const WalkingParallelPair).obj c ⟶ parallelPair f g) ≃
+      {a : c ⟶ A // a ≫ f = a ≫ g} := sorry
+
+/-
+Exercise 2. Equalizers in `Type w`: the equalizer of `f g : X → Y` is the
+subtype `{x // f x = g x}`, with leg the inclusion `Subtype.val`.
+
+You will need to apply an equation of morphisms to an element: from
+`h : φ = ψ` with `φ ψ : S ⟶ T` in `Type w`, `ConcreteCategory.congr_hom h s`
+gives `φ s = ψ s`. For uniqueness, `ext c` and then `Subtype.ext` reduce an
+equality of maps into the subtype to an equality of underlying values.
+-/
+example {X Y : Type w} (f g : X → Y) :
+    IsLimit (Fork.ofι (f := ↾f) (g := ↾g) (P := {x // f x = g x}) (↾Subtype.val)
+      (by ext x; exact x.2)) := sorry
+
+/-
+Exercise 3 (Riehl's Exercise 3.1.iv). The leg of any equalizer is a
+monomorphism: if `k ≫ t.ι = l ≫ t.ι` then `k = l`. Use only the universal
+property; no elements here. (`Mono` is a one-field structure; look at what its
+field asks for.)
+-/
+example {A B : 𝒞} {f g : A ⟶ B} (t : Fork f g) (ht : IsLimit t) : Mono t.ι := sorry
+
+/-
+Exercise 4 (Example 3.1.14). In the category of groups, the equalizer of
+`φ ψ : G →* H` is the subgroup `{x | φ x = ψ x}`, Mathlib's `φ.eqLocus ψ`, with
+leg its inclusion. With `ψ := 1` this is the kernel of `φ`.
+
+This is Exercise 2 again, plus proving that your `lift` is a group
+homomorphism. Morphisms in `GrpCat` are wrapped monoid homs: `GrpCat.ofHom`
+wraps, and `GrpCat.of G` is `G` as an object. Build the lift's underlying
+monoid hom as a structure with fields `toFun`, `map_one'`, `map_mul'`.
+-/
+example {G H : Type u₁} [Group G] [Group H] (φ ψ : G →* H) :
+    IsLimit (Fork.ofι (f := GrpCat.ofHom φ) (g := GrpCat.ofHom ψ)
+      (P := GrpCat.of (φ.eqLocus ψ)) (GrpCat.ofHom (φ.eqLocus ψ).subtype)
+      (by ext x; exact x.2)) := sorry
