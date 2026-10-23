@@ -26,7 +26,7 @@ open CategoryTheory Limits Opposite
 open scoped CategoryKindergarten
 
 -- set_option pp.categoryTheory.hideConcreteHom true
-set_option pp.proofs true          -- print proof terms instead of ⋯
+-- set_option pp.proofs true          -- print proof terms instead of ⋯
 set_option pp.deepTerms true       -- don't elide deeply nested subterms
 
 universe v₁ v₂ u₁ u₂
@@ -741,6 +741,16 @@ In Mathlib:
   `f g : A ⟶ B`. It sends `zero ↦ A`, `one ↦ B`, `left ↦ f`, `right ↦ g`.
 * A `Fork f g` is by definition a `Cone (parallelPair f g)`.
 
+In the diagram below, the top row is the indexing category `WalkingParallelPair`
+with its identity morphisms omitted, and the bottom row is its image under the
+functor `parallelPair f g`. The dotted arrows record what the functor does on
+objects: `(parallelPair f g).obj .zero = A` and `(parallelPair f g).obj .one =
+B`. On morphisms it sends the upper arrow to the upper arrow and the lower to
+the lower, so that `(parallelPair f g).map .left = f` and
+`(parallelPair f g).map .right = g`. All four equations hold by `rfl`.
+
+[Diagram](assets/parallel_pair.svg)
+
 Riehl writes composition right to left (`f a` for "first `a`, then `f`"). The
 discussion below instead uses Lean's left-to-right notation throughout
 (`a ≫ f`), so its equations are reversed relative to hers.
@@ -757,12 +767,37 @@ and they force `b` to equal that common composite. A cone over `f, g` is
 therefore determined by the single morphism `a`, subject to the condition
 `a ≫ f = a ≫ g`.
 
+The diagram below draws such a cone `π` as what it literally is in Lean, a
+natural transformation from the constant functor at `c` to `parallelPair f g`.
+The top row is the constant functor applied to `zero ⇉ one`: both objects go to
+`c`, and both `left` and `right` go to the identity of `c`. The bottom row is
+`parallelPair f g`, as above. The vertical arrows are the two components
+`π.app .zero` and `π.app .one`, and the naturality squares are the upper square
+(for `left`) and the lower square (for `right`). `π.naturality .left` is the
+equation of the upper square, `𝟙 c ≫ π.app .one = π.app .zero ≫ f`.
+
+[Diagram](assets/cone_over_parallel_pair.svg)
+
 Mathlib's fork API is built around that observation. For a fork `t`, the leg
 `t.ι` is the component at `zero` (Riehl's `a`), and `t.condition` is the
 equation `t.ι ≫ f = t.ι ≫ g`. The component at `one` (Riehl's `b`) is still
-part of the data, but `Fork.app_one_eq_ι_comp_left` shows that it equals
-`t.ι ≫ f`. Conversely, `Fork.ofι a h` builds a fork from a morphism `a` and a
+part of the data, but it equals `t.ι ≫ f`. This is the upper naturality square
+again, in the form `t.w .left : t.π.app .zero ≫ f = t.π.app .one`. This is the
+`Cone.w` from the start of the file, which every cone provides for each arrow
+of its index category, with the identity `𝟙 c` already removed. Conversely, `Fork.ofι a h` builds a fork from a morphism `a` and a
 proof `h : a ≫ f = a ≫ g`, supplying `a ≫ f` as the component at `one`.
+
+The first diagram below labels the parts of an arbitrary fork `t` by their Lean
+names. Its summit is the field `t.pt`, and its two legs are the components of
+the natural transformation `t.π`. The leg at `zero` has the abbreviation `t.ι`.
+The leg at `one` is dotted because it is determined by the other arrows: it
+equals `t.ι ≫ f`, and also `t.ι ≫ g`. The second diagram shows the fork that
+`Fork.ofι a h` builds, with summit `c`, leg `a`, and `a ≫ f` as the dotted
+component at `one`.
+
+[Diagram](assets/fork_fields.svg)
+
+[Diagram](assets/fork_of_iota.svg)
 -/
 #print WalkingParallelPairHom
 
@@ -771,7 +806,7 @@ example {A B : 𝒞} (f g : A ⟶ B) : Fork f g = Cone (parallelPair f g) := rfl
 example {A B : 𝒞} {f g : A ⟶ B} (t : Fork f g) : t.ι = t.π.app .zero := rfl
 
 example {A B : 𝒞} {f g : A ⟶ B} (t : Fork f g) :
-    t.π.app .one = t.ι ≫ f := Fork.app_one_eq_ι_comp_left t
+    t.π.app .one = t.ι ≫ f := (t.w .left).symm
 
 /-
 The equalizer is a limit cone over `f, g`. Call its summit `E` and its
@@ -816,8 +851,8 @@ is Riehl's `Cone(c, F)` from 3.1.5: the type of natural
 transformations `Δc ⇒ parallelPair f g`, as in `coneEquivFamily` for 3.1.9. An
 element `π` of it is a plain natural transformation, with only the fields
 `π.app` (its components) and `π.naturality` (its naturality squares). It is not
-a `Fork`, so the fork API (`ι`, `condition`, `Fork.app_one_eq_ι_comp_left`) is
-not available for it. The equation `π.app zero ≫ f = π.app zero ≫ g` has to be
+a `Fork`, or even a `Cone`, so `ι`, `condition` and `w` are not available for
+it. The equation `π.app zero ≫ f = π.app zero ≫ g` has to be
 derived from the naturality squares, and that derivation is Riehl's argument.
 * `toFun`: take the leg at `zero`; the condition comes from the naturality
   squares at `left` and at `right` (`π.naturality .left`, after `simp`).
@@ -871,17 +906,158 @@ def coneEquivEqualizing {A B : 𝒞} (f g : A ⟶ B) (c : 𝒞) :
     rfl
 
 /-
+Warm-ups before Exercises 2–4. Each group below practices one piece of API on
+its own, so that the later exercises only have to combine pieces you have
+already used. All of them are short; most are one line.
+
+(W1) Reading off a fork. For `a : c ⟶ A` and `w : a ≫ f = a ≫ g`, the fork
+`Fork.ofι a w` has summit `c` and leg `a`, and both facts hold by definition.
+For an arbitrary fork `t`, the equalizing equation is the field `t.condition`.
+The last warm-up in this group shows that the equation survives precomposition:
+anything that factors through the leg of a fork also equalizes `f` and `g`. You
+will need `Category.assoc` to move the parentheses.
+-/
+example {A B : 𝒞} {f g : A ⟶ B} {c : 𝒞} (a : c ⟶ A) (w : a ≫ f = a ≫ g) :
+    (Fork.ofι a w).pt = c := by
+  rfl
+
+example {A B : 𝒞} {f g : A ⟶ B} {c : 𝒞} (a : c ⟶ A) (w : a ≫ f = a ≫ g) :
+    (Fork.ofι a w).ι = a := by
+  rfl
+
+example {A B : 𝒞} {f g : A ⟶ B} (t : Fork f g) : t.ι ≫ f = t.ι ≫ g := by
+    exact t.condition
+
+example {A B : 𝒞} {f g : A ⟶ B} (t : Fork f g) {c : 𝒞} (k : c ⟶ t.pt) :
+    (k ≫ t.ι) ≫ f = (k ≫ t.ι) ≫ g := by
+   repeat rw [Category.assoc]
+   rw [t.condition]
+
+
+
+/-
+(W2) `Fork.IsLimit.mk` on the smallest example. Every morphism equalizes `f`
+with itself, so the identity `𝟙 A` is a fork over the pair `f, f`, and it is in
+fact an equalizer: a fork `s` over `f, f` factors through `𝟙 A` by its own leg
+`s.ι`, and in no other way. Prove this with `Fork.IsLimit.mk`. Start with
+`apply Fork.IsLimit.mk` (or `refine Fork.IsLimit.mk _ ?lift ?fac ?uniq`) and
+look at the three goals; the categorical simp lemmas `Category.comp_id` and
+`Category.id_comp` do the rest. No elements and no subtypes appear here, only
+the shape of the universal property.
+-/
+example {A B : 𝒞} (f : A ⟶ B) :
+    IsLimit (Fork.ofι (f := f) (g := f) (𝟙 A) rfl) := by
+  apply Fork.IsLimit.mk
+  case lift =>
+    intro fork
+    simp
+    exact fork.ι
+  case fac =>
+    simp
+  case uniq =>
+    simp
+
+/-
+(W3) Morphisms in `Type w` against their elements. Recall that `↾φ` wraps a
+function `φ : X → Y` as a morphism `X ⟶ Y`, and that a morphism `h : X ⟶ Y` can
+be applied to `x : X` as `h x`. The first two warm-ups below hold by definition.
+The next two move between an equation of morphisms and an equation of their
+values: `ConcreteCategory.congr_hom h s` turns `h : φ = ψ` into `φ s = ψ s`, and
+`ext s` turns the goal `φ = ψ` into `φ s = ψ s` for an arbitrary `s`.
+-/
+example {X Y : Type w} (φ : X → Y) (x : X) : (↾φ : X ⟶ Y) x = φ x := by
+  -- simp closes here
+  rw [ConcreteCategory.hom_ofHom]
+  rfl
+
+example {X Y Z : Type w} (φ : X ⟶ Y) (ψ : Y ⟶ Z) (x : X) :
+    (φ ≫ ψ) x = ψ (φ x) := by
+  apply ConcreteCategory.comp_apply
+
+example {S T : Type w} {φ ψ : S ⟶ T} (h : φ = ψ) (s : S) : φ s = ψ s := by
+  apply ConcreteCategory.congr_hom
+  exact h
+
+example {S T : Type w} {φ ψ : S ⟶ T} (h : ∀ s, φ s = ψ s) : φ = ψ := by
+  ext s
+  simp
+  apply h
+
+/-
+(W4) Forks in `Type w`, elementwise. The first warm-up combines (W1) and (W3):
+the equation `t.condition` of morphisms gives, at each element `x` of the
+summit, an equation of values. The second uses that to send each element of the
+summit into the subtype `{x // f x = g x}`. The third is about maps into the
+subtype: two of them are equal as soon as they agree after `Subtype.val`. Here
+`ext c` does more than in (W3): for maps into a subtype it also applies
+`Subtype.ext`, so the goal it leaves is an equation of underlying values.
+-/
+example {X Y : Type w} {f g : X → Y} (t : Fork (↾f) (↾g)) (x : t.pt) :
+    f (t.ι x) = g (t.ι x) := by
+  change (t.ι ≫ ↾f) x = (t.ι ≫ ↾g) x
+  rw [t.condition]
+
+
+example {X Y : Type w} {f g : X → Y} (t : Fork (↾f) (↾g)) :
+    t.pt ⟶ {x // f x = g x} := by
+  apply TypeCat.ofHom
+  intro pt
+  refine ⟨t.ι pt, ?_⟩
+  change (t.ι ≫ ↾f) pt = (t.ι ≫ ↾g) pt
+  rw [t.condition]
+
+example {X Y : Type w} {f g : X → Y} {T : Type w} (k l : T ⟶ {x // f x = g x})
+    (h : k ≫ ↾Subtype.val = l ≫ ↾Subtype.val) : k = l := by
+  ext c
+  exact ConcreteCategory.congr_hom h c
+
+/-
 Exercise 2. Equalizers in `Type w`: the equalizer of `f g : X → Y` is the
 subtype `{x // f x = g x}`, with leg the inclusion `Subtype.val`.
 
 You will need to apply an equation of morphisms to an element: from
 `h : φ = ψ` with `φ ψ : S ⟶ T` in `Type w`, `ConcreteCategory.congr_hom h s`
-gives `φ s = ψ s`. For uniqueness, `ext c` and then `Subtype.ext` reduce an
-equality of maps into the subtype to an equality of underlying values.
+gives `φ s = ψ s`. For uniqueness, `ext c` reduces an equality of maps into
+the subtype to an equality of underlying values, as in (W4).
 -/
 example {X Y : Type w} (f g : X → Y) :
-    IsLimit (Fork.ofι (f := ↾f) (g := ↾g) (P := {x // f x = g x}) (↾Subtype.val)
-      (by ext x; exact x.2)) := sorry
+    IsLimit
+      (Fork.ofι
+        (f := ↾f)
+        (g := ↾g)
+        (P := {x // f x = g x})
+        (↾Subtype.val) -- This is ι
+        (by ext x; exact x.2)) := by
+  constructor
+  case lift =>
+    intro cone
+    change Fork (↾f) (↾g) at cone
+    change cone.pt ⟶ { x // f x = g x }
+    apply TypeCat.ofHom
+    intro cpt
+    refine ⟨cone.ι cpt, ?_⟩
+    exact ConcreteCategory.congr_hom cone.condition cpt
+  case fac =>
+    intro cone j
+    dsimp only [id_eq]
+    cases j
+    · ext cpt
+      rfl
+    · rw [← cone.w .left]
+      rfl
+  case uniq =>
+    intro cone m h
+    rw [id_eq, id_eq]
+    ext cpt
+    simp
+    have h2 := h .zero
+    simp at h2
+    conv => rhs; lhs; congr; arg 1; rw [← h2]
+    rfl
+
+
+
+
 
 /-
 Exercise 3 (Riehl's Exercise 3.1.iv). The leg of any equalizer is a
