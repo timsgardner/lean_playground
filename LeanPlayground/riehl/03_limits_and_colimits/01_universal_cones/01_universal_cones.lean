@@ -784,8 +784,9 @@ equation `t.ι ≫ f = t.ι ≫ g`. The component at `one` (Riehl's `b`) is stil
 part of the data, but it equals `t.ι ≫ f`. This is the upper naturality square
 again, in the form `t.w .left : t.π.app .zero ≫ f = t.π.app .one`. This is the
 `Cone.w` from the start of the file, which every cone provides for each arrow
-of its index category, with the identity `𝟙 c` already removed. Conversely, `Fork.ofι a h` builds a fork from a morphism `a` and a
-proof `h : a ≫ f = a ≫ g`, supplying `a ≫ f` as the component at `one`.
+of its index category, with the identity `𝟙 t.pt` already removed.
+Conversely, `Fork.ofι a h` builds a fork from a morphism `a` and a proof
+`h : a ≫ f = a ≫ g`, supplying `a ≫ f` as the component at `one`.
 
 The first diagram below labels the parts of an arbitrary fork `t` by their Lean
 names. Its summit is the field `t.pt`, and its two legs are the components of
@@ -1065,7 +1066,22 @@ monomorphism: if `k ≫ t.ι = l ≫ t.ι` then `k = l`. Use only the universal
 property; no elements here. (`Mono` is a one-field structure; look at what its
 field asks for.)
 -/
-example {A B : 𝒞} {f g : A ⟶ B} (t : Fork f g) (ht : IsLimit t) : Mono t.ι := sorry
+example {A B : 𝒞} {f g : A ⟶ B} (t : Fork f g) (ht : IsLimit t) : Mono t.ι := by
+  constructor
+  intro c m1 m2 h
+  apply ht.hom_ext
+  intro j
+  cases j
+  case zero =>
+    simp
+    exact h
+  case one =>
+    simp
+    rw [←Category.assoc, h, Category.assoc]
+
+-- here's another way to do it
+example {A B : 𝒞} {f g : A ⟶ B} (t : Fork f g) (ht : IsLimit t) : Mono t.ι := by
+  exact Fork.IsLimit.mono ht
 
 /-
 Exercise 4 (Example 3.1.14). In the category of groups, the equalizer of
