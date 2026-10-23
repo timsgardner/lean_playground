@@ -19,6 +19,9 @@ import Mathlib.Tactic.Check
 import Mathlib.CategoryTheory.IsoCat
 import Mathlib.CategoryTheory.Category.Cat.Terminal
 import Mathlib.CategoryTheory.Limits.Shapes.Equalizers
+import Mathlib.CategoryTheory.Limits.Shapes.Pullback.HasPullback
+import Mathlib.CategoryTheory.Limits.Shapes.Pullback.IsPullback.Defs
+import Mathlib.CategoryTheory.Limits.Types.Pullbacks
 import Mathlib.Algebra.Category.Grp.Basic
 import Mathlib.Algebra.Group.Subgroup.Basic
 
@@ -1096,4 +1099,315 @@ monoid hom as a structure with fields `toFun`, `map_one'`, `map_mul'`.
 example {G H : Type u₁} [Group G] [Group H] (φ ψ : G →* H) :
     IsLimit (Fork.ofι (f := GrpCat.ofHom φ) (g := GrpCat.ofHom ψ)
       (P := GrpCat.of (φ.eqLocus ψ)) (GrpCat.ofHom (φ.eqLocus ψ).subtype)
-      (by ext x; exact x.2)) := sorry
+      (by ext x; exact x.2)) := by
+  -- A fork `s` over `φ, ψ` has a leg `s.ι` whose values all lie in the
+  -- equalizing subgroup, as in (W4).
+  have mem : ∀ (s : Fork (GrpCat.ofHom φ) (GrpCat.ofHom ψ)) (c : s.pt),
+      φ (s.ι c) = ψ (s.ι c) := fun s c =>
+    ConcreteCategory.congr_hom s.condition c
+  apply Fork.IsLimit.mk
+  case lift =>
+    intro s
+    apply GrpCat.ofHom
+    exact
+      { toFun := fun c => ⟨s.ι c, mem s c⟩
+        map_one' := by ext; simp
+        map_mul' := by intro a b; ext; simp }
+  case fac =>
+    intro s
+    ext c
+    rfl
+  case uniq =>
+    intro s m h
+    ext c
+    -- `ext` stops at elements of the subgroup; `Subtype.ext` reduces to the
+    -- underlying elements of `G`, where `h` applies.
+    exact Subtype.ext (ConcreteCategory.congr_hom h c)
+
+
+-- Definition 3.1.15: Pullbacks
+/-
+A pullback is a limit of a cospan, which is a diagram indexed by the poset
+category `• → • ← •`, consisting of two non-identity morphisms with a common
+codomain.
+
+In Mathlib:
+* The indexing category is `WalkingCospan`, with objects `left`, `one` and
+  `right`, and non-identity morphisms `WalkingCospan.Hom.inl : left ⟶ one` and
+  `WalkingCospan.Hom.inr : right ⟶ one`.
+* A diagram of that shape is `cospan f g : WalkingCospan ⥤ 𝒞`, for
+  `f : B ⟶ A` and `g : C ⟶ A`. It sends `left ↦ B`, `one ↦ A`, `right ↦ C`,
+  `inl ↦ f` and `inr ↦ g`.
+* A `PullbackCone f g` is by definition a `Cone (cospan f g)`.
+
+In the diagram below, the top row is the indexing category `WalkingCospan` with
+its identity morphisms omitted, and the bottom row is its image under the
+functor `cospan f g`. The dotted arrows record what the functor does on objects,
+and on morphisms it sends `inl` to `f` and `inr` to `g`. All five equations
+hold by `rfl`.
+
+[Diagram](assets/cospan.svg)
+
+Two things about `WalkingCospan` differ from `WalkingParallelPair`, and both show
+up in goals. First, Mathlib does not define `WalkingCospan` as its own inductive
+type. It is a special case of the indexing category for "wide" pullbacks, which
+has one object for each element of `Option J` (here `J := WalkingPair`):
+`one` is `none`, `left` is `some WalkingPair.left`, and `right` is
+`some WalkingPair.right`. The names `WalkingCospan.left` and so on are
+abbreviations for these, so a `cases` on an object of `WalkingCospan` produces
+goals that mention `none` and `some WalkingPair.left` instead. They are equal to
+the short names by definition, so `change` can restore the short names.
+
+Second, the morphisms `inl` and `inr` have to be written out in full as
+`WalkingCospan.Hom.inl` and `WalkingCospan.Hom.inr`. The shorthand `.inl`, which
+worked for `.left` in the fork section, fails here. Lean resolves `.inl` by
+unfolding the expected type `left ⟶ one` and looking for `inl` in the namespace
+of the type it finds. For `WalkingParallelPair` that type is
+`WalkingParallelPairHom`, which really has a constructor `left`. For
+`WalkingCospan` it is `WidePullbackShape.Hom`, whose constructor is called
+`term`, and `WalkingCospan.Hom.inl` is only an abbreviation for `term .left`
+that lives in a different namespace.
+
+A cone over this diagram with summit `D` consists of a triple of morphisms
+`b : D ⟶ B`, `a : D ⟶ A` and `c : D ⟶ C`, one for each object of the indexing
+category, such that `b ≫ f = a` and `c ≫ g = a`. These two equations are the
+naturality conditions for the two non-identity morphisms `inl` and `inr`. For
+instance, naturality at `inl` says `𝟙 D ≫ a = b ≫ f`, since the constant
+functor sends `inl` to `𝟙 D` and `cospan f g` sends it to `f`. As Riehl puts
+it, the leg `a` asserts that `b ≫ f` and `c ≫ g` have a common composite. Thus
+the data of a cone over `f, g` may be described more concisely as a pair of
+morphisms `b : D ⟶ B` and `c : D ⟶ C` such that `b ≫ f = c ≫ g`, that is, a
+commutative square. (Riehl writes this equation as `f b = g c`.)
+
+Mathlib's pullback cone API is built around that description. For a pullback
+cone `t`, the leg `t.fst` is the component at `left` (Riehl's `b`), the leg
+`t.snd` is the component at `right` (Riehl's `c`), and `t.condition` is the
+equation `t.fst ≫ f = t.snd ≫ g`. The component at `one` (Riehl's `a`) is still
+part of the data, but it equals `t.fst ≫ f`. This is the naturality square at
+`inl` again, in the form `t.w WalkingCospan.Hom.inl : t.π.app .left ≫ f =
+t.π.app .one`. Conversely, `PullbackCone.mk b c w` builds a pullback cone from
+morphisms `b` and `c` and a proof `w : b ≫ f = c ≫ g`, supplying `b ≫ f` as the
+component at `one`.
+
+The diagram below labels the parts of an arbitrary pullback cone `t` by their
+Lean names, laid out as Riehl draws the square (3.1.16). The component at `one`
+is dotted because it is determined by the other arrows: it equals `t.fst ≫ f`,
+and also `t.snd ≫ g`.
+
+[Diagram](assets/pullback_cone_fields.svg)
+
+Note that Mathlib's own pictures of a pullback square, for instance in the
+docstring of `IsPullback`, are the transpose of Riehl's. They draw `fst`
+horizontally along the top and `snd` vertically down the left side. The diagrams
+in this file follow Riehl.
+-/
+example {A B C : 𝒞} (f : B ⟶ A) (g : C ⟶ A) :
+    PullbackCone f g = Cone (cospan f g) := rfl
+
+example {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} (t : PullbackCone f g) :
+    t.fst = t.π.app .left := rfl
+
+example {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} (t : PullbackCone f g) :
+    t.snd = t.π.app .right := rfl
+
+/-
+The pullback is a limit cone over `f, g`. Call its summit `P` and its legs
+`h : P ⟶ B` and `k : P ⟶ C`, so that `h ≫ f = k ≫ g`. The universal property of
+the limit cone says that for every commutative square `b ≫ f = c ≫ g` with
+summit `D`, there is a unique morphism `l : D ⟶ P` through which both legs
+factor, that is, `l ≫ h = b` and `l ≫ k = c`. (The leg at `one` factors as well,
+but that follows from the factorization of `b`, as it did for forks.)
+
+The diagram below shows this with Lean's names, for a limit cone `t` with summit
+`P` and an arbitrary pullback cone `s`. The dashed arrow is the unique
+factorization, which `PullbackCone.IsLimit.mk` calls `lift s`. The symbol `⌟` in
+the corner marks the square as a pullback, that is, a limit cone, and not
+merely a commutative square.
+
+[Diagram](assets/pullback_universal_property.svg)
+
+`PullbackCone.IsLimit.mk` asks for exactly this reduced form, for a cone of the
+form `PullbackCone.mk h k w`: a function `lift` producing `l` from each pullback
+cone `s`, a proof `fac_left` of `lift s ≫ h = s.fst`, a proof `fac_right` of
+`lift s ≫ k = s.snd`, and a proof `uniq` that any `m` satisfying both
+factorizations equals `lift s`. Compared with `Fork.IsLimit.mk` there are two
+factorization goals instead of one, because a pullback cone has two independent
+legs.
+
+Given `[HasPullback f g]`, Mathlib's chosen pullback has summit `pullback f g`
+(Riehl's fiber product `B ×_A C`) and legs `pullback.fst f g : pullback f g ⟶ B`
+and `pullback.snd f g : pullback f g ⟶ C`. For `b : D ⟶ B`, `c : D ⟶ C` and
+`w : b ≫ f = c ≫ g`, the factorization `l` is `pullback.lift b c w`.
+
+Riehl's symbol `⌟` also has a Mathlib counterpart. `IsPullback h k f g` is the
+proposition that the square `h ≫ f = k ≫ g` commutes and that the pullback cone
+it defines is a limit. Unlike `IsLimit`, which is data (it contains the `lift`
+function), `IsPullback` is a `Prop`, so it says only that the square is a
+pullback. `IsPullback.of_isLimit` produces it from an `IsLimit`.
+-/
+#check @PullbackCone.IsLimit.mk
+#check @pullback.fst
+#check @pullback.lift
+#check @IsPullback.of_isLimit
+
+/-
+(P1) Reading off a cospan and a pullback cone. The first two warm-ups below are
+the equations of the cospan diagram, and the next three are the parts of
+`PullbackCone.mk b c w`; all five hold by definition. The sixth is the leg at
+`one` of an arbitrary pullback cone. The last shows that the square survives
+precomposition, as in (W1): anything that maps into the summit of a pullback
+cone gives another commutative square.
+-/
+example {A B C : 𝒞} (f : B ⟶ A) (g : C ⟶ A) : (cospan f g).obj .one = A := by
+  sorry
+
+example {A B C : 𝒞} (f : B ⟶ A) (g : C ⟶ A) :
+    (cospan f g).map WalkingCospan.Hom.inr = g := by
+  sorry
+
+example {A B C D : 𝒞} {f : B ⟶ A} {g : C ⟶ A} (b : D ⟶ B) (c : D ⟶ C)
+    (w : b ≫ f = c ≫ g) : (PullbackCone.mk b c w).pt = D := by
+  sorry
+
+example {A B C D : 𝒞} {f : B ⟶ A} {g : C ⟶ A} (b : D ⟶ B) (c : D ⟶ C)
+    (w : b ≫ f = c ≫ g) : (PullbackCone.mk b c w).snd = c := by
+  sorry
+
+example {A B C D : 𝒞} {f : B ⟶ A} {g : C ⟶ A} (b : D ⟶ B) (c : D ⟶ C)
+    (w : b ≫ f = c ≫ g) : (PullbackCone.mk b c w).π.app .one = b ≫ f := by
+  sorry
+
+example {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} (t : PullbackCone f g) :
+    t.π.app .one = t.fst ≫ f := by
+  sorry
+
+example {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} (t : PullbackCone f g) {D : 𝒞}
+    (l : D ⟶ t.pt) : (l ≫ t.fst) ≫ f = (l ≫ t.snd) ≫ g := by
+  sorry
+
+/-
+Exercise 1. Riehl's main claim: a cone over `cospan f g` with summit `D` is the
+same as a commutative square `b ≫ f = c ≫ g` with summit `D`. As in Exercise 1
+for equalizers, `π` below is a plain natural transformation, so `t.fst`,
+`t.condition` and `t.w` are not available for it, and its equations have to be
+derived from the naturality squares `π.naturality WalkingCospan.Hom.inl` and
+`π.naturality WalkingCospan.Hom.inr` (after `simp`, as before).
+
+The two lemmas are the two halves of Riehl's argument: the legs at `left` and
+`right` form a commutative square, and the leg at `one` is forced to equal the
+common composite. They are named theorems, not examples, so that the capstone
+below can use them.
+-/
+theorem cospanCone_square {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} {D : 𝒞}
+    (π : (Functor.const WalkingCospan).obj D ⟶ cospan f g) :
+    π.app .left ≫ f = π.app .right ≫ g := by
+  sorry
+
+theorem cospanCone_one {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} {D : 𝒞}
+    (π : (Functor.const WalkingCospan).obj D ⟶ cospan f g) :
+    π.app .one = π.app .left ≫ f := by
+  sorry
+
+/-
+Optional capstone: the same claim packaged as an equivalence of types, in the
+shape of `coneEquivEqualizing`. Here the commutative square is a subtype of
+pairs. For `invFun`, borrow the natural transformation inside
+`PullbackCone.mk`. For `left_inv`, compare components with `ext j`. The goal
+then shows `toFun` and `invFun` as unapplied `fun` expressions, and
+`dsimp only` evaluates them, leaving
+`(PullbackCone.mk (π.app .left) (π.app .right) _).π.app j = π.app j`. Then
+split with `rcases j with _ | _ | _`. As explained above, the three goals will
+mention `none`, `some WalkingPair.left` and `some WalkingPair.right` instead of
+`.one`, `.left` and `.right`. The last two hold by `rfl`. The `none` goal is
+`cospanCone_one` read backwards: `exact` accepts it, because `exact` compares
+up to definitional equality and `none` is `.one` by definition.
+-/
+def coneEquivSquare {A B C : 𝒞} (f : B ⟶ A) (g : C ⟶ A) (D : 𝒞) :
+    ((Functor.const WalkingCospan).obj D ⟶ cospan f g) ≃
+      {p : (D ⟶ B) × (D ⟶ C) // p.1 ≫ f = p.2 ≫ g} := by
+  sorry
+
+/-
+(P2) `PullbackCone.IsLimit.mk` on the smallest example. Pulling back along an
+identity changes nothing: for `f : B ⟶ A`, the square with summit `B`, legs
+`𝟙 B : B ⟶ B` and `f : B ⟶ A`, over the cospan `f, 𝟙 A`, is a pullback. A cone
+`s` over `f, 𝟙 A` factors through it by its own leg `s.fst`, and in no other
+way. Prove this with `PullbackCone.IsLimit.mk`, and look at each of the four
+goals before closing it. One of them needs `s.condition`; `simp` will not find
+it on its own, but `simpa using s.condition` will. No elements appear here, only
+the shape of the universal property.
+-/
+example {A B : 𝒞} (f : B ⟶ A) :
+    IsLimit (PullbackCone.mk (f := f) (g := 𝟙 A) (𝟙 B) f (by simp)) := by
+  sorry
+
+/-
+Exercise 2. Pullbacks in `Type w`: the pullback of `f : B → A` and `g : C → A`
+is the subtype `{p : B × C // f p.1 = g p.2}` of pairs on which the two maps
+agree, with legs the two projections. (Mathlib calls this type
+`Types.PullbackObj`.) This is Exercise 2 for equalizers again, with a pair in
+place of a single element.
+
+For `lift`, send `x : s.pt` to the pair `(s.fst x, s.snd x)` together with a
+proof that it lies in the subtype, obtained from `s.condition` as in (W4). For
+uniqueness, `ext x` does even more than before: it applies `Subtype.ext` and
+then `Prod.ext`, so it leaves two goals, one for each component of the pair.
+These goals display with some noise (`.toFun` applied to `x`), and `simp`
+cleans them up to `(↑(m x)).1 = s.fst x` (with `ConcreteCategory.hom` around
+`m` and `s.fst`). That is exactly what `ConcreteCategory.congr_hom h x` says for
+the hypothesis `h : m ≫ fst = s.fst`. The `simp` is only for reading: `exact`
+accepts `congr_hom h x` without it.
+-/
+example {A B C : Type w} (f : B → A) (g : C → A) :
+    IsLimit
+      (PullbackCone.mk
+        (f := ↾f)
+        (g := ↾g)
+        (W := {p : B × C // f p.1 = g p.2})
+        (↾(fun p => p.1.1)) -- This is fst
+        (↾(fun p => p.1.2)) -- This is snd
+        (by ext p; exact p.2)) := by
+  sorry
+
+/-
+Exercise 3 (the fiber, (3.1.17)). In a category with a terminal object `*`, the
+pullback of `f : B ⟶ A` along a point `a : * ⟶ A` is the fiber of `f` over `a`.
+In `Type w` the terminal object is `PUnit` (shown after Definition 3.1.11), a
+point `* ⟶ A` is the constant function at an element `a : A`, and the fiber is
+the subtype `{b // f b = a}`, with legs the inclusion and the unique map to
+`PUnit`. This is the situation of Riehl's Example 3.1.18, where the fiber of
+`ρ : ℝ → S¹` over `1` is `ℤ`.
+
+The proof follows Exercise 2, but now one of the factorizations is a map into
+`PUnit`, and `ext x` in the uniqueness goal leaves a single goal again. As in
+Exercise 2, `simp` makes that goal readable, and it needs only the
+factorization through the inclusion.
+-/
+example {A B : Type w} (f : B → A) (a : A) :
+    IsLimit
+      (PullbackCone.mk
+        (f := ↾f)
+        (g := ↾(fun _ : PUnit.{w + 1} => a))
+        (W := {b : B // f b = a})
+        (↾Subtype.val)
+        (↾(fun _ => PUnit.unit))
+        (by ext b; exact b.2)) := by
+  sorry
+
+/-
+Exercise 4 (Riehl's Exercise 3.1.v). The pullback of a monomorphism is a
+monomorphism: if `f : B ⟶ A` is a monomorphism and `t` is a pullback of `f`
+along `g : C ⟶ A`, then the leg `t.snd : t.pt ⟶ C` is a monomorphism. Use only
+the universal property; no elements here.
+
+The argument: given `k l : D ⟶ t.pt` with `k ≫ t.snd = l ≫ t.snd`, it suffices
+by uniqueness of factorizations to show that `k` and `l` also agree after
+`t.fst`. For that, cancel `f`. `PullbackCone.IsLimit.hom_ext ht` reduces
+`k = l` to the two equations after `t.fst` and after `t.snd`, and
+`cancel_mono f` turns an equation `x ≫ f = y ≫ f` into `x = y` (as an `iff`, so
+use it with `rw [← cancel_mono f]`). `Category.assoc` and `t.condition` do the
+rest.
+-/
+example {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} [Mono f] (t : PullbackCone f g)
+    (ht : IsLimit t) : Mono t.snd := by
+  sorry
