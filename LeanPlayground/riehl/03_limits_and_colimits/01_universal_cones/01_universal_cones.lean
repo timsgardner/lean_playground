@@ -1249,6 +1249,7 @@ pullback. `IsPullback.of_isLimit` produces it from an `IsLimit`.
 #check @pullback.fst
 #check @pullback.lift
 #check @IsPullback.of_isLimit
+#check @PullbackCone.mk
 
 /-
 (P1) Reading off a cospan and a pullback cone. The first two warm-ups below are
@@ -1259,31 +1260,33 @@ precomposition, as in (W1): anything that maps into the summit of a pullback
 cone gives another commutative square.
 -/
 example {A B C : 𝒞} (f : B ⟶ A) (g : C ⟶ A) : (cospan f g).obj .one = A := by
-  sorry
+  rfl
 
 example {A B C : 𝒞} (f : B ⟶ A) (g : C ⟶ A) :
     (cospan f g).map WalkingCospan.Hom.inr = g := by
-  sorry
+  rfl
 
 example {A B C D : 𝒞} {f : B ⟶ A} {g : C ⟶ A} (b : D ⟶ B) (c : D ⟶ C)
     (w : b ≫ f = c ≫ g) : (PullbackCone.mk b c w).pt = D := by
-  sorry
+  rfl
 
 example {A B C D : 𝒞} {f : B ⟶ A} {g : C ⟶ A} (b : D ⟶ B) (c : D ⟶ C)
     (w : b ≫ f = c ≫ g) : (PullbackCone.mk b c w).snd = c := by
-  sorry
+  rfl
 
 example {A B C D : 𝒞} {f : B ⟶ A} {g : C ⟶ A} (b : D ⟶ B) (c : D ⟶ C)
     (w : b ≫ f = c ≫ g) : (PullbackCone.mk b c w).π.app .one = b ≫ f := by
-  sorry
+  #check (PullbackCone.mk b c w).π.app
+  rfl
 
 example {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} (t : PullbackCone f g) :
     t.π.app .one = t.fst ≫ f := by
-  sorry
+  simp
 
 example {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} (t : PullbackCone f g) {D : 𝒞}
     (l : D ⟶ t.pt) : (l ≫ t.fst) ≫ f = (l ≫ t.snd) ≫ g := by
-  sorry
+  simp
+  rw [t.condition]
 
 /-
 Exercise 1. Riehl's main claim: a cone over `cospan f g` with summit `D` is the
@@ -1301,17 +1304,44 @@ below can use them.
 theorem cospanCone_square {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} {D : 𝒞}
     (π : (Functor.const WalkingCospan).obj D ⟶ cospan f g) :
     π.app .left ≫ f = π.app .right ≫ g := by
-  sorry
+  have hl :=  π.naturality WalkingCospan.Hom.inl
+  simp at hl
+  have hr := π.naturality WalkingCospan.Hom.inr
+  simp at hr
+  rw [←hl, hr]
 
 theorem cospanCone_one {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} {D : 𝒞}
     (π : (Functor.const WalkingCospan).obj D ⟶ cospan f g) :
     π.app .one = π.app .left ≫ f := by
-  sorry
+  let blort :=  π.naturality WalkingCospan.Hom.inl
+  simp at blort
+  exact blort
 
 /-
 Optional capstone: the same claim packaged as an equivalence of types, in the
 shape of `coneEquivEqualizing`. Here the commutative square is a subtype of
-pairs. For `invFun`, borrow the natural transformation inside
+pairs.
+
+This def asserts an iso (bijection) between:
+- the set of natural transformations between
+  a) the constant functor typed `WalkingCospan ⥤ 𝒞` on `D`
+  and
+  b) the functor `cospan f g : WalkingCospan ⥤ 𝒞`,
+on the one hand, and
+- the set of morphism pairs `p` pairing morphisms
+  `D` to `B` (`p.1`) and from `D` to `C` (`p.2`)
+  such that the square
+  D --p.2--> C
+  |          |
+  p.1        g
+  v          v
+  B ---f---> A
+  commutes,
+on the other hand.
+
+We are evidently allowed to use the Pullback api.
+
+For `invFun`, borrow the natural transformation inside
 `PullbackCone.mk`. For `left_inv`, compare components with `ext j`. The goal
 then shows `toFun` and `invFun` as unapplied `fun` expressions, and
 `dsimp only` evaluates them, leaving
@@ -1325,7 +1355,41 @@ up to definitional equality and `none` is `.one` by definition.
 def coneEquivSquare {A B C : 𝒞} (f : B ⟶ A) (g : C ⟶ A) (D : 𝒞) :
     ((Functor.const WalkingCospan).obj D ⟶ cospan f g) ≃
       {p : (D ⟶ B) × (D ⟶ C) // p.1 ≫ f = p.2 ≫ g} := by
-  sorry
+  let pb_cone (p: {p : (D ⟶ B) × (D ⟶ C) // p.1 ≫ f = p.2 ≫ g}) : PullbackCone f g :=
+      PullbackCone.mk p.val.1 p.val.2
+  constructor
+  case toFun =>
+    exact fun μ => ⟨(μ.app .left, μ.app .right), cospanCone_square μ⟩
+  case invFun =>
+    exact fun p => (pb_cone p).π
+  case left_inv =>
+    dsimp only [autoParam]
+    intro μ
+    conv =>
+      lhs
+      beta_reduce
+    ext j
+    dsimp only [pb_cone]
+    -- using match .one => ?one because rcases intializes it to "none",
+    -- which is confusing
+    match j with
+    | .one => ?one
+    | .left => ?left
+    | .right => ? right
+    case one =>
+      simp
+      let blort := (μ.naturality WalkingCospan.Hom.inl).symm
+      simp at blort
+      exact blort
+    case left =>
+      simp
+    case right =>
+      simp
+  case right_inv =>
+    dsimp only [autoParam]
+    intro p
+    beta_reduce
+    rfl
 
 /-
 (P2) `PullbackCone.IsLimit.mk` on the smallest example. Pulling back along an
