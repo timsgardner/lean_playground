@@ -179,19 +179,21 @@ involving `e.symm` can be moved to the other side, `Equiv.symm_apply_eq` and
 warm-up is one line.
 -/
 example {α β : Type*} (e : α ≃ β) (a : α) : e.symm (e a) = a := by
-  sorry
+  -- simp closes
+  exact e.symm_apply_apply a
 
 example {α β : Type*} (e : α ≃ β) (b : β) : e (e.symm b) = b := by
-  sorry
+  -- simp closes
+  exact e.apply_symm_apply b
 
 example {α β : Type*} (e : α ≃ β) (a : α) (b : β) : e.symm b = a ↔ b = e a := by
-  sorry
+  exact e.symm_apply_eq
 
 example {α β : Type*} (e : α ≃ β) (a : α) (b : β) : a = e.symm b ↔ e a = b := by
-  sorry
+  exact e.eq_symm_apply
 
 example {α β : Type*} (e : α ≃ β) (a a' : α) (h : e a = e a') : a = a' := by
-  sorry
+  exact e.injective h
 
 /-
 Exercise 1. From the fields of a `CoreHomEquiv`, derive naturality in `𝒞` in
@@ -202,16 +204,35 @@ is only a `CoreHomEquiv`, not an `F ⊣ G`, so the Mathlib lemma
 
 Hint: move `adj.homEquiv c' d` to the other side of the equation with
 `← Equiv.eq_symm_apply`, so that the field can rewrite the right-hand side.
+
+In the diagram below, `f` plays the role of `f♯`. The left triangle lives in
+`𝒟` and commutes by definition, since its diagonal is the composite
+`f · F h`, which is `F.map h ≫ f` in Lean. The right triangle lives in `𝒞`,
+and its diagonal is the transpose of that composite. The exercise is to show
+that the right triangle also commutes.
+
+[Diagram](assets/naturality_left.svg)
 -/
 example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : Adjunction.CoreHomEquiv F G)
     {c c' : 𝒞} {d : 𝒟} (h : c' ⟶ c) (f : F.obj c ⟶ d) :
     adj.homEquiv c' d (F.map h ≫ f) = h ≫ adj.homEquiv c d f := by
+
   sorry
 
 /-
 Exercise 2. Dually, derive naturality in `𝒟` for the inverse bijection from the
 field `adj.homEquiv_naturality_right`: the morphism `g ≫ G.map k : c ⟶ G d'`
 transposes to `g♯ ≫ k`.
+
+This time the given triangle is on the `𝒞` side. In the diagram below, `g`
+plays the role of `g♭`. The left triangle lives in `𝒞` and commutes by
+definition, since its diagonal is the composite `G k · g`, which is
+`g ≫ G.map k` in Lean. The right triangle lives in `𝒟`, and its diagonal is the
+transpose `(G k · g)♯` of that composite, which is
+`(adj.homEquiv c d').symm (g ≫ G.map k)` in Lean. The exercise is to show that
+the right triangle also commutes.
+
+[Diagram](assets/naturality_right_symm.svg)
 -/
 example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : Adjunction.CoreHomEquiv F G)
     {c : 𝒞} {d d' : 𝒟} (g : c ⟶ G.obj d) (k : d ⟶ d') :
