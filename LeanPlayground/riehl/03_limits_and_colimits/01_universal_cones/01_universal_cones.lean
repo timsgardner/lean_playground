@@ -1392,18 +1392,44 @@ def coneEquivSquare {A B C : 𝒞} (f : B ⟶ A) (g : C ⟶ A) (D : 𝒞) :
     rfl
 
 /-
-(P2) `PullbackCone.IsLimit.mk` on the smallest example. Pulling back along an
-identity changes nothing: for `f : B ⟶ A`, the square with summit `B`, legs
-`𝟙 B : B ⟶ B` and `f : B ⟶ A`, over the cospan `f, 𝟙 A`, is a pullback. A cone
-`s` over `f, 𝟙 A` factors through it by its own leg `s.fst`, and in no other
-way. Prove this with `PullbackCone.IsLimit.mk`, and look at each of the four
-goals before closing it. One of them needs `s.condition`; `simp` will not find
-it on its own, but `simpa using s.condition` will. No elements appear here, only
-the shape of the universal property.
+(P2) `PullbackCone.IsLimit.mk` on the smallest example. Given a cospan
+`f : B ⟶ A` and `g : C ⟶ A` with a pullback `P`, the leg `P ⟶ C` is called the
+pullback of `f` along `g`. It is the leg opposite `f` in the square, and it
+transports `f` from the codomain `A` to the new codomain `C`. (Exercise 4 below
+uses this phrase in the same sense.)
+
+Here `g` is the identity `𝟙 A`. Pulling `f` back along an identity changes
+nothing, in the sense that the pullback is `B` itself and the pullback of `f`
+is `f` itself. Explicitly, the square with summit `B` and legs `𝟙 B : B ⟶ B`
+and `f : B ⟶ A`, over the cospan `f, 𝟙 A`, is a pullback:
+
+  B --f--> A
+  |        |
+  𝟙 B      𝟙 A
+  v        v
+  B --f--> A
+
+A cone `s` over `f, 𝟙 A` factors through this square by its own leg
+`s.fst : s.pt ⟶ B`, and in no other way. Prove this with `PullbackCone.IsLimit.mk`,
+and look at each of the four goals before closing it. One of them needs `s.condition`;
+`simp` will not find it on its own, but `simpa using s.condition` will. No elements
+appear here, only the shape of the universal property.
 -/
 example {A B : 𝒞} (f : B ⟶ A) :
     IsLimit (PullbackCone.mk (f := f) (g := 𝟙 A) (𝟙 B) f (by simp)) := by
-  sorry
+  apply PullbackCone.IsLimit.mk
+  case lift =>
+    intro cone
+    exact cone.fst
+  case fac_left =>
+    intro cone
+    simp
+  case fac_right =>
+    intro cone
+    exact cone.condition.trans (Category.comp_id cone.snd)
+  case uniq =>
+    intro cone m h1 h2
+    cat_disch -- it's obvious
 
 /-
 Exercise 2. Pullbacks in `Type w`: the pullback of `f : B → A` and `g : C → A`
@@ -1428,10 +1454,32 @@ example {A B C : Type w} (f : B → A) (g : C → A) :
         (f := ↾f)
         (g := ↾g)
         (W := {p : B × C // f p.1 = g p.2})
-        (↾(fun p => p.1.1)) -- This is fst
-        (↾(fun p => p.1.2)) -- This is snd
+        (↾(fun p => p.val.1)) -- This is fst
+        (↾(fun p => p.val.2)) -- This is snd
         (by ext p; exact p.2)) := by
-  sorry
+  apply PullbackCone.IsLimit.mk
+  case lift =>
+    intro (cone : PullbackCone _ _); apply TypeCat.ofHom; intro pt
+    let val : B × C := (cone.fst pt, cone.snd pt)
+    refine ⟨val, ?_⟩
+    unfold val; simp
+    change (cone.fst ≫ ↾f) pt = (cone.snd ≫ ↾g) pt
+    apply ConcreteCategory.congr_hom
+    exact cone.condition
+  case fac_left =>
+    aesop_cat
+  case fac_right =>
+    aesop_cat
+  case uniq =>
+    intro cone m h1 h2
+    ext ptx; simp
+    case fst =>
+      rw [←h1]
+      rfl
+    case snd =>
+      simp
+      rw [← h2]
+      rfl
 
 /-
 Exercise 3 (the fiber, (3.1.17)). In a category with a terminal object `*`, the
