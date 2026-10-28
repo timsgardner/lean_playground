@@ -1482,13 +1482,31 @@ example {A B C : Type w} (f : B → A) (g : C → A) :
       rfl
 
 /-
-Exercise 3 (the fiber, (3.1.17)). In a category with a terminal object `*`, the
-pullback of `f : B ⟶ A` along a point `a : * ⟶ A` is the fiber of `f` over `a`.
-In `Type w` the terminal object is `PUnit` (shown after Definition 3.1.11), a
-point `* ⟶ A` is the constant function at an element `a : A`, and the fiber is
-the subtype `{b // f b = a}`, with legs the inclusion and the unique map to
-`PUnit`. This is the situation of Riehl's Example 3.1.18, where the fiber of
-`ρ : ℝ → S¹` over `1` is `ℤ`.
+Exercise 3 (the fiber, (3.1.17)). In a category with a terminal object `*`, a
+morphism `a : * ⟶ A` is called a *point* of `A`, and the summit of a pullback of
+`f : B ⟶ A` along a point `a` is called the *fiber* of `f` over `a`. In `Type w`
+the terminal object is `PUnit` (shown after Definition 3.1.11), and a point
+`* ⟶ A` is the *constant function* at an element `a : A`. The fiber should then
+be the set of elements of `B` that `f` sends to `a`, that is, the subtype
+`{b // f b = a}`. This is the situation of Riehl's Example 3.1.18, where the
+fiber of `ρ : ℝ → S¹` over `1` is `ℤ`.
+
+The example asserts exactly this. The cospan consists of `f : B → A` and the
+constant function `fun _ => a : PUnit → A`. The cone over it has summit
+`{b // f b = a}`, leg `Subtype.val` into `B`, and the unique map into `PUnit`.
+It commutes because every element `b` of the subtype satisfies `f b = a`, which
+is the proof `b.2` passed to `PullbackCone.mk`. The claim is that this cone is a
+limit. Unfolded, the claim says that for every type `X`, every function
+`k : X → B` with `f (k x) = a` for all `x`, and the unique map `X → PUnit`,
+there is exactly one function `X → {b // f b = a}` whose composite with
+`Subtype.val` is `k`. (Its composite with the map into `PUnit` agrees
+automatically, since there is only one map into `PUnit`.) In other words, a
+function into `B` that lands in the fiber factors uniquely through the fiber.
+
+The diagram below shows the square, laid out as Riehl draws it, with each arrow
+labeled by the Lean function that the example passes to `PullbackCone.mk`.
+
+[Diagram](assets/fiber_pullback.svg)
 
 The proof follows Exercise 2, but now one of the factorizations is a map into
 `PUnit`, and `ext x` in the uniqueness goal leaves a single goal again. As in
@@ -1501,10 +1519,29 @@ example {A B : Type w} (f : B → A) (a : A) :
         (f := ↾f)
         (g := ↾(fun _ : PUnit.{w + 1} => a))
         (W := {b : B // f b = a})
-        (↾Subtype.val)
-        (↾(fun _ => PUnit.unit))
-        (by ext b; exact b.2)) := by
-  sorry
+        (↾Subtype.val)           -- fst
+        (↾(fun _ => PUnit.unit)) -- snd
+        (by ext b; exact b.2))   -- eq
+        := by
+  apply PullbackCone.IsLimit.mk
+  case lift =>
+    intro cone
+    apply TypeCat.ofHom
+    intro ptx
+    refine ⟨cone.fst ptx, ?_⟩
+    change (cone.fst ≫ ↾f) ptx = a
+    rw [cone.condition]
+    rfl
+  case fac_left =>
+    intro cone; rfl
+  case fac_right =>
+    intro cone; rfl
+  case uniq =>
+    intro cone m h1 h2
+    ext ptx; simp
+    rw [←h1]
+    rfl
+
 
 /-
 Exercise 4 (Riehl's Exercise 3.1.v). The pullback of a monomorphism is a
