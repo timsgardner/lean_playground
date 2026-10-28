@@ -1192,16 +1192,17 @@ morphisms `b` and `c` and a proof `w : b ≫ f = c ≫ g`, supplying `b ≫ f` a
 component at `one`.
 
 The diagram below labels the parts of an arbitrary pullback cone `t` by their
-Lean names, laid out as Riehl draws the square (3.1.16). The component at `one`
+Lean names, laid out as Mathlib draws pullback squares. The component at `one`
 is dotted because it is determined by the other arrows: it equals `t.fst ≫ f`,
 and also `t.snd ≫ g`.
 
 [Diagram](assets/pullback_cone_fields.svg)
 
-Note that Mathlib's own pictures of a pullback square, for instance in the
-docstring of `IsPullback`, are the transpose of Riehl's. They draw `fst`
-horizontally along the top and `snd` vertically down the left side. The diagrams
-in this file follow Riehl.
+The diagrams in this file follow Mathlib's convention for pullback squares, used
+for instance in the docstring of `IsPullback`: `fst` runs horizontally along the
+top, `snd` runs vertically down the left side, `f` runs down the right side, and
+`g` runs along the bottom. Riehl's square (3.1.16) is the transpose of this one,
+with the leg into `B` drawn vertically and the leg into `C` horizontally.
 -/
 example {A B C : 𝒞} (f : B ⟶ A) (g : C ⟶ A) :
     PullbackCone f g = Cone (cospan f g) := rfl
@@ -1333,11 +1334,11 @@ on the one hand, and
 - the set of morphism pairs `p` pairing morphisms
   `D` to `B` (`p.1`) and from `D` to `C` (`p.2`)
   such that the square
-  D --p.2--> C
+  D --p.1--> B
   |          |
-  p.1        g
+  p.2        f
   v          v
-  B ---f---> A
+  C ---g---> A
   commutes,
 on the other hand.
 
@@ -1405,11 +1406,11 @@ nothing, in the sense that the pullback is `B` itself and the pullback of `f`
 is `f` itself. Explicitly, the square with summit `B` and legs `𝟙 B : B ⟶ B`
 and `f : B ⟶ A`, over the cospan `f, 𝟙 A`, is a pullback:
 
-  B --f--> A
-  |        |
-  𝟙 B      𝟙 A
-  v        v
-  B --f--> A
+  B --𝟙 B--> B
+  |          |
+  f          f
+  v          v
+  A --𝟙 A--> A
 
 A cone `s` over `f, 𝟙 A` factors through this square by its own leg
 `s.fst : s.pt ⟶ B`, and in no other way. Prove this with `PullbackCone.IsLimit.mk`,
@@ -1505,8 +1506,9 @@ there is exactly one function `X → {b // f b = a}` whose composite with
 automatically, since there is only one map into `PUnit`.) In other words, a
 function into `B` that lands in the fiber factors uniquely through the fiber.
 
-The diagram below shows the square, laid out as Riehl draws it, with each arrow
-labeled by the Lean function that the example passes to `PullbackCone.mk`.
+The diagram below shows the square, laid out as Mathlib draws pullback squares,
+with each arrow labeled by the Lean function that the example passes to
+`PullbackCone.mk`.
 
 [Diagram](assets/fiber_pullback.svg)
 
@@ -1611,11 +1613,12 @@ three different ways, according to what one wants to say.
 
 A remark on reading `IsPullback`: its arguments are the two legs out of the
 summit, `fst` and then `snd`, followed by the two morphisms of the cospan, `f`
-and then `g`, where `fst` and `f` share the corner `B`. Which of the legs is
-drawn horizontally is a matter of convention. Mathlib's docstrings draw `fst`
-along the top, while the diagrams in this file follow Riehl and draw it down the
-left side. The statement is the same either way, and transposing the square
-corresponds to `IsPullback.flip`.
+and then `g`, where `fst` and `f` share the corner `B`. In Mathlib's pictures,
+which the diagrams in this file follow, the four arguments are read off the
+square in a fixed order: `fst` along the top, `snd` down the left side, `f` down
+the right side and `g` along the bottom. Transposing the square, which is how
+Riehl draws it, exchanges the roles of the two legs, and corresponds to
+`IsPullback.flip`.
 -/
 section IsPullbackAPI
 

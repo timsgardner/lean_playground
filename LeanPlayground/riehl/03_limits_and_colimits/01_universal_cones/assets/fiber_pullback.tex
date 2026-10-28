@@ -1,0 +1,4 @@
+\begin{tikzcd}[column sep=6em, row sep=4em]
+\{b : B \mid f\,b = a\} \arrow[r, "\texttt{Subtype.val}"] \arrow[d, "\texttt{fun \_ => PUnit.unit}"'] \arrow[dr, phantom, "\lrcorner", very near start] & B \arrow[d, "f"] \\
+\texttt{PUnit} \arrow[r, "\texttt{fun \_ => a}"'] & A
+\end{tikzcd}
