@@ -31,6 +31,7 @@ open scoped CategoryKindergarten
 -- set_option pp.categoryTheory.hideConcreteHom true
 -- set_option pp.proofs true          -- print proof terms instead of ⋯
 set_option pp.deepTerms true       -- don't elide deeply nested subterms
+set_option linter.unusedTactic false
 
 universe v₁ v₂ u₁ u₂
 
@@ -1549,6 +1550,14 @@ monomorphism: if `f : B ⟶ A` is a monomorphism and `t` is a pullback of `f`
 along `g : C ⟶ A`, then the leg `t.snd : t.pt ⟶ C` is a monomorphism. Use only
 the universal property; no elements here.
 
+The diagram below shows the setup. The square is the pullback cone `t`, and the
+tailed arrow marks `f` as a monomorphism. The two parallel arrows `k` and `l`
+are the test morphisms from the definition of a monomorphism: to show that
+`t.snd` is a monomorphism, one shows that any two such morphisms with
+`k ≫ t.snd = l ≫ t.snd` are equal.
+
+[Diagram](assets/pullback_of_mono.svg)
+
 The argument: given `k l : D ⟶ t.pt` with `k ≫ t.snd = l ≫ t.snd`, it suffices
 by uniqueness of factorizations to show that `k` and `l` also agree after
 `t.fst`. For that, cancel `f`. `PullbackCone.IsLimit.hom_ext ht` reduces
@@ -1557,6 +1566,12 @@ by uniqueness of factorizations to show that `k` and `l` also agree after
 use it with `rw [← cancel_mono f]`). `Category.assoc` and `t.condition` do the
 rest.
 -/
-example {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} [Mono f] (t : PullbackCone f g)
+example {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} [hmf : Mono f] (t : PullbackCone f g)
     (ht : IsLimit t) : Mono t.snd := by
-  sorry
+  constructor
+  intro D k l hkl_snd
+  apply PullbackCone.IsLimit.hom_ext ht (h₁ := hkl_snd)
+  rw [← cancel_mono f]
+  rw [Category.assoc, Category.assoc, t.condition]
+  rw [← Category.assoc, hkl_snd]
+  simp
