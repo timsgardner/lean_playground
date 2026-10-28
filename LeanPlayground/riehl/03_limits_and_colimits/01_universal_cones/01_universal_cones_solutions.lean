@@ -135,3 +135,108 @@ example (f : B ⟶ A) : IsPullback (𝟙 B) f f (𝟙 A) :=
   IsPullback.id_horiz f
 
 end IsPullbackAPISolutions
+
+/-! ## Definition 3.1.21 and Example 3.1.22: exercises (T1)–(T5) -/
+
+section InverseLimitSolutions
+
+open Opposite
+
+variable {X : ℕ → 𝒞} (f : ∀ n, X (n + 1) ⟶ X n)
+
+-- (T1)
+example : (Functor.ofOpSequence f).obj (op 3) = X 3 := rfl
+
+example : (Functor.ofOpSequence f).map (homOfLE (show 0 ≤ 2 by omega)).op = f 1 ≫ f 0 := rfl
+
+example (n : ℕ) :
+    (Functor.ofOpSequence f).map (homOfLE (Nat.le_add_right n 1)).op = f n :=
+  Functor.ofOpSequence_map_homOfLE_succ f n
+
+-- (T2)
+def towerCone_sol (c : 𝒞) (leg : ∀ n, c ⟶ X n) (w : ∀ n, leg (n + 1) ≫ f n = leg n) :
+    Cone (Functor.ofOpSequence f) where
+  pt := c
+  π := NatTrans.ofOpSequence (fun n => leg n) (fun n => by
+    rw [Functor.ofOpSequence_map_homOfLE_succ]
+    exact (Category.id_comp _).trans (w n).symm)
+
+end InverseLimitSolutions
+
+section InverseLimitOfTypesSolutions
+
+open Opposite
+
+universe w
+
+variable {X : ℕ → Type w} (f : ∀ n, X (n + 1) → X n)
+
+-- (T3)
+def towerTypeIsLimit_sol : IsLimit (towerTypeCone f) where
+  lift s := ↾(fun p => ⟨fun n => s.π.app (op n) p, fun n => by
+    have := ConcreteCategory.congr_hom (s.w (homOfLE (Nat.le_add_right n 1)).op) p
+    simp at this
+    exact this⟩)
+  fac s j := by
+    rfl
+  uniq s m h := by
+    ext p
+    apply Subtype.ext
+    funext n
+    exact ConcreteCategory.congr_hom (h (op n)) p
+
+variable (A : Type w)
+
+-- (T4a)
+theorem trunc_compat_sol {x : ∀ n, Fin (n + 1) → A}
+    (hx : ∀ n, truncRestrict A n (x (n + 1)) = x n) (n : ℕ) (i : Fin (n + 1)) :
+    x n i = x i (Fin.last i) := by
+  induction n with
+  | zero =>
+    obtain rfl : i = 0 := Fin.fin_one_eq_zero i
+    rfl
+  | succ n ih =>
+    refine Fin.lastCases ?_ (fun j => ?_) i
+    · rfl
+    · rw [show x (n + 1) j.castSucc = x n j from congrFun (hx n) j, ih j]
+      simp only [Fin.val_castSucc]
+
+-- (T4b)
+def truncEquiv_sol :
+    (ℕ → A) ≃ towerLimitType (X := fun n => Fin (n + 1) → A) (truncRestrict A) where
+  toFun a := ⟨fun n i => a i, fun n => rfl⟩
+  invFun x k := x.1 k (Fin.last k)
+  left_inv a := rfl
+  right_inv x := by
+    apply Subtype.ext
+    funext n i
+    exact (trunc_compat_sol A x.2 n i).symm
+
+end InverseLimitOfTypesSolutions
+
+section InitialObjectSolutions
+
+universe v₂ u₂
+
+variable {J : Type u₂} [Category.{v₂} J] {i : J} (hi : IsInitial i) (G : J ⥤ 𝒞)
+
+-- (T5)
+def initialCone_sol : Cone G where
+  pt := G.obj i
+  π := { app j := G.map (hi.to j)
+         naturality j k u := by
+           simp only [Functor.const_obj_obj, Functor.const_obj_map, Category.id_comp,
+             ← G.map_comp]
+           congr 1
+           exact hi.hom_ext _ _ }
+
+def initialConeIsLimit_sol : IsLimit (initialCone_sol hi G) where
+  lift s := s.π.app i
+  fac s j := by
+    simp [initialCone_sol]
+  uniq s m h := by
+    rw [← h i]
+    simp only [initialCone_sol, hi.hom_ext (hi.to i) (𝟙 i), G.map_id]
+    exact (Category.comp_id m).symm
+
+end InitialObjectSolutions

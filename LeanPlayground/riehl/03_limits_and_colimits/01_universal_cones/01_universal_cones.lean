@@ -25,11 +25,10 @@ import Mathlib.CategoryTheory.Limits.Shapes.Pullback.IsPullback.Basic
 import Mathlib.CategoryTheory.Limits.Types.Pullbacks
 import Mathlib.Algebra.Category.Grp.Basic
 import Mathlib.Algebra.Group.Subgroup.Basic
-import Mathlib.Topology.Category.TopCat.Limits.Pullbacks
-import Mathlib.Topology.Instances.AddCircle.Defs
-import Mathlib.Topology.Instances.Int
 import Mathlib.Tactic.LinearCombination
 import Mathlib.Tactic.Ring
+import Mathlib.CategoryTheory.Functor.OfSequence
+import Mathlib.CategoryTheory.Limits.Shapes.IsTerminal
 
 open CategoryTheory Limits Opposite
 open scoped CategoryKindergarten
@@ -1497,7 +1496,9 @@ the terminal object is `PUnit` (shown after Definition 3.1.11), and a point
 `* ⟶ A` is the *constant function* at an element `a : A`. The fiber should then
 be the set of elements of `B` that `f` sends to `a`, that is, the subtype
 `{b // f b = a}`. This is the situation of Riehl's Example 3.1.18, where the
-fiber of `ρ : ℝ → S¹` over `1` is `ℤ`.
+fiber of `ρ : ℝ → S¹` over `1` is `ℤ`. That example, with the topology that
+makes `ℤ` a discrete subspace of `ℝ`, is worked out in the separate file
+`02_circle_fiber.lean`, which keeps the topology imports out of this one.
 
 The example asserts exactly this. The cospan consists of `f : B → A` and the
 constant function `fun _ => a : PUnit → A`. The cone over it has summit
@@ -1550,127 +1551,6 @@ example {A B : Type w} (f : B → A) (a : A) :
     ext ptx; simp
     rw [←h1]
     rfl
-
-
-/-
-Worked example (Example 3.1.18, solved). Riehl's example in the category of
-spaces: the fiber of `ρ : ℝ → S¹`, `t ↦ e^{2πit}`, over the point `1` is the
-discrete subspace `ℤ ⊂ ℝ`. This is Exercise 3 again, now in `TopCat`, where
-the objects are topological spaces and the morphisms are continuous maps.
-
-What the statement means, informally. Picture `ρ` as wrapping the real line
-around a circle of circumference `1`, like thread around a spool: `t` and
-`t + 1` land on the same point, and `t` is sent to the point a fraction `t` of
-the way around (the "angle measured in turns"). The fiber over the starting
-point consists of the reals that land there, which are exactly the integers.
-As a set, this is just Exercise 3. The new content is that the fiber, as a
-space, is `ℤ` with the discrete topology: each integer is isolated from the
-others, with no other points of the fiber nearby, exactly as `ℤ` sits inside
-`ℝ`.
-
-The universal property makes this precise without any topology vocabulary. A
-cone over the cospan amounts to a space `X` and a continuous map
-`k : X → ℝ` whose values all land on the starting point, that is, a continuous
-map into `ℝ` taking only integer values. The theorem says that such a map is
-the same thing as a continuous map `X → ℤ`. The content is that the
-continuity is not lost: a continuous real-valued function that only takes
-integer values cannot jump from one integer to another, so it is locally
-constant, and a locally constant function into `ℤ` is continuous for the
-discrete topology. For instance, if `X` is an interval, `k` must be constant.
-The discrete topology is also the only one the fiber could carry. For the
-inclusion of the fiber into `ℝ` to be continuous, the preimage of the open
-interval `(n - 1/2, n + 1/2)` must be open, and that preimage is the single
-point `{n}`. So every point of the fiber is open, which is what discrete means.
-
-Mathlib's `AddCircle (1 : ℝ)` is the quotient `ℝ/ℤ`, and the quotient map
-`t ↦ (t : AddCircle 1)` is Riehl's `ρ` up to the homeomorphism `ℝ/ℤ ≅ S¹`,
-`[t] ↦ e^{2πit}`, which sends the class `0` to the point `1`. With that
-translation, the square to prove a pullback in `TopCat` is
-
-  ℤ ──Int.cast──> ℝ
-  │               │
-  !               ρ
-  ↓               ↓
-  * ──── 0 ────> ℝ/ℤ
-
-where `!` is the unique map to the one-point space `PUnit`.
-
-The proof follows Exercise 3. Two facts carry the weight.
-
-* `circleFiber_spec`: for a cone `s`, every point `x` of its summit is sent by
-  `s.fst` to an integer. The commutativity of `s`, evaluated at `x`, says that
-  `ρ (s.fst x) = 0` in `ℝ/ℤ`, and `AddCircle.coe_eq_zero_iff` translates this
-  into `∃ n : ℤ, n • 1 = s.fst x`. The lift sends `x` to that integer, chosen
-  with `Exists.choose` (so the definition is `noncomputable`; the integer is
-  in fact unique, but nothing here needs that).
-* Continuity of the lift. This is the only genuinely topological step, and it
-  is what "`ℤ` is a subspace of `ℝ`" means: `Int.cast : ℤ → ℝ` is an embedding
-  (`Int.isClosedEmbedding_coe_real`), and a map into the domain of an embedding
-  is continuous if and only if its composite with the embedding is
-  (`IsEmbedding.continuous_iff`). The composite here is `s.fst`, which is
-  continuous because `s` is a cone in `TopCat`.
-
-The two factorizations and uniqueness are then as in Exercise 3. The
-factorization through `PUnit` holds by `ext` alone, since any two maps into a
-one-point space agree. Uniqueness uses injectivity of `Int.cast` to reduce an
-equation of integers to an equation of reals, which the factorization
-hypothesis for `m` supplies.
--/
-section CircleFiber
-
-/-- Riehl's `ρ`, with the circle modeled as `ℝ/ℤ`. -/
-def circleρ : TopCat.of ℝ ⟶ TopCat.of (AddCircle (1 : ℝ)) :=
-  TopCat.ofHom ⟨fun t => (t : AddCircle (1 : ℝ)), continuous_quotient_mk'⟩
-
-/-- The point `1 ∈ S¹`, which is the class `0` in `ℝ/ℤ`. -/
-def circleBase : TopCat.of PUnit.{1} ⟶ TopCat.of (AddCircle (1 : ℝ)) :=
-  TopCat.ofHom ⟨fun _ => 0, continuous_const⟩
-
-/-- The inclusion `ℤ ⊂ ℝ`. It is continuous because `ℤ` is discrete. -/
-def intToReal : TopCat.of ℤ ⟶ TopCat.of ℝ :=
-  TopCat.ofHom ⟨Int.cast, continuous_of_discreteTopology⟩
-
-def intToPoint : TopCat.of ℤ ⟶ TopCat.of PUnit.{1} :=
-  TopCat.ofHom ⟨fun _ => PUnit.unit, continuous_const⟩
-
-/-- The square commutes: every integer maps to `0` in `ℝ/ℤ`. -/
-theorem circleFiber_w : intToReal ≫ circleρ = intToPoint ≫ circleBase := by
-  ext n
-  exact (AddCircle.coe_eq_zero_iff (1 : ℝ)).2 ⟨n, by rw [zsmul_one]; rfl⟩
-
-/-- The leg of any cone over the cospan takes integer values. -/
-theorem circleFiber_spec (s : PullbackCone circleρ circleBase) (x : s.pt) :
-    ∃ n : ℤ, (n : ℝ) = s.fst x := by
-  have h := ConcreteCategory.congr_hom s.condition x
-  obtain ⟨n, hn⟩ := (AddCircle.coe_eq_zero_iff (1 : ℝ)).1 h
-  rw [zsmul_one] at hn
-  exact ⟨n, hn⟩
-
-noncomputable def circleFiberIsLimit :
-    IsLimit (PullbackCone.mk intToReal intToPoint circleFiber_w) := by
-  refine PullbackCone.IsLimit.mk _
-    (fun s => TopCat.ofHom ⟨fun x => (circleFiber_spec s x).choose, ?_⟩) ?_ ?_ ?_
-  -- continuity of the lift: its composite with the embedding `ℤ ⊂ ℝ` is `s.fst`
-  · exact (Int.isClosedEmbedding_coe_real.isEmbedding.continuous_iff).2
-      (s.fst.hom.continuous.congr fun x => (circleFiber_spec s x).choose_spec.symm)
-  -- fac_left: the chosen integer is the value of `s.fst`
-  · intro s
-    ext x
-    exact (circleFiber_spec s x).choose_spec
-  -- fac_right: maps into `PUnit` agree
-  · intro s
-    ext x
-  -- uniq: compare in `ℝ`, where `m` and the lift both agree with `s.fst`
-  · intro s m h₁ _
-    ext x
-    apply Int.cast_injective (α := ℝ)
-    exact (ConcreteCategory.congr_hom h₁ x).trans (circleFiber_spec s x).choose_spec.symm
-
-/-- The same fact in the form preferred by Mathlib. -/
-theorem circleFiber_isPullback : IsPullback intToReal intToPoint circleρ circleBase :=
-  IsPullback.of_isLimit circleFiberIsLimit
-
-end CircleFiber
 
 /-
 Exercise 4 (Riehl's Exercise 3.1.v). The pullback of a monomorphism is a
@@ -2092,3 +1972,224 @@ theorem example_3_1_19 (n m : ℤ) (h : n ≠ 0 ∨ m ≠ 0) :
   sorry
 
 end IntPullback
+
+/-
+## Definition 3.1.21: inverse limits
+
+Riehl: the limit of a diagram indexed by `ωᵒᵖ` is called an inverse limit of a
+tower, or of a sequence of morphisms
+
+  `⋯ → X 3 → X 2 → X 1 → X 0`.
+
+A cone over a tower consists of a summit `c` together with legs `c ⟶ X n`
+making every triangle commute, as in the diagram below. The inverse limit,
+written `lim← X n`, is the terminal cone.
+
+[Diagram](assets/tower_cone.svg)
+
+In Mathlib, `ω` is `ℕ` with its order, regarded as a category: there is a
+unique morphism `m ⟶ n` exactly when `m ≤ n`, written `homOfLE h` for
+`h : m ≤ n`. So `ωᵒᵖ` is `ℕᵒᵖ`, and a tower is a functor `ℕᵒᵖ ⥤ 𝒞`.
+
+"Every triangle commutes" is infinitely many conditions, one for each pair
+`m ≤ n`, but only the triangles for consecutive steps `n + 1 → n` matter: the
+map `X n → X m` is a composite of consecutive steps, so the triangle for it
+follows from the consecutive ones by induction on `n - m`. Mathlib packages
+this reduction twice.
+
+* `Functor.ofOpSequence f : ℕᵒᵖ ⥤ 𝒞` builds the tower from the consecutive maps
+  `f n : X (n + 1) ⟶ X n` alone. Its other maps are the composites, and for
+  explicit numbers they compute by `rfl`: the map from `3` down to `0` is
+  literally `(f 2 ≫ f 1) ≫ f 0`.
+* `NatTrans.ofOpSequence` builds a natural transformation between functors out
+  of `ℕᵒᵖ`, and in particular a cone, from its components and the naturality
+  squares for consecutive steps only. The induction is done once, inside it.
+
+The exercises below use the first to describe towers, the second to build
+cones over them, and then compute inverse limits of sets.
+
+A quirk. The lemma `Functor.ofOpSequence_map_homOfLE_succ`, which says that
+the map from `n + 1` to `n` is `f n`, is tagged `@[simp]`, but `simp` may leave
+behind goals such as `f n = f n` or `𝟙 c ≫ x = y` that look solved and are
+not. The two sides agree only up to unfolding, which `simp` does not do here.
+(This is the same phenomenon as the `dsimp` failure on `(F ⋙ G).obj X` met
+earlier in this project.) The reliable approach is to `rw` with the lemma
+directly, or to use it as a term.
+-/
+section InverseLimits
+
+variable {X : ℕ → 𝒞} (f : ∀ n, X (n + 1) ⟶ X n)
+
+/-
+(T1) Reading a tower. The objects of `Functor.ofOpSequence f` are the `X n`,
+and its maps between explicit numbers are composites of the `f n`, both by
+definition. The third example is the consecutive step for a variable `n`,
+where `rfl` no longer works; use the lemma named above.
+-/
+example : (Functor.ofOpSequence f).obj (op 3) = X 3 := by
+  sorry
+
+example : (Functor.ofOpSequence f).map (homOfLE (show 0 ≤ 2 by omega)).op = f 1 ≫ f 0 := by
+  sorry
+
+example (n : ℕ) :
+    (Functor.ofOpSequence f).map (homOfLE (Nat.le_add_right n 1)).op = f n := by
+  sorry
+
+/-
+(T2) Riehl's description of a cone over a tower, with the reduction to
+consecutive triangles: a summit `c`, legs `leg n : c ⟶ X n`, and only the
+triangles `leg (n + 1) ≫ f n = leg n`. The natural transformation comes from
+`NatTrans.ofOpSequence`, which asks for the naturality square at each step
+`n + 1 → n`. Since the source is the constant functor, that square reads
+`𝟙 c ≫ leg n = leg (n + 1) ≫ (map from n + 1 to n)`. Rewrite the map with the
+lemma from (T1), then finish with `Category.id_comp` and `w n`.
+-/
+def towerCone (c : 𝒞) (leg : ∀ n, c ⟶ X n) (w : ∀ n, leg (n + 1) ≫ f n = leg n) :
+    Cone (Functor.ofOpSequence f) where
+  pt := c
+  π := NatTrans.ofOpSequence (fun n => leg n) (fun n => by
+    sorry)
+
+end InverseLimits
+
+section InverseLimitsOfTypes
+
+variable {X : ℕ → Type w} (f : ∀ n, X (n + 1) → X n)
+
+/-- The inverse limit of a tower of sets: sequences `x` with `x n ∈ X n` that
+are compatible, in the sense that each `f n` sends `x (n + 1)` to `x n`. -/
+def towerLimitType := {x : ∀ n, X n // ∀ n, f n (x (n + 1)) = x n}
+
+/-- The cone over the tower with summit `towerLimitType f`, whose legs pick out
+the coordinates. The triangles are the compatibility conditions. -/
+def towerTypeCone : Cone (Functor.ofOpSequence (fun n => (↾(f n) : X (n + 1) ⟶ X n))) :=
+  towerCone _ (towerLimitType f) (fun n => ↾(fun x => x.1 n)) (fun n => by ext x; exact x.2 n)
+
+/-
+(T3) The inverse limit in `Type`. This is Exercise 2 (pullbacks of types) with
+infinitely many coordinates. A cone `s` assigns to each point `p` of its summit
+a sequence of elements `s.π.app (op n) p ∈ X n`, and the lift sends `p` to that
+sequence.
+
+* In `lift`, the remaining goal is the compatibility of that sequence at `n`.
+  It is the triangle of `s` for the step `n + 1 → n`, evaluated at `p`:
+  `ConcreteCategory.congr_hom (s.w (homOfLE (Nat.le_add_right n 1)).op) p`.
+  That equation mentions the tower's map from `n + 1` to `n`; `simp at this`
+  turns it into `f n`, and then `exact this` closes the goal.
+* `fac` holds by `rfl`: the `n`th coordinate of the lift is `s.π.app (op n)`.
+* For `uniq`, reduce `m = lift s` to an equation of sequences with `ext p`,
+  `Subtype.ext` and `funext n`, and then use `h (op n)` evaluated at `p`.
+-/
+def towerTypeIsLimit : IsLimit (towerTypeCone f) where
+  lift s := ↾(fun p => ⟨fun n => s.π.app (op n) p, fun n => by
+    sorry⟩)
+  fac s j := by
+    sorry
+  uniq s m h := by
+    sorry
+
+end InverseLimitsOfTypes
+
+/-
+## Example 3.1.22, at the level of sets
+
+Riehl defines the ring of formal power series `𝕜[[x]]` as the inverse limit of
+the truncated polynomial rings `𝕜[x]/(xⁿ⁺¹)`, along the maps that forget the
+leading term. Forgetting the ring structure, an element of `𝕜[x]/(xⁿ⁺¹)` is its
+list of `n + 1` coefficients, a function `Fin (n + 1) → 𝕜`, and forgetting the
+leading term restricts such a function to the first `n + 1 - 1` places. The
+exercises below show that the inverse limit of this tower of sets is the set
+`ℕ → 𝕜` of all coefficient sequences, which is what a power series is as a
+set. (The ring structure, which is the actual content of Example 3.1.22, is not
+treated here.)
+
+The tower is `truncRestrict`, for an arbitrary type of coefficients `A`.
+-/
+section Truncations
+
+variable (A : Type w)
+
+/-- Forget the last coefficient. -/
+def truncRestrict (n : ℕ) (v : Fin (n + 2) → A) : Fin (n + 1) → A := fun i => v i.castSucc
+
+/-
+(T4a) The heart of the matter. A compatible sequence of truncations is
+determined by its diagonal: the `i`th coefficient at stage `n` equals the last
+coefficient at stage `i`. Only the consecutive compatibility conditions `hx` are
+available, so this is the induction that "every triangle commutes" hides.
+
+Induct on `n`. In the base case `i : Fin 1` is `0`, by `Fin.fin_one_eq_zero`,
+and the goal holds by `rfl`. In the inductive step, split
+`i : Fin (n + 2)` with `refine Fin.lastCases ?_ (fun j => ?_) i` into the last
+index, where the goal holds by `rfl`, and `j.castSucc` for `j : Fin (n + 1)`.
+In the second case, `congrFun (hx n) j` says `x (n + 1) j.castSucc = x n j`;
+rewrite with it and with the inductive hypothesis, and clean up the leftover
+`↑j.castSucc` with `simp only [Fin.val_castSucc]`.
+-/
+theorem trunc_compat {x : ∀ n, Fin (n + 1) → A}
+    (hx : ∀ n, truncRestrict A n (x (n + 1)) = x n) (n : ℕ) (i : Fin (n + 1)) :
+    x n i = x i (Fin.last i) := by
+  sorry
+
+/-
+(T4b) The inverse limit is the set of all sequences: a sequence `a : ℕ → A` is
+sent to its truncations, and a compatible sequence of truncations is sent to its
+diagonal. One round trip holds by `rfl`. The other is (T4a).
+-/
+def truncEquiv : (ℕ → A) ≃ towerLimitType (X := fun n => Fin (n + 1) → A) (truncRestrict A) where
+  toFun a := ⟨fun n i => a i, fun n => rfl⟩
+  invFun x k := x.1 k (Fin.last k)
+  left_inv a := rfl
+  right_inv x := by
+    sorry
+
+end Truncations
+
+/-
+## Exercise 3.1.vii: diagrams with an initial object
+
+Riehl's footnote to Definition 3.1.21 says that limits indexed by opposites of
+successor ordinals are of limited interest. The reason is Exercise 3.1.vii: if
+the indexing category has an initial object `i`, then the limit of any diagram
+`G` is simply `G i`, with legs `G.map (hi.to j) : G i ⟶ G j`, where
+`hi.to j : i ⟶ j` is the unique morphism. A successor ordinal `α + 1` has a
+largest element, so `(α + 1)ᵒᵖ` has an initial object, and a tower indexed by
+it has its limit at that last stage. For `ωᵒᵖ` there is no such stage, and the
+limit has to be built, as in (T3).
+
+The single tool is `hi.hom_ext : f = g` for any two morphisms `f g : i ⟶ j` out
+of the initial object.
+
+(T5) Build the cone and prove it is a limit.
+
+* Naturality: after `simp only [Functor.const_obj_obj, Functor.const_obj_map,
+  Category.id_comp, ← G.map_comp]` the goal is an equation `G.map _ = G.map _`;
+  `congr 1` reduces it to an equation of morphisms out of `i`, which
+  `hi.hom_ext` closes.
+* The lift from a cone `s` is its own leg `s.π.app i`, and `fac` is the
+  naturality of `s` (`simp [initialCone]` finds it).
+* For `uniq`, rewrite `s.π.app i` as `m ≫ (initialCone hi G).π.app i` using
+  `h i` backwards, then show that leg is the identity: `hi.to i = 𝟙 i` by
+  `hi.hom_ext`, and `G.map_id`.
+
+Mathlib's versions are `coneOfDiagramInitial` and `limitOfDiagramInitial`.
+-/
+section InitialObject
+
+variable {J : Type u₂} [Category.{v₂} J] {i : J} (hi : IsInitial i) (G : J ⥤ 𝒞)
+
+def initialCone : Cone G where
+  pt := G.obj i
+  π := { app j := G.map (hi.to j)
+         naturality j k u := by
+           sorry }
+
+def initialConeIsLimit : IsLimit (initialCone hi G) where
+  lift s := s.π.app i
+  fac s j := by
+    sorry
+  uniq s m h := by
+    sorry
+
+end InitialObject
