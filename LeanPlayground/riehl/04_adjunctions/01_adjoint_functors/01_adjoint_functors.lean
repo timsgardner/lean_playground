@@ -3,7 +3,10 @@
 -/
 
 import Mathlib.CategoryTheory.Adjunction.Basic
+import Mathlib.CategoryTheory.Category.GaloisConnection
 import Mathlib.CategoryTheory.Types.Basic
+import Mathlib.Algebra.Order.Floor.Defs
+import Mathlib.Data.Set.Lattice.Image
 import LeanPlayground.Scratch.category_kindergarten.common_tools
 
 open CategoryTheory Opposite
@@ -20,3 +23,423 @@ variable {𝒞 : Type u₁} [Category.{v₁} 𝒞]
 variable {𝒟 : Type u₂} [Category.{v₂} 𝒟]
 
 -- Definition 4.1.1: Adjunctions I
+/-
+Riehl: an adjunction consists of a pair of functors `F : 𝒞 ⥤ 𝒟` and
+`G : 𝒟 ⥤ 𝒞` together with a specified isomorphism
+
+  `𝒟(F c, d) ≅ 𝒞(c, G d)`                                        (4.1.2)
+
+for each `c : 𝒞` and `d : 𝒟`, which is natural in both variables. Then `F` is
+left adjoint to `G`, and `G` is right adjoint to `F`. Riehl writes `f♯ : F c ⟶ d`
+and `f♭ : c ⟶ G d` for a pair of morphisms that correspond under (4.1.2), and
+calls them adjuncts or transposes of each other.
+
+Mathlib's notation `F ⊣ G` stands for `Adjunction F G`, but the structure
+`Adjunction` is not Definition 4.1.1. Its fields are a unit `𝟭 𝒞 ⟶ F ⋙ G`, a
+counit `G ⋙ F ⟶ 𝟭 𝒟`, and the two triangle identities, which is Riehl's
+Definition 4.2.5 (adjunctions II). Theorem 4.2.7 shows that the two
+definitions determine each other, and Mathlib uses that equivalence in both
+directions:
+
+* An adjunction in the sense of Definition 4.1.1 is a term of
+  `Adjunction.CoreHomEquiv F G`, and `Adjunction.mkOfHomEquiv` turns it into an
+  `F ⊣ G`.
+* Every `adj : F ⊣ G` has an isomorphism (4.1.2), `adj.homEquiv c d`. It is an
+  `Equiv`, that is, a bijection between the types `F.obj c ⟶ d` and
+  `c ⟶ G.obj d`. Applying it, `adj.homEquiv c d f`, sends `f♯` to `f♭`, and
+  applying its inverse, `(adj.homEquiv c d).symm g`, sends `g♭` to `g♯`.
+
+Since we read §4.1 before §4.2, we will work with `homEquiv` and treat the
+unit and counit as a black box until §4.2 opens it.
+-/
+#print Adjunction.CoreHomEquiv
+#check @Adjunction.mkOfHomEquiv
+#check @Adjunction.homEquiv
+
+/-
+Unpacking the weird diagram on 133 (pdf 153).
+
+The diagram asserts a natural transformation from `𝒟(F-, -)` to `𝒞(-, G-)`.
+These are both bifunctors `𝒞ᵒᵖ × D ⥤ Type` (or to `SET`, in Riehl; the uppercase
+is probably size-theoretically significant).
+
+"Natural in both variables" follows merely from having a natural transformation
+between bifunctors.
+
+The odd diamond shape of the diagram, with the nat trans 2-cell straddled by
+`(F × 𝟭 𝒟) ≫ 𝒟(-, -)` above and `(𝟭 𝒞 × G) ≫ 𝒞(-, -)` below, expresses a commutativity
+condition when either `d` or `c` (respectively) are held fixed.
+
+What does that nat trans mean? Objects of the domain product category `𝒞ᵒᵖ × D` are
+pairs `(c, d)` for some `c ∈ 𝒞` and `d ∈ 𝒟`.
+
+Let `p1 ∈ 𝒞ᵒᵖ × 𝒟 := (c1, d1)` and `p2 := (c2, d2)`. A morphism `m ∈ 𝒞ᵒᵖ × 𝒟(p1, p2)` --
+or, in Lean notation, `m : p1 ⟶ p2` -- is a pair `(h, k)` for some `h : c1 ⟶ c2` and
+`k : d1 ⟶ d2`.
+
+-/
+
+/-
+Naturality in `𝒟`. Riehl: for any `f♯ : F c ⟶ d` and `k : d ⟶ d'`, the
+transpose of `k · f♯ : F c ⟶ d'` is the composite of `f♭ : c ⟶ G d` with
+`G k : G d ⟶ G d'`. Riehl writes composites right to left and Lean writes
+them left to right, so `k · f♯` is `f ≫ k` and `G k · f♭` is
+`adj.homEquiv c d f ≫ G.map k`. Mathlib calls this
+`Adjunction.homEquiv_naturality_right`, because it concerns the right-hand
+argument `d` of `adj.homEquiv c d`.
+
+In the diagram below, the left triangle lives in `𝒟` and commutes by
+definition, since its diagonal is the composite `k · f♯`. The right triangle
+lives in `𝒞`, and its diagonal is the transpose of that composite. Naturality
+in `𝒟` is the statement that the right triangle also commutes.
+
+[Diagram](assets/naturality_right.svg)
+-/
+example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c : 𝒞} {d d' : 𝒟}
+    (f : F.obj c ⟶ d) (k : d ⟶ d') :
+    adj.homEquiv c d' (f ≫ k) = adj.homEquiv c d f ≫ G.map k :=
+  adj.homEquiv_naturality_right f k
+
+/-
+Naturality in `𝒞`. Riehl: for any `h : c' ⟶ c`, the transpose of
+`f♯ · F h : F c' ⟶ d` is the composite of `h : c' ⟶ c` with `f♭ : c ⟶ G d`.
+In Lean, `f♯ · F h` is `F.map h ≫ f` and its transpose is
+`h ≫ adj.homEquiv c d f`. Mathlib calls this
+`Adjunction.homEquiv_naturality_left`.
+-/
+example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d : 𝒟}
+    (h : c' ⟶ c) (f : F.obj c ⟶ d) :
+    adj.homEquiv c' d (F.map h ≫ f) = h ≫ adj.homEquiv c d f :=
+  adj.homEquiv_naturality_left h f
+
+/-
+Look at the fields of `CoreHomEquiv` printed above. Naturality in `𝒟` appears as
+`homEquiv_naturality_right`, in the form just shown. Naturality in `𝒞`, however,
+appears as `homEquiv_naturality_left_symm`, which states it for the inverse
+bijection: the morphism `h ≫ g : c' ⟶ G d` transposes to `F.map h ≫ g♯`, where
+`g♯ := (homEquiv c d).symm g`. Because each `homEquiv c d` is a bijection, a
+naturality equation for the bijection and the same equation for its inverse
+say the same thing. Exercises 1 and 2 make this precise, and the warm-ups
+below practice the `Equiv` API on its own first.
+
+(E) Warm-ups on `Equiv`. For a bijection `e : α ≃ β`, the inverse is
+`e.symm : β ≃ α`. The basic facts are that the two round trips are identities,
+`Equiv.symm_apply_apply` and `Equiv.apply_symm_apply`; that an equation
+involving `e.symm` can be moved to the other side, `Equiv.symm_apply_eq` and
+`Equiv.eq_symm_apply`; and that `e` is injective, `Equiv.injective`. Each
+warm-up is one line.
+-/
+example {α β : Type*} (e : α ≃ β) (a : α) : e.symm (e a) = a := by
+  sorry
+
+example {α β : Type*} (e : α ≃ β) (b : β) : e (e.symm b) = b := by
+  sorry
+
+example {α β : Type*} (e : α ≃ β) (a : α) (b : β) : e.symm b = a ↔ b = e a := by
+  sorry
+
+example {α β : Type*} (e : α ≃ β) (a : α) (b : β) : a = e.symm b ↔ e a = b := by
+  sorry
+
+example {α β : Type*} (e : α ≃ β) (a a' : α) (h : e a = e a') : a = a' := by
+  sorry
+
+/-
+Exercise 1. From the fields of a `CoreHomEquiv`, derive naturality in `𝒞` in
+the forward direction, which is the form in which Riehl states it. Here `adj`
+is only a `CoreHomEquiv`, not an `F ⊣ G`, so the Mathlib lemma
+`Adjunction.homEquiv_naturality_left` does not apply; use the field
+`adj.homEquiv_naturality_left_symm` together with the warm-ups.
+
+Hint: move `adj.homEquiv c' d` to the other side of the equation with
+`← Equiv.eq_symm_apply`, so that the field can rewrite the right-hand side.
+-/
+example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : Adjunction.CoreHomEquiv F G)
+    {c c' : 𝒞} {d : 𝒟} (h : c' ⟶ c) (f : F.obj c ⟶ d) :
+    adj.homEquiv c' d (F.map h ≫ f) = h ≫ adj.homEquiv c d f := by
+  sorry
+
+/-
+Exercise 2. Dually, derive naturality in `𝒟` for the inverse bijection from the
+field `adj.homEquiv_naturality_right`: the morphism `g ≫ G.map k : c ⟶ G d'`
+transposes to `g♯ ≫ k`.
+-/
+example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : Adjunction.CoreHomEquiv F G)
+    {c : 𝒞} {d d' : 𝒟} (g : c ⟶ G.obj d) (k : d ⟶ d') :
+    (adj.homEquiv c d').symm (g ≫ G.map k) = (adj.homEquiv c d).symm g ≫ k := by
+  sorry
+
+
+-- Lemma 4.1.3: Naturality as a correspondence of commutative squares
+/-
+Riehl: consider functors `F : 𝒞 ⥤ 𝒟` and `G : 𝒟 ⥤ 𝒞` equipped with specified
+isomorphisms `𝒟(F c, d) ≅ 𝒞(c, G d)` for all `c : 𝒞` and `d : 𝒟`. Naturality of
+this collection of isomorphisms is equivalent to the assertion that, for any
+morphisms with domains and codomains as displayed in (4.1.4), the left-hand
+square commutes in `𝒟` if and only if the right-hand transposed square commutes
+in `𝒞`.
+
+In the notation of the exercises below, the data are morphisms `h : c ⟶ c'` in
+`𝒞` and `k : d ⟶ d'` in `𝒟`, together with `f : F.obj c ⟶ d` and
+`g : F.obj c' ⟶ d'`, whose transposes are `f♭ : c ⟶ G.obj d` and
+`g♭ : c' ⟶ G.obj d'`. The square in `𝒟` has `f` on top, `F.map h` on the left,
+`k` on the right, and `g` on the bottom, so it commutes when
+`f ≫ k = F.map h ≫ g`. The transposed square in `𝒞` has `f♭` on top, `h` on
+the left, `G.map k` on the right, and `g♭` on the bottom, so it commutes when
+`f♭ ≫ G.map k = h ≫ g♭`.
+
+[Diagram](assets/transposed_squares.svg)
+
+Riehl leaves the proof as Exercise 4.1.i. Exercise 3 proves the forward
+direction: if the bijections are natural, then the squares correspond. Exercise
+4 proves the converse. Mathlib states the forward direction as
+`Adjunction.homEquiv_naturality_left_square_iff`, but the point here is to
+derive it from the two naturality equations.
+-/
+
+/-
+Exercise 3a. If the square in `𝒟` commutes, then so does the transposed square
+in `𝒞`. Rewrite the composites `f♭ ≫ G.map k` and `h ≫ g♭` as transposes of
+composites in `𝒟`, using the two naturality lemmas from right to left.
+-/
+example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d d' : 𝒟}
+    (h : c ⟶ c') (k : d ⟶ d') (f : F.obj c ⟶ d) (g : F.obj c' ⟶ d')
+    (w : f ≫ k = F.map h ≫ g) :
+    adj.homEquiv c d f ≫ G.map k = h ≫ adj.homEquiv c' d' g := by
+  sorry
+
+/-
+Exercise 3b. Conversely, if the transposed square in `𝒞` commutes, then so does
+the square in `𝒟`. Both sides of the goal are morphisms `F.obj c ⟶ d'`, so it
+suffices to show that their transposes agree. Begin with
+`apply (adj.homEquiv c d').injective`.
+-/
+example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d d' : 𝒟}
+    (h : c ⟶ c') (k : d ⟶ d') (f : F.obj c ⟶ d) (g : F.obj c' ⟶ d')
+    (w : adj.homEquiv c d f ≫ G.map k = h ≫ adj.homEquiv c' d' g) :
+    f ≫ k = F.map h ≫ g := by
+  sorry
+
+/-
+Exercise 4. The converse half of Lemma 4.1.3. In this section, `e` is a family
+of bijections `e c d : (F.obj c ⟶ d) ≃ (c ⟶ G.obj d)` about which nothing is
+assumed except the hypothesis `hsq`: for every configuration (4.1.4), the square
+in `𝒟` commutes if and only if the transposed square in `𝒞` commutes. The task
+is to show that `e` is natural in both variables, and hence defines an
+adjunction.
+
+The idea in both parts is to choose a square in which one side is an identity.
+For naturality in `𝒟` (4a), take `h := 𝟙 c` and `g := f ≫ k`. The square in
+`𝒟` then commutes for trivial reasons, so `hsq` makes the transposed square
+commute, and that square is the naturality equation up to an identity. For
+naturality in `𝒞` (4b), take `k := 𝟙 d` and work from the `𝒞` side instead.
+
+To use `hsq`, write `have := (hsq h k f g).mp ?_` (or `.mpr`) with the
+morphisms you have chosen, and prove the trivial square with `simp`.
+-/
+section Squares
+
+variable {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (e : ∀ c d, (F.obj c ⟶ d) ≃ (c ⟶ G.obj d))
+  (hsq : ∀ {c c' : 𝒞} {d d' : 𝒟} (h : c ⟶ c') (k : d ⟶ d')
+    (f : F.obj c ⟶ d) (g : F.obj c' ⟶ d'),
+    f ≫ k = F.map h ≫ g ↔ e c d f ≫ G.map k = h ≫ e c' d' g)
+include hsq
+
+-- Exercise 4a: naturality in `𝒟`, the field `homEquiv_naturality_right`.
+theorem nat_right_of_squares {c : 𝒞} {d d' : 𝒟} (f : F.obj c ⟶ d) (k : d ⟶ d') :
+    e c d' (f ≫ k) = e c d f ≫ G.map k := by
+  sorry
+
+-- Exercise 4b: naturality in `𝒞` for the inverse, the field
+-- `homEquiv_naturality_left_symm`.
+theorem nat_left_symm_of_squares {c' c : 𝒞} {d : 𝒟} (h : c' ⟶ c) (g : c ⟶ G.obj d) :
+    (e c' d).symm (h ≫ g) = F.map h ≫ (e c d).symm g := by
+  sorry
+
+/-
+Exercise 4c. Assemble an adjunction from `e`, using `Adjunction.mkOfHomEquiv`
+and a `CoreHomEquiv` whose three fields are `e` and the results of 4a and 4b.
+-/
+def adjOfSquares : F ⊣ G :=
+  sorry
+
+end Squares
+
+
+/-
+## Adjunctions between preorders
+
+Riehl: an adjunction between preorders is called a (monotone) Galois connection.
+Functors between preorders are order-preserving functions, and an adjunction
+`F ⊣ G` between preorders `A` and `B` asserts that `F a ≤ b` if and only if
+`a ≤ G b` for all `a : A` and `b : B`. Here `F` is the lower adjoint and `G` is
+the upper adjoint.
+
+Mathlib's `GaloisConnection l u` is exactly this condition,
+`∀ a b, l a ≤ b ↔ a ≤ u b`, stated for functions `l` and `u` with no
+monotonicity assumption (monotonicity follows; see `GaloisConnection.monotone_l`
+and `GaloisConnection.monotone_u`).
+
+A preorder `X` is a category in which `x ⟶ y` is `ULift (PLift (x ≤ y))`, so a
+morphism is a proof of `x ≤ y`, packaged so that it lives in `Type`. A monotone
+function `l` with proof `hl : Monotone l` becomes a functor `hl.functor`, whose
+action on objects is `l` itself.
+
+(P) Warm-ups on preorder categories. `homOfLE h` (or `h.hom`) turns
+`h : x ≤ y` into a morphism `x ⟶ y`, and `leOfHom f` (or `f.le`) turns a
+morphism `f : x ⟶ y` back into `x ≤ y`. Any two morphisms `x ⟶ y` are equal,
+because a proposition has at most one proof; the instance is
+`CategoryTheory.Preorder.subsingleton_hom`, and `Subsingleton.elim` uses it.
+-/
+section Preorders
+
+variable {X : Type*} [Preorder X]
+
+example {x y : X} (h : x ≤ y) : x ⟶ y := by
+  sorry
+
+example {x y : X} (f : x ⟶ y) : x ≤ y := by
+  sorry
+
+example {x y : X} (f g : x ⟶ y) : f = g := by
+  sorry
+
+example {l : X → X} (hl : Monotone l) (x : X) : hl.functor.obj x = l x := by
+  sorry
+
+end Preorders
+
+/-
+Exercise 5. A Galois connection is an adjunction in the sense of Definition
+4.1.1. Build the adjunction with `Adjunction.mkOfHomEquiv`. You only need to
+supply the field `homEquiv`, a bijection `(l x ⟶ y) ≃ (x ⟶ u y)` for each `x`
+and `y`: its two directions come from `gc.le_u` and `gc.l_le`, and its two
+round-trip conditions hold because all morphisms with the same domain and
+codomain are equal. Leave out both naturality fields. Their default proof
+`cat_disch` closes them on its own, which is the Lean form of the observation
+that every diagram in a preorder commutes, so naturality is automatic.
+
+Mathlib's version is `GaloisConnection.adjunction`.
+-/
+example {X Y : Type*} [Preorder X] [Preorder Y] {l : X → Y} {u : Y → X}
+    (gc : GaloisConnection l u) :
+    gc.monotone_l.functor ⊣ gc.monotone_u.functor :=
+  sorry
+
+
+-- Example 4.1.7: Floor and ceiling
+/-
+Riehl: the inclusion of posets `ℤ ↪ ℝ`, with the usual ordering `≤`, has both
+left and right adjoints, namely the ceiling and floor functions. For any integer
+`n` and real number `r`, `n ≤ r` if and only if `n ≤ ⌊r⌋`, so `⌊−⌋ : ℝ → ℤ` is
+right adjoint to the inclusion. Dually, `r ≤ n` if and only if `⌈r⌉ ≤ n`, so
+`⌈−⌉ : ℝ → ℤ` is left adjoint to the inclusion. Thus there is an adjoint triple
+`⌈−⌉ ⊣ (ℤ ↪ ℝ) ⊣ ⌊−⌋`.
+
+Nothing here is special to `ℝ`. Mathlib's floor and ceiling are defined for
+any linearly ordered ring `α` with a `FloorRing` instance, and `ℝ` and `ℚ` are
+both examples. We work in that generality, which keeps the real numbers out of
+the imports. The inclusion `ℤ ↪ α` is the cast `(↑) : ℤ → α`.
+
+Exercise 6. Prove both Galois connections. Each is one lemma about `Int.floor`
+or `Int.ceil`; `exact?` will find them, or look for `Int.le_floor` and
+`Int.ceil_le`.
+-/
+section Floor
+
+variable {α : Type*} [Ring α] [LinearOrder α] [FloorRing α]
+
+theorem gc_cast_floor : GaloisConnection ((↑) : ℤ → α) Int.floor := by
+  sorry
+
+theorem gc_ceil_cast : GaloisConnection Int.ceil ((↑) : ℤ → α) := by
+  sorry
+
+/-
+The inclusion appears in both Galois connections, once as a lower adjoint and
+once as an upper adjoint, so it is turned into a functor twice, from two
+different proofs that the cast is monotone. Since any two proofs of a
+proposition are equal by definition, the two functors are equal by `rfl`, and
+the two adjunctions below really do share their middle functor.
+-/
+example : (gc_cast_floor (α := α)).monotone_l.functor =
+    (gc_ceil_cast (α := α)).monotone_u.functor := rfl
+
+def ceilCastAdj : (gc_ceil_cast (α := α)).monotone_l.functor ⊣
+    (gc_ceil_cast (α := α)).monotone_u.functor :=
+  gc_ceil_cast.adjunction
+
+def castFloorAdj : (gc_cast_floor (α := α)).monotone_l.functor ⊣
+    (gc_cast_floor (α := α)).monotone_u.functor :=
+  gc_cast_floor.adjunction
+
+end Floor
+
+
+-- Example 4.1.8: Direct image, inverse image, and the dual image
+/-
+Riehl: consider a function `f : A → B` between sets. The subsets of `A` and the
+subsets of `B` form posets `P A` and `P B`, ordered by inclusion, and `f`
+induces direct image and inverse image functors `f_* : P A ⥤ P B` and
+`f⁻¹ : P B ⥤ P A`. The inverse image is right adjoint to the direct image: for
+`A' ⊆ A` and `B' ⊆ B`, `f(A') ⊆ B'` if and only if `A' ⊆ f⁻¹(B')`.
+
+The inverse image has a further right adjoint `f_!`, which carries a subset
+`A' ⊆ A` to the subset of elements of `B` whose fibers lie entirely in `A'`.
+With this definition, `B' ⊆ f_!(A')` if and only if `f⁻¹(B') ⊆ A'`. These
+functors define an adjoint triple `f_* ⊣ f⁻¹ ⊣ f_!`.
+
+In Mathlib, `P A` is `Set A`, ordered by `⊆`. The direct image is
+`Set.image f` (written `f '' s`), the inverse image is `Set.preimage f`
+(written `f ⁻¹' t`), and `f_!` is `Set.kernImage f`, defined as
+`{b | ∀ ⦃a⦄, f a = b → a ∈ s}`.
+
+Exercise 7. Prove both Galois connections by working with elements, without
+the library lemmas. After `intro` and `constructor`, each direction unfolds to a
+statement about membership; `rintro _ ⟨a, ha, rfl⟩` is a convenient way to
+introduce an element of an image. (The library versions are
+`Set.image_preimage` and `Set.preimage_kernImage`, both in the namespace
+`GaloisConnection`.)
+-/
+section Image
+
+variable {A B : Type*} (f : A → B)
+
+theorem gc_image_preimage : GaloisConnection (Set.image f) (Set.preimage f) := by
+  sorry
+
+theorem gc_preimage_kernImage : GaloisConnection (Set.preimage f) (Set.kernImage f) := by
+  sorry
+
+end Image
+
+
+-- Example 4.1.9: Quantifiers
+/-
+Riehl: a predicate on `X` is a function `p : X → Ω`, where `Ω := {⊥, ⊤}` is the
+set of truth values, ordered by implication. The set `Ω^X` of predicates on `X`
+inherits the pointwise order: `p ≤ q` if and only if `p x` implies `q x` for
+every `x`. Universal and existential quantification define functors
+`∀_X, ∃_X : Ω^X ⥤ Ω`, and there is also a constant functor `Δ_X : Ω ⥤ Ω^X`.
+These form an adjoint triple `∃_X ⊣ Δ_X ⊣ ∀_X`.
+
+In Lean, `Ω` is `Prop`, whose order `p ≤ q` is implication `p → q`, and `Ω^X`
+is `X → Prop` with the pointwise order. Both orders unfold by definition, so
+`intro` sees through them: a proof of `p ≤ q` for `p q : X → Prop` can begin
+with `intro x hx`.
+
+Exercise 8. Prove both Galois connections.
+-/
+section Quantifiers
+
+variable (X : Type*)
+
+theorem gc_exists_const :
+    GaloisConnection (fun p : X → Prop => ∃ x, p x) (fun q _ => q) := by
+  sorry
+
+theorem gc_const_forall :
+    GaloisConnection (fun (q : Prop) (_ : X) => q) (fun p => ∀ x, p x) := by
+  sorry
+
+end Quantifiers
