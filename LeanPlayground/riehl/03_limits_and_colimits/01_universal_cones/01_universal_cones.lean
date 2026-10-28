@@ -28,6 +28,8 @@ import Mathlib.Algebra.Group.Subgroup.Basic
 import Mathlib.Topology.Category.TopCat.Limits.Pullbacks
 import Mathlib.Topology.Instances.AddCircle.Defs
 import Mathlib.Topology.Instances.Int
+import Mathlib.Tactic.LinearCombination
+import Mathlib.Tactic.Ring
 
 open CategoryTheory Limits Opposite
 open scoped CategoryKindergarten
@@ -1924,3 +1926,169 @@ example (f : B ⟶ A) : IsPullback (𝟙 B) f f (𝟙 A) := by
   exact IsPullback.of_id_fst
 
 end IsPullbackAPI
+
+/-
+## Example 3.1.19: a pullback of abelian groups
+
+Riehl's example takes place in `Ab`, the category of abelian groups, which
+Mathlib calls `AddCommGrpCat`. Very little group theory is needed, because
+every group in sight is `ℤ`, and the morphisms `ℤ → ℤ` of abelian groups are
+exactly the maps "multiply by a fixed integer". (Riehl derives this from the
+fact that `ℤ` represents the forgetful functor `Ab → Set`: a homomorphism out of
+`ℤ` is determined by where it sends `1`, and `1` may be sent anywhere. Warm-up
+(Z2) below is this fact.) So the morphism `n : ℤ → ℤ` in Riehl's notation is
+multiplication by `n`, which this section calls `mulBy n`.
+
+Riehl's claim: for integers `n` and `m`, not both zero, the pullback of the
+cospan `n, m` is `ℤ` again, with legs `b` and `a` chosen so that `m a = n b`
+is the least common multiple of `n` and `m`. The square (3.1.20), drawn in
+Mathlib's layout, which here agrees with Riehl's, is
+
+[Diagram](assets/int_pullback.svg)
+
+Concretely, write `g` for the greatest common divisor of `n` and `m`, and set
+`a := n / g` and `b := m / g`, so that `n = a g` and `m = b g`. Then
+`n b = a b g = m a`, and this common value is `lcm(n, m)` (up to sign).
+
+Why it is a pullback. A cone with summit `X` consists of two homomorphisms
+`x, y : X → ℤ` with `n x = m y`. (Riehl describes the elements of the pullback
+as pairs of integers `(x, y)` with `n x = m y`.) Dividing by `g`, which is
+allowed because `g ≠ 0`, gives `a x = b y`. The lift must be a homomorphism
+`z : X → ℤ` with `b z = x` and `a z = y`, and the trick for writing it down is
+Bézout's identity. Since `a` and `b` have no common factor, there are integers
+`p` and `q` with `p a + q b = 1`. The lift is `z := p y + q x`. Indeed,
+
+  `b z = p (b y) + q b x = p (a x) + q b x = (p a + q b) x = x`,
+
+and similarly `a z = y`. Uniqueness is the same computation run backwards: if
+`b z' = x` and `a z' = y`, then `z' = (p a + q b) z' = p y + q x`.
+
+All of the number theory, finding `g`, `a`, `b`, `p` and `q` from `n` and `m`,
+is packaged in `intPullback_data` below, which is provided with its proof. The
+exercises are the rest.
+
+A tool for the algebra: `linear_combination`. Every equation in this section
+is a polynomial identity that follows from some hypotheses by adding multiples
+of them. `linear_combination e₁ * h₁ + e₂ * h₂` proves a goal `lhs = rhs` by
+checking, with `ring`, that `lhs - rhs` equals `e₁ * (lhs₁ - rhs₁) + e₂ *
+(lhs₂ - rhs₂)`. Finding the coefficients is the same work as writing the
+displayed calculation above. If the coefficients are wrong, the error message
+shows the polynomial that failed to vanish, which usually points to the fix.
+
+A trap: applying a morphism of `AddCommGrpCat` to an element can be written in
+several ways (`f x`, `f.hom x`, `(ConcreteCategory.hom f) x`) that are equal by
+definition but displayed differently. `ring` and `linear_combination` treat the
+different spellings as different unknowns, and then fail with a residue that
+looks as if it should cancel. The cure is to state hypotheses and goals in one
+spelling, with type ascriptions on `have` and with `change`. The skeleton of
+(Z5) does this.
+-/
+section IntPullback
+
+/-- Multiplication by `k`, as an endomorphism of `ℤ` in `Ab`. -/
+def mulBy (k : ℤ) : AddCommGrpCat.of ℤ ⟶ AddCommGrpCat.of ℤ :=
+  AddCommGrpCat.ofHom (AddMonoidHom.mulLeft k)
+
+/-
+(Z1) Warm-up: `mulBy k` really is multiplication by `k`. This holds by
+definition.
+-/
+example (k x : ℤ) : mulBy k x = k * x := by
+  sorry
+
+/-
+(Z2) Warm-up: Riehl's remark that a homomorphism `ℤ → ℤ` is determined by where
+it sends `1`. Start with `ext1` and look at the goal: Mathlib's extensionality
+lemma for homomorphisms out of `ℤ` already reduces the equation to the value
+at `1`.
+-/
+example (φ ψ : AddCommGrpCat.of ℤ ⟶ AddCommGrpCat.of ℤ) (h : φ 1 = ψ 1) : φ = ψ := by
+  sorry
+
+/-
+(Z3) Dividing by the gcd. From `n x = m y` with `n = a g`, `m = b g` and
+`g ≠ 0`, deduce `a x = b y`. Since `g ≠ 0`, it suffices to prove
+`g * (a * x) = g * (b * y)`: `apply mul_left_cancel₀ hg` reduces the goal to
+this. Then finish with `linear_combination`, using `h`, `hn` and `hm`. To find
+the coefficients, expand `g a x - g b y` and rewrite it in terms of
+`n x - m y`, `n - a g` and `m - b g`.
+-/
+theorem cancel_gcd {n m a b g x y : ℤ} (hn : n = a * g) (hm : m = b * g) (hg : g ≠ 0)
+    (h : n * x = m * y) : a * x = b * y := by
+  sorry
+
+/-
+(Z4) The square (3.1.20) commutes. After `ext`, the goal is the equation at the
+element `1` (as in (Z2)); `change n * (b * 1) = m * (a * 1)` restates it
+readably. Then rewrite with `hn` and `hm` and finish with `ring`.
+-/
+theorem mulBy_square {n m a b g : ℤ} (hn : n = a * g) (hm : m = b * g) :
+    mulBy b ≫ mulBy n = mulBy a ≫ mulBy m := by
+  sorry
+
+/-
+(Z5) The main exercise: the square is a pullback. The lift is given, as
+`p • s.snd + q • s.fst` built from the underlying additive maps, which is the
+homomorphism `z = p y + q x` from the explanation above. The three remaining
+goals are the two factorizations and uniqueness. In each, `ext x` reduces to an
+equation of integers. The skeleton states the needed hypotheses and the goal in
+one uniform spelling, as the trap above requires; what is left is a
+`linear_combination` in each case, with coefficients read off from the
+displayed calculations.
+-/
+noncomputable def intPullbackIsLimit {n m a b g p q : ℤ} (hn : n = a * g) (hm : m = b * g)
+    (hg : g ≠ 0) (hpq : p * a + q * b = 1) :
+    IsLimit (PullbackCone.mk (mulBy b) (mulBy a) (mulBy_square hn hm)) := by
+  refine PullbackCone.IsLimit.mk _
+    (fun s => AddCommGrpCat.ofHom (p • s.snd.hom + q • s.fst.hom)) ?_ ?_ ?_
+  · -- fac_left: `b z = x`
+    intro s
+    ext x
+    have h : a * s.fst x = b * s.snd x :=
+      cancel_gcd hn hm hg (ConcreteCategory.congr_hom s.condition x)
+    change b * (p * s.snd x + q * s.fst x) = s.fst x
+    sorry
+  · -- fac_right: `a z = y`
+    intro s
+    ext x
+    have h : a * s.fst x = b * s.snd x :=
+      cancel_gcd hn hm hg (ConcreteCategory.congr_hom s.condition x)
+    change a * (p * s.snd x + q * s.fst x) = s.snd x
+    sorry
+  · -- uniq: any `k` with `b k = x` and `a k = y` is `p y + q x`
+    intro s k hb ha
+    ext x
+    have hb' : b * k x = s.fst x := ConcreteCategory.congr_hom hb x
+    have ha' : a * k x = s.snd x := ConcreteCategory.congr_hom ha x
+    change k x = p * s.snd x + q * s.fst x
+    sorry
+
+/-- The number theory, provided: `g = gcd(n, m)`, `a = n / g`, `b = m / g`, and
+Bézout coefficients `p`, `q` for `a`, `b`. Bézout's identity for `n` and `m`,
+`gcd(n, m) = n * gcdA + m * gcdB` (`Int.gcd_eq_gcd_ab`), becomes `1 = gcdA * a +
+gcdB * b` after dividing by `g`. -/
+theorem intPullback_data (n m : ℤ) (h : n ≠ 0 ∨ m ≠ 0) :
+    ∃ a b g p q : ℤ, n = a * g ∧ m = b * g ∧ g ≠ 0 ∧ p * a + q * b = 1 := by
+  have hg : (Int.gcd n m : ℤ) ≠ 0 := by
+    rw [Int.natCast_ne_zero, ne_eq, Int.gcd_eq_zero_iff]
+    tauto
+  have hn : n = n / Int.gcd n m * Int.gcd n m :=
+    (Int.ediv_mul_cancel (Int.gcd_dvd_left n m)).symm
+  have hm : m = m / Int.gcd n m * Int.gcd n m :=
+    (Int.ediv_mul_cancel (Int.gcd_dvd_right n m)).symm
+  refine ⟨n / Int.gcd n m, m / Int.gcd n m, Int.gcd n m, Int.gcdA n m, Int.gcdB n m,
+    hn, hm, hg, ?_⟩
+  apply mul_left_cancel₀ hg
+  linear_combination (Int.gcd_eq_gcd_ab n m).symm - Int.gcdA n m * hn - Int.gcdB n m * hm
+
+/-
+(Z6) Example 3.1.19 itself: for `n` and `m` not both zero, the cospan `n, m`
+has a pullback with summit `ℤ`. Combine `intPullback_data` (take it apart with
+`obtain ⟨a, b, g, p, q, hn, hm, hg, hpq⟩ := ...`), `intPullbackIsLimit`, and
+`IsPullback.of_isLimit`.
+-/
+theorem example_3_1_19 (n m : ℤ) (h : n ≠ 0 ∨ m ≠ 0) :
+    ∃ a b : ℤ, IsPullback (mulBy b) (mulBy a) (mulBy n) (mulBy m) := by
+  sorry
+
+end IntPullback
