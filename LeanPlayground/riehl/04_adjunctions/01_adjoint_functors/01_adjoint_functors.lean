@@ -46,8 +46,12 @@ directions:
   `F ⊣ G`.
 * Every `adj : F ⊣ G` has an isomorphism (4.1.2), `adj.homEquiv c d`. It is an
   `Equiv`, that is, a bijection between the types `F.obj c ⟶ d` and
-  `c ⟶ G.obj d`. Applying it, `adj.homEquiv c d f`, sends `f♯` to `f♭`, and
-  applying its inverse, `(adj.homEquiv c d).symm g`, sends `g♭` to `g♯`.
+  `c ⟶ G.obj d`. In Riehl's notation `f♯` and `f♭` are the two morphisms of a
+  single corresponding pair, and Lean has no decorations, so we give the
+  morphism on one side a plain name and reach the other side by applying the
+  bijection. If `f : F.obj c ⟶ d` plays the role of `f♯`, then its transpose
+  `f♭` is `adj.homEquiv c d f`. If `g : c ⟶ G.obj d` plays the role of `g♭`,
+  then its transpose `g♯` is `(adj.homEquiv c d).symm g`.
 
 Since we read §4.1 before §4.2, we will work with `homEquiv` and treat the
 unit and counit as a black box until §4.2 opens it.
@@ -78,6 +82,51 @@ or, in Lean notation, `m : p1 ⟶ p2` -- is a pair `(h, k)` for some `h : c1 ⟶
 `k : d1 ⟶ d2`.
 
 -/
+
+
+-- So this sharp-flat notation thing doesn't drive me nuts:
+structure SharpFlat {F : 𝒞 ⥤ 𝒟} {G: 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c : 𝒞} {d : 𝒟} where
+  sharp : (F.obj c) ⟶ d
+  flat : c ⟶ (G.obj d)
+  h_sharp : sharp = (adj.homEquiv c d).symm flat
+  h_flat : flat = adj.homEquiv c d sharp
+
+namespace SharpFlat
+
+def ofSharp
+    {F : 𝒞 ⥤ 𝒟}
+    {G: 𝒟 ⥤ 𝒞}
+    (adj : F ⊣ G)
+    {c : 𝒞}
+    {d : 𝒟} (sharp: (F.obj c) ⟶ d)
+    : SharpFlat adj (c := c) (d := d):=
+  {
+    sharp,
+    flat := adj.homEquiv c d sharp,
+    h_sharp := by simp
+    h_flat := by simp
+  }
+
+def ofFlat
+    {F : 𝒞 ⥤ 𝒟}
+    {G: 𝒟 ⥤ 𝒞}
+    (adj : F ⊣ G)
+    {c : 𝒞}
+    {d : 𝒟} (flat: c ⟶ G.obj d)
+    : SharpFlat adj (c := c) (d := d):=
+  {
+    sharp := (adj.homEquiv c d).symm flat
+    flat,
+    h_sharp := by simp
+    h_flat := by simp
+  }
+
+end SharpFlat
+
+
+-- def sharp {F : 𝒞 ⥤ 𝒟} {G: 𝒟 ⥤ 𝒞} {adj : F ⊣ G} {c : 𝒞} {d : 𝒟} (f_flat : F.obj c ⟶ d): 𝒞 × 𝒟 :=
+
+--   (f_sharp, f_flat)
 
 /-
 Naturality in `𝒟`. Riehl: for any `f♯ : F c ⟶ d` and `k : d ⟶ d'`, the
