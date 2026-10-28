@@ -21,6 +21,7 @@ import Mathlib.CategoryTheory.Category.Cat.Terminal
 import Mathlib.CategoryTheory.Limits.Shapes.Equalizers
 import Mathlib.CategoryTheory.Limits.Shapes.Pullback.HasPullback
 import Mathlib.CategoryTheory.Limits.Shapes.Pullback.IsPullback.Defs
+import Mathlib.CategoryTheory.Limits.Shapes.Pullback.IsPullback.Basic
 import Mathlib.CategoryTheory.Limits.Types.Pullbacks
 import Mathlib.Algebra.Category.Grp.Basic
 import Mathlib.Algebra.Group.Subgroup.Basic
@@ -1575,3 +1576,184 @@ example {A B C : 𝒞} {f : B ⟶ A} {g : C ⟶ A} [hmf : Mono f] (t : PullbackC
   rw [Category.assoc, Category.assoc, t.condition]
   rw [← Category.assoc, hkl_snd]
   simp
+
+
+/-
+## Pullbacks as a property: `IsPullback`
+
+The exercises above prove universal properties the hard way, by building an
+`IsLimit` for a specific cone. Mathlib packages the result of such a proof in
+three different ways, according to what one wants to say.
+
+* `IsPullback fst snd f g` is the proposition that the commutative square formed
+  by `fst : P ⟶ B`, `snd : P ⟶ C`, `f : B ⟶ A` and `g : C ⟶ A` is a pullback.
+  It extends `CommSq fst snd f g`, which records only the equation
+  `w : fst ≫ f = snd ≫ g`, by the assertion that the pullback cone built from
+  the square is a limit. The proposition itself is a statement about the four
+  morphisms, and so are the main lemmas about it (`lift`, `hom_ext`, `flip` and
+  the pasting lemmas below): their statements contain no `Cone`, no `π.app` and
+  no `WalkingCospan`. The cone has not disappeared, since `IsPullback` is
+  defined in terms of it, and `h.cone` and `h.isLimit` recover it together with
+  its `IsLimit` when the general theory of limits is needed. But when working
+  with a pullback square one rarely has to unfold that far. It is also a `Prop`:
+  the `IsLimit` inside it is wrapped in `Nonempty`, so `IsPullback` says only
+  that a limit structure exists, and any two proofs of it are equal. This is the
+  form in which Mathlib usually states theorems about pullbacks, and it is the
+  subject of the exercises below.
+* `HasPullback f g` is an abbreviation for `HasLimit (cospan f g)`. It says that
+  some limit cone over the cospan exists, and given this instance,
+  `pullback f g` with `pullback.fst` and `pullback.snd` is a fixed choice of
+  one. This is the form to use in a category that is known to have pullbacks
+  when no specific construction is at hand.
+* `LimitCone F` bundles a cone over any diagram `F` together with an `IsLimit`
+  for it. It is the most literal version of "a cone with a proof that it is a
+  limit", but it has no API specific to pullbacks.
+
+A remark on reading `IsPullback`: its arguments are the two legs out of the
+summit, `fst` and then `snd`, followed by the two morphisms of the cospan, `f`
+and then `g`, where `fst` and `f` share the corner `B`. Which of the legs is
+drawn horizontally is a matter of convention. Mathlib's docstrings draw `fst`
+along the top, while the diagrams in this file follow Riehl and draw it down the
+left side. The statement is the same either way, and transposing the square
+corresponds to `IsPullback.flip`.
+-/
+section IsPullbackAPI
+
+variable {P B C A : 𝒞} {fst : P ⟶ B} {snd : P ⟶ C} {f : B ⟶ A} {g : C ⟶ A}
+
+/-
+(I1) Translating in and out. The first example passes from a limit pullback
+cone, the form in which Exercises 2 to 4 were stated, to `IsPullback`; the
+relevant theorem is `IsPullback.of_isLimit`. The second goes back: from
+`h : IsPullback fst snd f g` it recovers the `IsLimit` that the proposition
+asserts to exist. The field `h.isLimit` does this. Lean will then complain that
+the example must be marked `noncomputable`. The reason is that `h` only says
+that an `IsLimit` exists, and extracting a specific one from a `Nonempty`
+requires the axiom of choice, which has no executable content. The third
+example is the commutativity of the square, which `IsPullback` inherits from
+`CommSq` as the field `w`.
+-/
+example {f : B ⟶ A} {g : C ⟶ A} (t : PullbackCone f g) (ht : IsLimit t) :
+    IsPullback t.fst t.snd f g := by
+  sorry
+
+example (h : IsPullback fst snd f g) : IsLimit (PullbackCone.mk fst snd h.w) := by
+  sorry
+
+example (h : IsPullback fst snd f g) : fst ≫ f = snd ≫ g := by
+  sorry
+
+/-
+(I2) The universal property through `IsPullback`. For a commutative square
+`w : b ≫ f = c ≫ g` with summit `D`, the factorization `D ⟶ P` is
+`h.lift b c w`, and the lemmas `h.lift_fst : h.lift b c w ≫ fst = b` and
+`h.lift_snd` say that it is a factorization. Both are `simp` lemmas, and they
+come with `reassoc` variants (`h.lift_fst_assoc`), which rewrite
+`h.lift b c w ≫ fst ≫ k` for any further morphism `k`. So `simp` can simplify
+the left side of the first example below without help, and what remains is `w`.
+
+The second example is uniqueness. Two morphisms into `P` are equal as soon as
+they agree after `fst` and after `snd`; this is `h.hom_ext`. Applying it leaves
+two goals, and in each the `lift` side is handled by the lemmas above.
+-/
+example (h : IsPullback fst snd f g) {D : 𝒞} (b : D ⟶ B) (c : D ⟶ C)
+    (w : b ≫ f = c ≫ g) : h.lift b c w ≫ fst ≫ f = c ≫ g := by
+  sorry
+
+example (h : IsPullback fst snd f g) {D : 𝒞} (b : D ⟶ B) (c : D ⟶ C)
+    (w : b ≫ f = c ≫ g) (m : D ⟶ P) (hb : m ≫ fst = b) (hc : m ≫ snd = c) :
+    m = h.lift b c w := by
+  sorry
+
+/-
+(I3) Exercise 4 again, now stated with `IsPullback`. The argument is the same
+as before, with `h.hom_ext` in place of `PullbackCone.IsLimit.hom_ext ht` and
+`h.w` in place of `t.condition`. It is stated as a theorem so that (I4) can use
+it.
+-/
+theorem mono_snd_of_isPullback (h : IsPullback fst snd f g) [Mono f] : Mono snd := by
+  sorry
+
+/-
+(I4) Symmetry. The pullback of a monomorphism `g` along `f` is also a
+monomorphism, where this time the relevant leg is `fst`. There is no need to
+repeat the argument: `h.flip : IsPullback snd fst g f` is the same square with
+the roles of the two legs exchanged, and (I3) applies to it. A one-line term
+proof is possible.
+-/
+theorem mono_fst_of_isPullback (h : IsPullback fst snd f g) [Mono g] : Mono fst := by
+  sorry
+
+/-
+(I5) The pasting lemma. If two pullback squares are stacked so that the bottom
+edge of the upper square is the top edge of the lower square, then the outer
+rectangle is a pullback. In the diagram below, the upper square is
+`IsPullback a p q b`, the lower square is `IsPullback b r s c`, and the outer
+rectangle, whose vertical edges are the composites `p ≫ r` and `q ≫ s`, is
+`IsPullback a (p ≫ r) (q ≫ s) c`.
+
+[Diagram](assets/pullback_pasting.svg)
+
+Mathlib proves this as `IsPullback.paste_vert`. Prove it without that lemma,
+using only `IsPullback.paste_horiz` and `IsPullback.flip`. Here is the statement
+of `paste_horiz`, for squares placed side by side:
+
+  X₁₁ - h₁₁ -> X₁₂ - h₁₂ -> X₁₃
+   |            |            |
+  v₁₁          v₁₂          v₁₃
+   ↓            ↓            ↓
+  X₂₁ - h₂₁ -> X₂₂ - h₂₂ -> X₂₃
+
+  (s : IsPullback h₁₁ v₁₁ v₁₂ h₂₁) (t : IsPullback h₁₂ v₁₂ v₁₃ h₂₂) :
+    IsPullback (h₁₁ ≫ h₁₂) v₁₁ v₁₃ (h₂₁ ≫ h₂₂)
+
+Transposing a vertical stack of squares gives a horizontal row of squares, and
+this is the whole idea. The work is in matching the arguments, and `#check` on
+the flipped hypotheses shows what they have become.
+-/
+example {X₁₁ X₁₂ X₂₁ X₂₂ X₃₁ X₃₂ : 𝒞} {a : X₁₁ ⟶ X₁₂} {b : X₂₁ ⟶ X₂₂} {c : X₃₁ ⟶ X₃₂}
+    {p : X₁₁ ⟶ X₂₁} {q : X₁₂ ⟶ X₂₂} {r : X₂₁ ⟶ X₃₁} {s : X₂₂ ⟶ X₃₂}
+    (top : IsPullback a p q b) (bot : IsPullback b r s c) :
+    IsPullback a (p ≫ r) (q ≫ s) c := by
+  sorry
+
+/-
+(I6) Uniqueness up to isomorphism. Any two pullbacks of the same cospan have
+isomorphic summits. Given pullback squares `h` with summit `P` and `h'` with
+summit `P'` over the same `f` and `g`, each summit carries a commutative square,
+so each factors through the other: `hom := h'.lift fst snd h.w` and
+`inv := h.lift fst' snd' h'.w`, as in the diagram below.
+
+[Diagram](assets/pullback_uniqueness_iso.svg)
+
+The composite `hom ≫ inv : P ⟶ P` and the identity both factor the square
+`fst, snd` through `P`, so they are equal by `h.hom_ext`; the same argument with
+`h'` handles `inv ≫ hom`. Construct the isomorphism with `where` syntax, filling
+the fields `hom`, `inv`, `hom_inv_id` and `inv_hom_id`. The definition must be
+marked `noncomputable`, for the reason given in (I1): `lift` is defined from
+`h.isLimit`.
+
+Mathlib's version of this construction is `IsPullback.isoIsPullback`, and the
+special case in which `h'` is the chosen pullback of `[HasPullback f g]` is
+`IsPullback.isoPullback`. The last example is a fact about the latter that
+`simp` knows.
+-/
+noncomputable def isoOfIsPullback {P' : 𝒞} {fst' : P' ⟶ B} {snd' : P' ⟶ C}
+    (h : IsPullback fst snd f g) (h' : IsPullback fst' snd' f g) : P ≅ P' := by
+  sorry
+
+example (h : IsPullback fst snd f g) [HasPullback f g] :
+    h.isoPullback.hom ≫ pullback.fst f g = fst := by
+  sorry
+
+/-
+(I7) Finding the library's version of a fact. Exercise (P2) proved that pulling
+back along an identity changes nothing. Mathlib has this fact as a lemma about
+`IsPullback`. Find it with `exact?` and replace the `exact?` call with the term
+it suggests. (Searching for it with `lean_loogle` or the documentation search
+for `IsPullback` and `𝟙` would also work.)
+-/
+example (f : B ⟶ A) : IsPullback (𝟙 B) f f (𝟙 A) := by
+  sorry
+
+end IsPullbackAPI
