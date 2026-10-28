@@ -1622,6 +1622,14 @@ Riehl draws it, exchanges the roles of the two legs, and corresponds to
 -/
 section IsPullbackAPI
 
+/-
+Throughout this section, the variables below name the four morphisms of a
+square, arranged as in the diagram. Most exercises also take a hypothesis
+`h : IsPullback fst snd f g`, which says that this square commutes and is a
+pullback. The variables alone say neither.
+
+[Diagram](assets/is_pullback_variables.svg)
+-/
 variable {P B C A : 𝒞} {fst : P ⟶ B} {snd : P ⟶ C} {f : B ⟶ A} {g : C ⟶ A}
 
 /-
@@ -1638,13 +1646,13 @@ example is the commutativity of the square, which `IsPullback` inherits from
 -/
 example {f : B ⟶ A} {g : C ⟶ A} (t : PullbackCone f g) (ht : IsLimit t) :
     IsPullback t.fst t.snd f g := by
-  sorry
+  apply IsPullback.of_isLimit ht
 
-example (h : IsPullback fst snd f g) : IsLimit (PullbackCone.mk fst snd h.w) := by
-  sorry
+noncomputable example (h : IsPullback fst snd f g) : IsLimit (PullbackCone.mk fst snd h.w) := by
+  exact h.isLimit
 
 example (h : IsPullback fst snd f g) : fst ≫ f = snd ≫ g := by
-  sorry
+  exact h.w
 
 /-
 (I2) The universal property through `IsPullback`. For a commutative square
@@ -1655,18 +1663,32 @@ come with `reassoc` variants (`h.lift_fst_assoc`), which rewrite
 `h.lift b c w ≫ fst ≫ k` for any further morphism `k`. So `simp` can simplify
 the left side of the first example below without help, and what remains is `w`.
 
-The second example is uniqueness. Two morphisms into `P` are equal as soon as
-they agree after `fst` and after `snd`; this is `h.hom_ext`. Applying it leaves
+The second example is uniqueness. The diagram below shows both examples: the
+outer square with summit `D` is the commutative square `w`, the dashed arrow is
+`h.lift b c w`, and the solid arrow `m` beside it is the morphism that the
+second example proves equal to it.
+
+[Diagram](assets/is_pullback_lift.svg)
+
+Two morphisms into `P` are equal as soon as they agree after `fst` and after
+`snd`; this is `h.hom_ext`. Applying it leaves
 two goals, and in each the `lift` side is handled by the lemmas above.
 -/
 example (h : IsPullback fst snd f g) {D : 𝒞} (b : D ⟶ B) (c : D ⟶ C)
     (w : b ≫ f = c ≫ g) : h.lift b c w ≫ fst ≫ f = c ≫ g := by
-  sorry
+  simp
+  exact w
 
 example (h : IsPullback fst snd f g) {D : 𝒞} (b : D ⟶ B) (c : D ⟶ C)
     (w : b ≫ f = c ≫ g) (m : D ⟶ P) (hb : m ≫ fst = b) (hc : m ≫ snd = c) :
     m = h.lift b c w := by
-  sorry
+  apply h.hom_ext
+  case h₀ =>
+    simp
+    exact hb
+  case h₁ =>
+    simp
+    exact hc
 
 /-
 (I3) Exercise 4 again, now stated with `IsPullback`. The argument is the same
@@ -1675,7 +1697,16 @@ as before, with `h.hom_ext` in place of `PullbackCone.IsLimit.hom_ext ht` and
 it.
 -/
 theorem mono_snd_of_isPullback (h : IsPullback fst snd f g) [Mono f] : Mono snd := by
-  sorry
+  constructor
+  intro D k l hkl
+  apply h.hom_ext
+  case h₀ =>
+    rw [← cancel_mono f];
+    simp
+    rw [h.w, ←Category.assoc, hkl]
+    simp
+  case h₁ =>
+    exact hkl
 
 /-
 (I4) Symmetry. The pullback of a monomorphism `g` along `f` is also a
@@ -1685,7 +1716,7 @@ the roles of the two legs exchanged, and (I3) applies to it. A one-line term
 proof is possible.
 -/
 theorem mono_fst_of_isPullback (h : IsPullback fst snd f g) [Mono g] : Mono fst := by
-  sorry
+  exact mono_snd_of_isPullback h.flip
 
 /-
 (I5) The pasting lemma. If two pullback squares are stacked so that the bottom
@@ -1718,7 +1749,7 @@ example {X₁₁ X₁₂ X₂₁ X₂₂ X₃₁ X₃₂ : 𝒞} {a : X₁₁ �
     {p : X₁₁ ⟶ X₂₁} {q : X₁₂ ⟶ X₂₂} {r : X₂₁ ⟶ X₃₁} {s : X₂₂ ⟶ X₃₂}
     (top : IsPullback a p q b) (bot : IsPullback b r s c) :
     IsPullback a (p ≫ r) (q ≫ s) c := by
-  sorry
+  exact (IsPullback.paste_horiz (top.flip) (bot.flip)).flip
 
 /-
 (I6) Uniqueness up to isomorphism. Any two pullbacks of the same cospan have
@@ -1739,15 +1770,25 @@ marked `noncomputable`, for the reason given in (I1): `lift` is defined from
 Mathlib's version of this construction is `IsPullback.isoIsPullback`, and the
 special case in which `h'` is the chosen pullback of `[HasPullback f g]` is
 `IsPullback.isoPullback`. The last example is a fact about the latter that
-`simp` knows.
+`simp` knows. Given `[HasPullback f g]`, Mathlib has a chosen pullback square
+with summit `pullback f g` and legs `pullback.fst f g` and `pullback.snd f g`,
+and `h.isoPullback : P ≅ pullback f g` compares the square `h` with it. The
+example says that the comparison respects the legs into `B`: going from `P` to
+`pullback f g` by `h.isoPullback.hom` and then on to `B` by `pullback.fst f g`
+is the same as going directly by `fst`. That is, the triangle at the top of the
+diagram below commutes. (The analogous statement for `snd` is
+`h.isoPullback_hom_snd`.)
+
+[Diagram](assets/iso_pullback_fst.svg)
 -/
 noncomputable def isoOfIsPullback {P' : 𝒞} {fst' : P' ⟶ B} {snd' : P' ⟶ C}
     (h : IsPullback fst snd f g) (h' : IsPullback fst' snd' f g) : P ≅ P' := by
-  sorry
+  -- eh, this is busywork. We already know limits over the same diagram are iso.
+  apply IsLimit.conePointUniqueUpToIso h.isLimit h'.isLimit
 
 example (h : IsPullback fst snd f g) [HasPullback f g] :
     h.isoPullback.hom ≫ pullback.fst f g = fst := by
-  sorry
+  simp
 
 /-
 (I7) Finding the library's version of a fact. Exercise (P2) proved that pulling
@@ -1757,6 +1798,6 @@ it suggests. (Searching for it with `lean_loogle` or the documentation search
 for `IsPullback` and `𝟙` would also work.)
 -/
 example (f : B ⟶ A) : IsPullback (𝟙 B) f f (𝟙 A) := by
-  sorry
+  exact IsPullback.of_id_fst
 
 end IsPullbackAPI
