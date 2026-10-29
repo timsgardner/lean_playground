@@ -13,6 +13,7 @@ Worked examples for the diagrams framework.
 
 import LeanPlayground.diagrams.extend
 import LeanPlayground.diagrams.chase
+import LeanPlayground.diagrams.finite
 
 open CategoryTheory Quiver
 
@@ -45,8 +46,18 @@ inductive KHom : K → K → Type
   | uy : KHom .u .y
   | vy : KHom .v .y
   | uv : KHom .u .v
+  deriving DecidableEq
 
 instance : Quiver K := ⟨KHom⟩
+
+instance (a b : K) : DecidableEq (a ⟶ b) := inferInstanceAs (DecidableEq (KHom a b))
+
+instance : FinShape K where
+  vertices := [.s, .u, .v, .t, .y]
+  mem_vertices a := by cases a <;> decide
+  arrows := [arrow KHom.su, arrow KHom.sv, arrow KHom.ut, arrow KHom.vt, arrow KHom.uy,
+    arrow KHom.vy, arrow KHom.uv]
+  mem_arrows := fun ⟨_, _, f⟩ => by cases f <;> decide
 
 /-- Whether an arrow is one of the six old ones. -/
 def KHom.old {a b : K} : KHom a b → Bool
@@ -55,6 +66,22 @@ def KHom.old {a b : K} : KHom a b → Bool
 
 /-- The subshape of old arrows. -/
 def oldArrows : Subshape K := fun a b => {f : a ⟶ b | KHom.old f = true}
+
+instance {a b : K} {f : a ⟶ b} : Decidable (f ∈ oldArrows a b) :=
+  inferInstanceAs (Decidable (KHom.old f = true))
+
+/-- The old arrows are the arrows of the shape other than `uv`. -/
+example : oldArrows = ofList (FinShape.arrows.filter (· != arrow KHom.uv)) := by
+  funext a b; ext f; cases f <;> decide
+
+/-- Membership of a path in a subshape is decidable. -/
+example : Within oldArrows
+    ((Quiver.Hom.toPath (V := K) KHom.su).comp (Quiver.Hom.toPath (V := K) KHom.ut)) := by
+  decide
+
+example : ¬ Within oldArrows
+    ((Quiver.Hom.toPath (V := K) KHom.su).comp (Quiver.Hom.toPath (V := K) KHom.uv)) := by
+  decide
 
 /-- The new arrow. -/
 def uv : K.u ⟶ K.v := KHom.uv
@@ -149,6 +176,7 @@ namespace RectExample
 
 /-- The six objects. -/
 inductive V | a | b | c | a' | b' | c'
+  deriving DecidableEq
 
 /-- The seven arrows. -/
 inductive H : V → V → Type
@@ -159,8 +187,17 @@ inductive H : V → V → Type
   | l : H .c .c'
   | k : H .a' .b'
   | m : H .b' .c'
+  deriving DecidableEq
 
 instance : Quiver V := ⟨H⟩
+
+instance (x y : V) : DecidableEq (x ⟶ y) := inferInstanceAs (DecidableEq (H x y))
+
+instance : FinShape V where
+  vertices := [.a, .b, .c, .a', .b', .c']
+  mem_vertices x := by cases x <;> decide
+  arrows := [arrow H.f, arrow H.j, arrow H.g, arrow H.h, arrow H.l, arrow H.k, arrow H.m]
+  mem_arrows := fun ⟨_, _, e⟩ => by cases e <;> decide
 
 /-- An arrow, as a path of length one. -/
 def H.path {x y : V} (e : H x y) : Path x y := Quiver.Hom.toPath (V := V) e

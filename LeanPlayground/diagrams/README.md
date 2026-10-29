@@ -41,11 +41,11 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | `paste.lean` | Pasting two commuting subshapes into their union. |
 | `chase.lean` | Steps and chases; soundness and completeness; `ChasesOn`. |
 | `chase_growth.lean` | Adding an arrow and pasting, restated for chases. |
+| `finite.lean` | The computational view: `arrow`, `FinShape`, `ofList`, decidable membership, `Path.edges`. |
 | `examples.lean` | The five-object undercount example and Riehl's rectangle. |
 
-`core` is imported by everything. `extend`, `paste` and `chase` each import
-only `core`; `chase_growth` imports all three, and `examples` imports `extend`
-and `chase`.
+`core` is imported by everything. `extend`, `paste`, `chase` and `finite` each
+import only `core`; `chase_growth` imports `extend`, `paste` and `chase`.
 
 ## Main results
 
@@ -99,6 +99,11 @@ equation they must satisfy; `ObligationHolds` says some such equation holds.
   through them.
 - Proof internals live in sub-namespaces (`Paste`, `NecessityModel`); the top
   level of `Diagrams` holds the interface.
+- A finite concrete shape provides `FinShape` and decidable equality on its
+  vertices and arrows. The arrow instance must be stated once per shape, as
+  `inferInstanceAs (DecidableEq (KHom a b))`, because instance search does not
+  see through the `Quiver` instance. The kernel then evaluates `decide` on
+  membership and `Within`.
 - A concrete shape is an inductive type of arrows, as in `UndercountExample.KHom` and
   `RectExample.H`. A diagram on it is built by pattern matching, which keeps its
   arrows readable in goals (`G.map .f` reduces to `f`).
