@@ -83,7 +83,9 @@ directions:
   morphism on one side a plain name and reach the other side by applying the
   bijection. If `f : F.obj c ⟶ d` plays the role of `f♯`, then its transpose
   `f♭` is `adj.homEquiv c d f`. If `g : c ⟶ G.obj d` plays the role of `g♭`,
-  then its transpose `g♯` is `(adj.homEquiv c d).symm g`.
+  then its transpose `g♯` is `(adj.homEquiv c d).symm g`. The notation at the
+  top of this file abbreviates these as `f ♭[adj]` and `g ♯[adj]`, leaving `c`
+  and `d` to be inferred, and we use it from here on.
 
 Since we read §4.1 before §4.2, we will work with `homEquiv` and treat the
 unit and counit as a black box until §4.2 opens it.
@@ -120,8 +122,8 @@ or, in Lean notation, `m : p1 ⟶ p2` -- is a pair `(h, k)` for some `h : c1 ⟶
 structure SharpFlat {F : 𝒞 ⥤ 𝒟} {G: 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c : 𝒞} {d : 𝒟} where
   sharp : (F.obj c) ⟶ d
   flat : c ⟶ (G.obj d)
-  h_sharp : sharp = (adj.homEquiv c d).symm flat
-  h_flat : flat = adj.homEquiv c d sharp
+  h_sharp : sharp = flat ♯[adj]
+  h_flat : flat = sharp ♭[adj]
 
 namespace SharpFlat
 
@@ -134,7 +136,7 @@ def ofSharp
     : SharpFlat adj (c := c) (d := d):=
   {
     sharp,
-    flat := adj.homEquiv c d sharp,
+    flat := sharp ♭[adj],
     h_sharp := by simp
     h_flat := by simp
   }
@@ -147,7 +149,7 @@ def ofFlat
     {d : 𝒟} (flat: c ⟶ G.obj d)
     : SharpFlat adj (c := c) (d := d):=
   {
-    sharp := (adj.homEquiv c d).symm flat
+    sharp := flat ♯[adj]
     flat,
     h_sharp := by simp
     h_flat := by simp
@@ -165,7 +167,7 @@ Naturality in `𝒟`. Riehl: for any `f♯ : F c ⟶ d` and `k : d ⟶ d'`, the
 transpose of `k · f♯ : F c ⟶ d'` is the composite of `f♭ : c ⟶ G d` with
 `G k : G d ⟶ G d'`. Riehl writes composites right to left and Lean writes
 them left to right, so `k · f♯` is `f ≫ k` and `G k · f♭` is
-`adj.homEquiv c d f ≫ G.map k`. Mathlib calls this
+`f ♭[adj] ≫ G.map k`. Mathlib calls this
 `Adjunction.homEquiv_naturality_right`, because it concerns the right-hand
 argument `d` of `adj.homEquiv c d`.
 
@@ -178,19 +180,19 @@ in `𝒟` is the statement that the right triangle also commutes.
 -/
 example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c : 𝒞} {d d' : 𝒟}
     (f : F.obj c ⟶ d) (k : d ⟶ d') :
-    adj.homEquiv c d' (f ≫ k) = adj.homEquiv c d f ≫ G.map k :=
+    (f ≫ k)♭[adj] = f ♭[adj] ≫ G.map k :=
   adj.homEquiv_naturality_right f k
 
 /-
 Naturality in `𝒞`. Riehl: for any `h : c' ⟶ c`, the transpose of
 `f♯ · F h : F c' ⟶ d` is the composite of `h : c' ⟶ c` with `f♭ : c ⟶ G d`.
 In Lean, `f♯ · F h` is `F.map h ≫ f` and its transpose is
-`h ≫ adj.homEquiv c d f`. Mathlib calls this
+`h ≫ f ♭[adj]`. Mathlib calls this
 `Adjunction.homEquiv_naturality_left`.
 -/
 example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d : 𝒟}
     (h : c' ⟶ c) (f : F.obj c ⟶ d) :
-    adj.homEquiv c' d (F.map h ≫ f) = h ≫ adj.homEquiv c d f :=
+    (F.map h ≫ f)♭[adj] = h ≫ f ♭[adj] :=
   adj.homEquiv_naturality_left h f
 
 /-
@@ -200,15 +202,13 @@ inverse. Writing `f` for a morphism `F c ⟶ d` playing the role of `f♯`, and 
 for a morphism `c ⟶ G d` playing the role of `g♭`, they are:
 
 * `adj.homEquiv_naturality_left h f`: the transpose of `f♯ · F h` is `f♭ · h`,
-  that is, `adj.homEquiv c' d (F.map h ≫ f) = h ≫ adj.homEquiv c d f`.
+  that is, `(F.map h ≫ f)♭[adj] = h ≫ f ♭[adj]`.
 * `adj.homEquiv_naturality_right f k`: the transpose of `k · f♯` is `G k · f♭`,
-  that is, `adj.homEquiv c d' (f ≫ k) = adj.homEquiv c d f ≫ G.map k`.
+  that is, `(f ≫ k)♭[adj] = f ♭[adj] ≫ G.map k`.
 * `adj.homEquiv_naturality_left_symm h g`: the transpose of `g♭ · h` is
-  `g♯ · F h`, that is,
-  `(adj.homEquiv c' d).symm (h ≫ g) = F.map h ≫ (adj.homEquiv c d).symm g`.
+  `g♯ · F h`, that is, `(h ≫ g)♯[adj] = F.map h ≫ g ♯[adj]`.
 * `adj.homEquiv_naturality_right_symm g k`: the transpose of `G k · g♭` is
-  `k · g♯`, that is,
-  `(adj.homEquiv c d').symm (g ≫ G.map k) = (adj.homEquiv c d).symm g ≫ k`.
+  `k · g♯`, that is, `(g ≫ G.map k)♯[adj] = g ♯[adj] ≫ k`.
 
 Because each `adj.homEquiv c d` is a bijection, the `_symm` form of each
 equation says the same thing as the plain form, so in a proof you can use
@@ -274,7 +274,7 @@ composites in `𝒟`, using the two naturality lemmas from right to left.
 example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d d' : 𝒟}
     (h : c ⟶ c') (k : d ⟶ d') (f : F.obj c ⟶ d) (g : F.obj c' ⟶ d')
     (w : f ≫ k = F.map h ≫ g) :
-    adj.homEquiv c d f ≫ G.map k = h ≫ adj.homEquiv c' d' g := by
+    f ♭[adj] ≫ G.map k = h ≫ g ♭[adj] := by
   have h2 := adj.homEquiv_naturality_right f k
   have h3 := adj.homEquiv_naturality_left h g
   rw [← h2, ← h3, w]
@@ -287,13 +287,13 @@ suffices to show that their transposes agree. Begin with
 -/
 example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d d' : 𝒟}
     (h : c ⟶ c') (k : d ⟶ d') (f : F.obj c ⟶ d) (g : F.obj c' ⟶ d')
-    (w : adj.homEquiv c d f ≫ G.map k = h ≫ adj.homEquiv c' d' g) :
+    (w : f ♭[adj] ≫ G.map k = h ≫ g ♭[adj]) :
     f ≫ k = F.map h ≫ g := by
   apply (adj.homEquiv c d').injective
   calc
-    (adj.homEquiv c d') (f ≫ k) = (adj.homEquiv c d) f ≫ G.map k := by exact adj.homEquiv_naturality_right f k
-    _ = h ≫ (adj.homEquiv c' d') g := by exact w
-    _ = (adj.homEquiv c d') (F.map h ≫ g) := by exact (adj.homEquiv_naturality_left h g).symm
+    (f ≫ k)♭[adj] = f ♭[adj] ≫ G.map k := by exact adj.homEquiv_naturality_right f k
+    _ = h ≫ g ♭[adj] := by exact w
+    _ = (F.map h ≫ g)♭[adj] := by exact (adj.homEquiv_naturality_left h g).symm
 
 /-
 Exercise 2. The converse half of Lemma 4.1.3. In this section, `e` is a family
