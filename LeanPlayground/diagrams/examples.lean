@@ -7,15 +7,18 @@ Worked examples for the diagrams framework.
   minimal obligations, although a planar drawing shows only two new regions next
   to the arrow. By `isMinObligation_necessary`, checking the two regions is not
   enough. The shape conditions are all proved by `decide`.
-* `RectExample`: Riehl's rectangle (1.6.10), proved by replaying the recorded
-  two-step chase `f ◁ R`, then `L ▷ m`.
+* `RectExample`: Riehl's rectangle (1.6.10), built by hand on each layer: a
+  recorded chase, the chase search, and commutativity by construction.
+* `Rect` and `Cube`: the rectangle and Riehl's commutative cube (§1.6), declared
+  with `diagram_shape`. Their equations follow in one line from the generated
+  `commutes` theorems.
 -/
 
 import LeanPlayground.diagrams.extend
 import LeanPlayground.diagrams.chase
 import LeanPlayground.diagrams.decide
 import LeanPlayground.diagrams.tactics
-import LeanPlayground.diagrams.frontend
+import LeanPlayground.diagrams.command
 
 open CategoryTheory Quiver
 
@@ -313,5 +316,33 @@ example (f : A ⟶ B) (j : B ⟶ E) (g : A ⟶ A') (h : B ⟶ B') (l : E ⟶ E')
   diagram_eq hD
 
 end RectExample
+
+/-! ## Declared diagrams -/
+
+diagram_shape Rect where
+  arrows (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a') (h : b ⟶ b') (l : c ⟶ c')
+    (k : a' ⟶ b') (m : b' ⟶ c')
+  faces (L : f h = g k) (R : j l = h m)
+
+example {D : Type*} [Category D] {a b c a' b' c' : D} (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a')
+    (h : b ⟶ b') (l : c ⟶ c') (k : a' ⟶ b') (m : b' ⟶ c')
+    (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) : f ≫ j ≫ l = g ≫ k ≫ m := by
+  diagram_eq (Rect.commutes f j g h l k m hL hR)
+
+-- Riehl's commutative cube: its six faces make it commute.
+diagram_shape Cube where
+  arrows (x₁ : o ⟶ X) (y₁ : o ⟶ Y) (z₁ : o ⟶ Z)
+    (y₂ : X ⟶ XY) (z₂ : X ⟶ XZ) (x₂ : Y ⟶ XY) (z₃ : Y ⟶ YZ) (x₃ : Z ⟶ XZ) (y₃ : Z ⟶ YZ)
+    (z₄ : XY ⟶ T) (y₄ : XZ ⟶ T) (x₄ : YZ ⟶ T)
+  faces (Bot : x₁ y₂ = y₁ x₂) (Fr : x₁ z₂ = z₁ x₃) (Lt : y₁ z₃ = z₁ y₃)
+    (Top : x₃ y₄ = y₃ x₄) (Bk : x₂ z₄ = z₃ x₄) (Rt : y₂ z₄ = z₂ y₄)
+
+example {D : Type*} [Category D] {o X Y Z XY XZ YZ T : D}
+    (x₁ : o ⟶ X) (y₁ : o ⟶ Y) (z₁ : o ⟶ Z) (y₂ : X ⟶ XY) (z₂ : X ⟶ XZ) (x₂ : Y ⟶ XY)
+    (z₃ : Y ⟶ YZ) (x₃ : Z ⟶ XZ) (y₃ : Z ⟶ YZ) (z₄ : XY ⟶ T) (y₄ : XZ ⟶ T) (x₄ : YZ ⟶ T)
+    (hBot : x₁ ≫ y₂ = y₁ ≫ x₂) (hFr : x₁ ≫ z₂ = z₁ ≫ x₃) (hLt : y₁ ≫ z₃ = z₁ ≫ y₃)
+    (hTop : x₃ ≫ y₄ = y₃ ≫ x₄) (hBk : x₂ ≫ z₄ = z₃ ≫ x₄) (hRt : y₂ ≫ z₄ = z₂ ≫ y₄) :
+    x₁ ≫ y₂ ≫ z₄ = z₁ ≫ y₃ ≫ x₄ := by
+  diagram_eq (Cube.commutes x₁ y₁ z₁ y₂ z₂ x₂ z₃ x₃ y₃ z₄ y₄ x₄ hBot hFr hLt hTop hBk hRt)
 
 end Diagrams

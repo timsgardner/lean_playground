@@ -47,34 +47,50 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | `tactics.lean` | Certificate checks (`rankCheck`, `fenceCheck`, `replayCheck`) and the tactics that find certificates with compiled code: `diagram_acyclic`, `diagram_unreachable`, `find_chase`. |
 | `construct.lean` | Commutative by construction: builds (arrows added in turn, each with the faces it completes), `buildOK`, `commutesOn_of_build`. |
 | `frontend.lean` | The tactics `diagram_build` (prove `Commutes G` by construction) and `diagram_eq` (read off an equation in the diagram's own morphisms). |
+| `command.lean` | The `diagram_shape` command: declare a shape, its faces, its diagrams, and their commutativity theorem. |
 | `examples.lean` | The five-object undercount example and Riehl's rectangle. |
 
 `core` is imported by everything. `extend`, `paste`, `chase` and `finite` each
 import only `core`; `chase_growth` imports `extend`, `paste` and `chase`, and
 `decide` imports `finite`, `extend` and `paste`; `search` imports `chase` and
 `finite`; `tactics` imports `decide` and `search`; `construct` imports `decide`
-and `search`; and `frontend` imports `construct` and `tactics`.
+and `search`; `frontend` imports `construct` and `tactics`; and `command` imports
+`frontend`.
 
 ## Workflow
 
-A diagram is proved to commute *by construction*, then used:
+Declare a diagram with `diagram_shape`, giving its arrows and its faces:
 
 ```lean
--- the faces, with their equations
-have hF : ∀ φ ∈ [squares .L, squares .R], φ.Holds (diagram f j g h l k m) := …
--- the diagram commutes: arrows are added in turn, each owing only the faces it completes
-have hD : Commutes (diagram f j g h l k m) := by diagram_build [squares .L, squares .R] using hF
--- any equation between parallel composites follows
-example : f ≫ j ≫ l = g ≫ k ≫ m := by diagram_eq hD
+diagram_shape Rect where
+  arrows (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a') (h : b ⟶ b') (l : c ⟶ c')
+    (k : a' ⟶ b') (m : b' ⟶ c')
+  faces (L : f h = g k) (R : j l = h m)
 ```
 
-`diagram_build` adds the arrows in the order of `FinShape.arrows`. When an arrow
-`e` is added, a face with `e` on one side, `α ≫ e ≫ β = γ`, and its other arrows
-already present, is exactly an obligation for `e` (`obligationHolds_of_face`). The
-build is valid when these face obligations cover every obligation `e` creates; the
-kernel checks that by deciding questions about the shape. No chase search is
-involved. `diagram_eq` matches each factor of a composite to an arrow of the shape
-whose image under `G` is that morphism, turning each side into a path.
+This generates the shape and its instances, `Rect.diagram f j g h l k m` (the
+diagram with those morphisms, in any category), and
+
+```lean
+Rect.commutes f j g h l k m (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) :
+  Commutes (Rect.diagram f j g h l k m)
+```
+
+Any equation between parallel composites then follows in one line:
+
+```lean
+example … : f ≫ j ≫ l = g ≫ k ≫ m := by diagram_eq (Rect.commutes f j g h l k m hL hR)
+```
+
+The diagram commutes *by construction*. Its arrows are added in the order they
+are declared. When an arrow `e` is added, a face with `e` on one side,
+`α ≫ e ≫ β = γ`, and its other arrows already present, is exactly an obligation
+for `e` (`obligationHolds_of_face`). `Rect.commutes` is valid when these face
+obligations cover every obligation each arrow creates; the kernel checks that by
+deciding questions about the shape. No chase search is involved. `diagram_eq`
+matches each factor of a composite to an arrow whose image is that morphism,
+turning each side into a path. `examples.lean` declares Riehl's commutative cube
+the same way.
 
 ## Main results
 
@@ -197,10 +213,8 @@ which need only local chases, one per obligation.
 
 - `diagram_eq` for subshapes (`CommutesOn`), for sides that are identities, and
   for rewriting inside a goal rather than closing it.
-- `diagram_build` with an arrow order other than `FinShape.arrows`, and proving
-  the face equations `hF` from hypotheses automatically.
-- A command that generates a shape's inductive type, `FinShape`, `NumShape` and
-  decidable-equality instances from a list of arrows.
+- Choosing a different arrow order when the declared order leaves an obligation
+  uncovered, and reporting which obligation it was.
 - Local chase search through the growth theorems, and faster global search
   (bidirectional, or native compilation of the search code).
 - Drawing a recorded chase in the infoview, one step at a time.
