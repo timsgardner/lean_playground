@@ -33,6 +33,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 RESULTS = Path(__file__).resolve().parent / "results"
 MODULE = "LeanPlayground.diagrams.bench.grid"
+IMPORTS = [MODULE, "LeanPlayground.diagrams.tactics"]
 
 # Workload name -> Lean statement for size k. The tactic is appended.
 WORKLOADS = {
@@ -41,6 +42,16 @@ WORKLOADS = {
     "minObligation": "example : minObligationBench {k} := by",
     "chain": "example : chainBench {k} := by",
     "search": "example : searchBench {k} = true := by",
+    "unreach": "example : unreachBench {k} := by",
+}
+
+# Workloads proved by a certificate-finding tactic instead of the `--tactic`.
+CERT_WORKLOADS = {
+    "acyclic.cert": "example : acyclicBench {k} := by diagram_acyclic",
+    "unreach.cert": "example : unreachBench {k} := by diagram_unreachable",
+    "search.cert": ("example : Nonempty (Chase square (walkPath (origin {k}) (topDirs {k})).2 "
+                    "(walkPath (origin {k}) (leftDirs {k})).2) := by "
+                    "find_chase (cells ({k} + 1) ({k} + 1)) 10000000"),
 }
 
 DEFAULT_SIZES = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32]
@@ -49,14 +60,20 @@ PROFILE_LINE = re.compile(r"^\t(tactic execution|type checking) ([0-9.]+)(ms|s|u
 UNIT = {"s": 1000.0, "ms": 1.0, "us": 0.001, "μs": 0.001}
 
 
+def statement(workload: str, k: int, tactic: str) -> str:
+    if workload in CERT_WORKLOADS:
+        return CERT_WORKLOADS[workload].format(k=k, fuel=k * k + 1)
+    return f"{WORKLOADS[workload].format(k=k)} {tactic}"
+
+
 def lean_source(workload: str, k: int, tactic: str) -> str:
     return "\n".join([
-        f"import {MODULE}",
+        *[f"import {m}" for m in IMPORTS],
         "open Diagrams Diagrams.Bench",
         "set_option profiler true",
         "set_option maxRecDepth 100000",
         "set_option maxHeartbeats 0",
-        f"{WORKLOADS[workload].format(k=k)} {tactic}",
+        statement(workload, k, tactic),
         "",
     ])
 
@@ -185,7 +202,8 @@ def fmt_row(r: dict, base: dict) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--label", required=True, help="name for the results file")
-    ap.add_argument("--only", nargs="*", choices=sorted(WORKLOADS), help="workloads to run")
+    ap.add_argument("--only", nargs="*", choices=sorted({**WORKLOADS, **CERT_WORKLOADS}),
+                    help="workloads to run")
     ap.add_argument("--sizes", nargs="*", type=int, default=DEFAULT_SIZES)
     ap.add_argument("--tactic", default="decide", help="tactic that proves each statement")
     ap.add_argument("--repeats", type=int, default=3)
@@ -194,7 +212,7 @@ def main() -> int:
     ap.add_argument("--compare", help="earlier results file to compare against")
     args = ap.parse_args()
 
-    build = subprocess.run(["lake", "build", MODULE], cwd=ROOT, capture_output=True, text=True)
+    build = subprocess.run(["lake", "build", *IMPORTS], cwd=ROOT, capture_output=True, text=True)
     if build.returncode != 0:
         print(build.stdout + build.stderr, file=sys.stderr)
         return 1
@@ -215,7 +233,7 @@ def main() -> int:
 
     print("| workload | k | elaborator ms | kernel ms | total ms | peak MB | speedup |")
     print("|---|---|---|---|---|---|---|")
-    for workload in args.only or WORKLOADS:
+    for workload in args.only or [*WORKLOADS, *CERT_WORKLOADS]:
         for k in args.sizes:
             r = run_case(workload, k, args.tactic, args.repeats, args.timeout,
                          lean, env, args.mem)

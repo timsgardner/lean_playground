@@ -44,12 +44,13 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | `finite.lean` | The computational view: `arrow`, `FinShape`, `ofList`, decidable membership, `Path.edges`. |
 | `decide.lean` | Decision procedures: `ReachIn`, `AcyclicOn`, obligations and minimality, `Shared`, `Chain`; rank and closed-set certificates. |
 | `search.lean` | Chase scripts on edge lists, `replay` with its soundness theorem, and a breadth-first chase search checked by replay. |
+| `tactics.lean` | Certificate checks (`rankCheck`, `fenceCheck`, `replayCheck`) and the tactics that find certificates with compiled code: `diagram_acyclic`, `diagram_unreachable`, `find_chase`. |
 | `examples.lean` | The five-object undercount example and Riehl's rectangle. |
 
 `core` is imported by everything. `extend`, `paste`, `chase` and `finite` each
 import only `core`; `chase_growth` imports `extend`, `paste` and `chase`, and
-`decide` imports `finite`, `extend` and `paste`, and `search` imports `chase` and
-`finite`.
+`decide` imports `finite`, `extend` and `paste`; `search` imports `chase` and
+`finite`; and `tactics` imports `decide` and `search`.
 
 ## Main results
 
@@ -129,34 +130,51 @@ answer by replay. Only the check is trusted: `eq_of_chaseCheck` turns
   `RectExample.H`. A diagram on it is built by pattern matching, which keeps its
   arrows readable in goals (`G.map .f` reduces to `f`).
 
-## Complexity
+## Complexity and certificates
 
-The decision procedures in `decide.lean` run in the kernel, whose evaluator
-rewrites terms lazily. Two lessons from making them usable:
+Proofs by `decide` make the kernel run a decision procedure by rewriting terms. The
+procedures in `decide.lean` are written for that evaluator: reachability runs on
+vertex indices (`NumShape`) with the visited set as a bitmask (bitwise arithmetic
+on number literals is native in the kernel), a stack as worklist, and vertices
+recovered from indices so that computed values never pile up as expressions.
 
-* Computed values must not pile up as unevaluated expressions. Reachability
-  therefore runs on vertex indices (`NumShape`), keeps the visited set as a
-  bitmask (bitwise arithmetic on number literals is native in the kernel), uses a
-  stack rather than an appended queue, and recovers vertices from indices.
-* Each bounded quantifier or implication that `decide` unfolds costs on the order
-  of a millisecond, so procedures should not check something for every pair of
-  vertices.
+For larger shapes, the tactics in `tactics.lean` split the work. They find a
+*certificate* with compiled code, and the kernel only checks it, in one pass over
+the arrows (via `decide +kernel`):
 
-On the benchmark grids (`bench/grid.lean`, `bench/bench.py`), reachability on 81
-vertices takes about 0.4 s and on 1089 vertices about 6 s; minimal obligations
-and the chain condition are of the same order. Acyclicity runs one search per
-arrow and is still slow beyond a few dozen vertices; the rank certificate
-(`acyclicOn_of_rank`) is the cheap route there. The chase search is exponential
-in the worst case and still runs inside the kernel.
+| Goal | Certificate | Tactic |
+|---|---|---|
+| `AcyclicOn S` | a rank per vertex, packed into one number | `diagram_acyclic` |
+| `¬ ReachIn S v u` | a fence: a closed bitmask containing `v` but not `u` | `diagram_unreachable` |
+| `Nonempty (Chase faces p q)` | a chase script, checked by replay | `find_chase` |
+
+A wrong certificate makes the check fail; it can never give a false proof. The
+proofs use only the standard axioms.
+
+Measured on the benchmark grids (`bench/`), with `k` squares per side:
+
+| Workload | 81 vertices | 1089 vertices |
+|---|---|---|
+| reachability, `decide` | 0.4 s | 6 s |
+| acyclicity, `diagram_acyclic` | 0.08 s | 1.1 s |
+| non-reachability, `diagram_unreachable` | 0.1 s | 1.2 s |
+| chase search, `find_chase` | 2.9 s | — |
+
+The chase search remains exponential: it explores the paths reachable from `p` by
+face rewrites, which on a grid is every corner-to-corner path (12,870 at `k = 8`).
+Its replay in the kernel is cheap (0.7 s at `k = 8`); the search itself runs in
+Lean's interpreter, since tactic code from imported modules is not compiled to
+native code. Checking a large diagram should go through the growth theorems,
+which need only local chases, one per obligation.
 
 `bench/bench.py` times the workloads under hard wall-clock and memory limits.
 
 ## Not yet done
 
-- A tactic front end: reify a goal stated in a diagram's own morphisms into two
-  paths, run the search at the meta level rather than in the kernel, and rewrite
-  inside goals rather than only closing them. The kernel-side pieces (scripts,
-  replay, soundness) are in place.
+- A tactic front end that reifies a goal stated in a diagram's own morphisms into
+  two paths, and rewrites inside goals rather than only closing them.
+- Local chase search through the growth theorems, and faster global search
+  (bidirectional, or native compilation of the search code).
 - Drawing a recorded chase in the infoview, one step at a time.
 - Riehl's remaining §1.6 moves as theorems: inverting isomorphisms (1.6.12–13),
   initial and terminal objects (1.6.17), mono and epi cancellation (1.6.22).

@@ -14,7 +14,7 @@ Worked examples for the diagrams framework.
 import LeanPlayground.diagrams.extend
 import LeanPlayground.diagrams.chase
 import LeanPlayground.diagrams.decide
-import LeanPlayground.diagrams.search
+import LeanPlayground.diagrams.tactics
 
 open CategoryTheory Quiver
 
@@ -123,6 +123,11 @@ example (a b : K) : IsMinObligation oldArrows K.u K.v a b ↔
 
 /-- The old arrows are acyclic, and the new arrow closes no cycle. -/
 example : AcyclicOn oldArrows ∧ ¬ ReachIn oldArrows K.v K.u := by decide
+
+/-- The same facts by certificate: a rank for each vertex, and a fence around
+everything reachable from `v`. -/
+example : AcyclicOn oldArrows := by diagram_acyclic
+example : ¬ ReachIn oldArrows K.v K.u := by diagram_unreachable
 
 /-- There is a diagram of shape `K`, commuting on the old arrows, for which the
 equations at `(u, t)` and `(u, y)` hold, yet the whole diagram does not
@@ -253,6 +258,12 @@ example : chaseCheck squares [.L, .R] 3 (H.f.path.comp (H.j.path.comp H.l.path))
 rectangle: the outer equation needs both faces. -/
 example : chaseCheck squares [.L] 3 (H.f.path.comp (H.j.path.comp H.l.path))
     (H.g.path.comp (H.k.path.comp H.m.path)) = false := by decide
+
+/-- The search run as compiled code by the `find_chase` tactic, with only the
+replay of its script checked by the kernel. -/
+example : Nonempty (Chase squares (H.f.path.comp (H.j.path.comp H.l.path))
+    (H.g.path.comp (H.k.path.comp H.m.path))) := by
+  find_chase [Cell.L, Cell.R] 100
 
 /-- Riehl's rectangle again, with the chase found by search rather than written
 by hand. -/

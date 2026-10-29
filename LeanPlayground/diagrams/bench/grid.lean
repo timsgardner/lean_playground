@@ -207,4 +207,29 @@ def searchBench (k : ℕ) : Bool :=
   (bfs square (cells (k + 1) (k + 1)) (origin k) (leftBottom k) (k * k + 1)
     [(topRight k, [])] [topRight k]).isSome
 
+/-- `(0, 1)` cannot reach `(1, 0)`; the fence is every vertex in column `≥ 1`. -/
+def topSecond (k : ℕ) : Grid (k + 2) (k + 2) := (0, 1)
+def leftSecond (k : ℕ) : Grid (k + 2) (k + 2) := (1, 0)
+
+/-- Unreachability, with a fence of about half the grid. -/
+abbrev unreachBench (k : ℕ) : Prop :=
+  ¬ ReachIn (⊤ : Subshape (Grid (k + 2) (k + 2))) (topSecond k) (leftSecond k)
+
+/-- The walk from `a` in the directions `ds`, as a path, stopping at the edge of the
+grid. -/
+def walkPath : (a : Grid m n) → List Dir → (b : Grid m n) × Path a b
+  | a, [] => ⟨a, .nil⟩
+  | a, d :: ds =>
+    match h : next d a with
+    | some b =>
+      let r := walkPath b ds
+      ⟨r.1, (Quiver.Hom.toPath (V := Grid m n) (⟨d, h⟩ : a ⟶ b)).comp r.2⟩
+    | none => ⟨a, .nil⟩
+
+/-- The directions along the top and down the right side. -/
+def topDirs (k : ℕ) : List Dir := List.replicate k .right ++ List.replicate k .down
+
+/-- The directions down the left side and along the bottom. -/
+def leftDirs (k : ℕ) : List Dir := List.replicate k .down ++ List.replicate k .right
+
 end Diagrams.Bench

@@ -132,23 +132,36 @@ theorem chase_of_replay {a b : W} {p q : Path a b} {ss : List (ChaseStep Φ)}
   obtain ⟨q', hq', hc⟩ := replay_sound ss h
   rwa [Path.eq_of_edges hq'] at hc
 
-/-! ## Breadth-first search -/
+/-! ## Breadth-first search
+
+The search reports a script as a list of steps `(k, backward, pos)`, where `k` is
+the position of the face in the list `names` of faces to try. A script of numbers
+can be written into a proof term by a tactic without knowing anything about the
+type of face names; `toSteps` turns it back into a script of `ChaseStep`s.
+-/
+
+/-- A step of a script, with the face given by its position in a list of faces. -/
+abbrev IdxStep : Type := ℕ × Bool × ℕ
+
+/-- The script of `ChaseStep`s that a script of `IdxStep`s denotes, given the list
+of faces its indices refer to. Steps with an index out of range are dropped. -/
+def toSteps (names : List Φ) (steps : List IdxStep) : List (ChaseStep Φ) :=
+  steps.filterMap fun s => (names[s.1]?).map fun φ => ⟨φ, s.2.1, s.2.2⟩
 
 variable (faces)
 
 /-- All steps that fit a path starting at `a` with edges `l`, using the faces in
 `names`, with the edges they produce. -/
 def neighbors (names : List Φ) (a : W) (l : List (Total W)) :
-    List (ChaseStep Φ × List (Total W)) :=
-  names.flatMap fun φ => [false, true].flatMap fun bwd =>
+    List (IdxStep × List (Total W)) :=
+  names.zipIdx.flatMap fun (φ, k) => [false, true].flatMap fun bwd =>
     (List.range (l.length + 1)).filterMap fun n =>
-      (applyStep faces a l ⟨φ, bwd, n⟩).map fun l' => (⟨φ, bwd, n⟩, l')
+      (applyStep faces a l ⟨φ, bwd, n⟩).map fun l' => ((k, bwd, n), l')
 
 /-- Breadth-first search from a frontier of edge lists, each with the reversed
 script that reached it, for `target`, for up to `fuel` rounds. -/
 def bfs (names : List Φ) (a : W) (target : List (Total W)) :
-    ℕ → List (List (Total W) × List (ChaseStep Φ)) → List (List (Total W)) →
-      Option (List (ChaseStep Φ))
+    ℕ → List (List (Total W) × List IdxStep) → List (List (Total W)) → Option (List IdxStep)
   | 0, _, _ => none
   | fuel + 1, frontier, seen =>
     match frontier.find? (·.1 == target) with
@@ -161,24 +174,33 @@ def bfs (names : List Φ) (a : W) (target : List (Total W)) :
 
 /-- Search for a script from `p` to `q`, using the faces in `names`, for up to
 `fuel` rounds. -/
-def findChase (names : List Φ) (fuel : ℕ) {a b : W} (p q : Path a b) :
-    Option (List (ChaseStep Φ)) :=
+def findChase (names : List Φ) (fuel : ℕ) {a b : W} (p q : Path a b) : Option (List IdxStep) :=
   bfs faces names a q.edges fuel [(p.edges, [])] [p.edges]
+
+/-- Check a script from `p` to `q` by replaying it. -/
+def replayCheck (names : List Φ) {a b : W} (p q : Path a b) (steps : List IdxStep) : Bool :=
+  replay faces a p.edges (toSteps names steps) == some q.edges
 
 /-- Search for a script from `p` to `q`, and check the answer by replaying it. -/
 def chaseCheck (names : List Φ) (fuel : ℕ) {a b : W} (p q : Path a b) : Bool :=
   match findChase faces names fuel p q with
-  | some ss => replay faces a p.edges ss == some q.edges
+  | some steps => replayCheck faces names p q steps
   | none => false
 
 variable {faces}
+
+/-- A script that replays correctly gives a chase. This is what a tactic uses after
+finding the script outside the kernel. -/
+theorem chase_of_replayCheck {names : List Φ} {a b : W} {p q : Path a b} {steps : List IdxStep}
+    (h : replayCheck faces names p q steps = true) : Nonempty (Chase faces p q) :=
+  chase_of_replay (beq_iff_eq.1 h)
 
 /-- A successful check gives a chase. -/
 theorem chase_of_chaseCheck {names : List Φ} {fuel : ℕ} {a b : W} {p q : Path a b}
     (h : chaseCheck faces names fuel p q = true) : Nonempty (Chase faces p q) := by
   unfold chaseCheck at h
   split at h
-  · exact chase_of_replay (beq_iff_eq.1 h)
+  · exact chase_of_replayCheck h
   · exact absurd h Bool.false_ne_true
 
 /-- **Search, then replay.** If the faces hold in `G` and the check succeeds, the
