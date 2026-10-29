@@ -227,16 +227,18 @@ which need only local chases, one per obligation.
 The commutativity-by-construction check (`buildOK`) involves no search. It
 carries a reachability bitmask per vertex through the build, so each arrow costs
 bitwise operations on one mask per vertex. A grid of squares declared with
-`diagram_shape`, measured end to end (declaration, instances, face proofs, and
-the kernel check):
+`diagram_shape`, timing the command alone (Lean's startup excluded; measured with
+`Elab.async false` and `trace.profiler`):
 
-| Grid | Arrows | Faces | Total | Kernel check of the build |
-|---|---|---|---|---|
-| 6 × 6 vertices | 60 | 25 | 8 s | 1.1 s |
-| 8 × 8 vertices | 112 | 49 | 21 s | 3.8 s |
+| Grid | Arrows | Faces | Command | Generated instances and definitions | `commutes` theorem |
+|---|---|---|---|---|---|
+| 6 × 6 vertices | 60 | 25 | 7.7 s | 4.4 s | 3.0 s |
+| 8 × 8 vertices | 112 | 49 | 23.3 s | 11.8 s | 10.1 s |
 
-Most of the rest is elaborating the generated instances and proving each face
-hypothesis by `simp`.
+The `commutes` theorem is the kernel check of the build (3.8 s at 8 × 8) and one
+`simp` proof per face hypothesis (3.8 s). The instances are dominated by their
+`decide` proofs over the vertex and arrow lists (`FinShape`, `NumArrows`,
+`OutArrows`).
 
 ## Not yet done
 
