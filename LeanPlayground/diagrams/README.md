@@ -129,6 +129,21 @@ answer by replay. Only the check is trusted: `eq_of_chaseCheck` turns
   `RectExample.H`. A diagram on it is built by pattern matching, which keeps its
   arrows readable in goals (`G.map .f` reduces to `f`).
 
+## Known problem: complexity
+
+**The decision procedures in `decide.lean` and the search in `search.lean` scale
+very badly, and are not fit for anything beyond toy diagrams.** On the benchmark
+grids (`bench/grid.lean`), deciding reachability on a 6 × 6-vertex grid takes
+about 15 seconds and peaks at 2.7 GB of resident memory in the kernel; one size
+larger exceeds 3 GB. Acyclicity and minimal obligations are worse, and the chase
+search grows exponentially. The causes are known: the kernel shares no
+evaluation, so each reachability query rebuilds `Finset`s from scratch, and the
+derived procedures repeat those queries for every pair of vertices. The fixes
+(worklist reachability, per-arrow acyclicity, restricted quantifiers, and
+running the search outside the kernel) are the next piece of work.
+
+`bench/bench.py` times the workloads under hard wall-clock and memory limits.
+
 ## Not yet done
 
 - A tactic front end: reify a goal stated in a diagram's own morphisms into two
