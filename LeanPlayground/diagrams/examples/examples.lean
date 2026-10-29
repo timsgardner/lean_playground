@@ -34,6 +34,8 @@ arrow between `t` and `y`, it borders two regions, which give the obligations
 `(u, t)` and `(u, y)`. But `(s, v)` is a minimal obligation too: the new path
 `s ⟶ u ⟶ v` is parallel to the old arrow `s ⟶ v`. By `isMinObligation_necessary`, the
 two regions alone do not make the diagram commute.
+
+[Diagram](assets/undercount.svg)
 -/
 
 namespace UndercountExample
@@ -162,6 +164,8 @@ end UndercountExample
    a'──────▶ b'──────▶ c'
         k         m
 ```
+
+[Diagram](assets/rectangle.svg)
 -/
 
 namespace RectExample
@@ -317,7 +321,10 @@ example (f : A ⟶ B) (j : B ⟶ E) (g : A ⟶ A') (h : B ⟶ B') (l : E ⟶ E')
 
 end RectExample
 
-/-! ## Declared diagrams -/
+/-! ## Declared diagrams
+
+The rectangle ([Diagram](assets/rectangle.svg)) and the cube
+([Diagram](assets/cube.svg)). -/
 
 diagram_shape Rect where
   arrows (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a') (h : b ⟶ b') (l : c ⟶ c')
@@ -364,7 +371,7 @@ diagram_shape RectInferred where
 -- A square `s ⇉ t` through `a` and `b`, with a vertex `m` inside mapping to both.
 -- The cell `s → a ← m → b ← s` is a zigzag: its boundary is not two parallel paths,
 -- so it asserts nothing. The faces are the cell `m ⇉ t` and the outer square, which
--- the inner cell does not imply.
+-- the inner cell does not imply. [Diagram](assets/zigzag.svg)
 /--
 info: diagram_shape: inferred faces
 h1 : q ≫ y = p ≫ x
@@ -375,7 +382,8 @@ diagram_shape Zigzag where
   arrows (p : s ⟶ a) (q : s ⟶ b) (u : m ⟶ a) (w : m ⟶ b) (x : a ⟶ t) (y : b ⟶ t)
 
 -- In this order, `m` arrives before `h`, so its equation is the outer rectangle,
--- which neither square gives until `h` is present.
+-- which neither square gives until `h` is present. The arrows are numbered in
+-- declared order: [Diagram](assets/rectangle_bad_order.svg)
 /--
 error: diagram_shape: adding m creates the equation
   g ≫ k ≫ m = f ≫ j ≫ l

@@ -48,7 +48,7 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | `construct.lean` | Commutative by construction: builds (arrows added in turn, each with the faces it completes), `buildOK`, `commutesOn_of_build`. |
 | `frontend.lean` | The tactics `diagram_build` (prove `Commutes G` by construction) and `diagram_eq` (read off an equation in the diagram's own morphisms). |
 | `command.lean` | The `diagram_shape` command: declare a shape, its faces, its diagrams, and their commutativity theorem. |
-| `examples.lean` | The five-object undercount example and Riehl's rectangle. |
+| `examples/examples.lean` | Worked examples: the five-object undercount, Riehl's rectangle and cube, inferred faces. Diagrams are in `examples/assets/` (SVG, with tikz-cd source). |
 
 `core` is imported by everything. `extend`, `paste`, `chase` and `finite` each
 import only `core`; `chase_growth` imports `extend`, `paste` and `chase`, and
@@ -89,13 +89,13 @@ for `e` (`obligationHolds_of_face`). `Rect.commutes` is valid when these face
 obligations cover every obligation each arrow creates; the kernel checks that by
 deciding questions about the shape. No chase search is involved. `diagram_eq`
 matches each factor of a composite to an arrow whose image is that morphism,
-turning each side into a path. `examples.lean` declares Riehl's commutative cube
+turning each side into a path. `examples/examples.lean` declares Riehl's commutative cube
 the same way.
 
 A face is an equation assumed between two parallel composites, not a region of a
 drawing. A region whose boundary zigzags (more than one source and sink around
 it) contains no pair of parallel paths and so asserts nothing; `Zigzag` in
-`examples.lean` is such a diagram. Face names are optional: `(f h = g k)` becomes
+`examples/examples.lean` is such a diagram. Face names are optional: `(f h = g k)` becomes
 `face1`, with hypothesis `h1`.
 
 The `faces` block itself is optional. Without it, the faces are inferred: the
