@@ -60,6 +60,20 @@ instance [DecidableEq W] [∀ a b : W, DecidableEq (a ⟶ b)] : DecidableEq (Tot
       else isFalse (by simp [Total.mk.injEq, hb])
     else isFalse (by simp [Total.mk.injEq, ha])
 
+/-- A numbering of the arrows, with a left inverse. It makes equality of arrows a
+comparison of numbers, which the kernel decides quickly; the instance above
+compares vertices and then arrows, transporting along the vertex equalities. -/
+class NumArrows (W : Type u₁) [Quiver.{v₁} W] where
+  /-- The number of an arrow. -/
+  arrowIndex : Total W → ℕ
+  /-- The arrow with a given number. -/
+  arrowAt : ℕ → Total W
+  arrowAt_index (e : Total W) : arrowAt (arrowIndex e) = e
+
+instance (priority := high) [NumArrows W] : DecidableEq (Total W) := fun s t =>
+  decidable_of_iff (NumArrows.arrowIndex s = NumArrows.arrowIndex t)
+    ⟨fun h => by rw [← NumArrows.arrowAt_index s, h, NumArrows.arrowAt_index], congrArg _⟩
+
 /-! ## Finite shapes -/
 
 /-- A finite shape: complete lists of its vertices and arrows. -/

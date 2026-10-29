@@ -224,6 +224,20 @@ which need only local chases, one per obligation.
 
 `bench/bench.py` times the workloads under hard wall-clock and memory limits.
 
+The commutativity-by-construction check (`buildOK`) involves no search. It
+carries a reachability bitmask per vertex through the build, so each arrow costs
+bitwise operations on one mask per vertex. A grid of squares declared with
+`diagram_shape`, measured end to end (declaration, instances, face proofs, and
+the kernel check):
+
+| Grid | Arrows | Faces | Total | Kernel check of the build |
+|---|---|---|---|---|
+| 6 × 6 vertices | 60 | 25 | 8 s | 1.1 s |
+| 8 × 8 vertices | 112 | 49 | 21 s | 3.8 s |
+
+Most of the rest is elaborating the generated instances and proving each face
+hypothesis by `simp`.
+
 ## Not yet done
 
 - `diagram_eq` for subshapes (`CommutesOn`), for sides that are identities, and

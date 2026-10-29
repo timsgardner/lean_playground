@@ -43,6 +43,7 @@ def buildData (faces : List (Face W)) : List (ℕ × ℕ) × List (List ℕ × L
   ((FinShape.arrows : List (Total W)).map fun e => (NumShape.index e.left, NumShape.index e.right),
     faces.map fun φ => (φ.lhs.edges.map arrowIdx, φ.rhs.edges.map arrowIdx))
 
+omit [OutArrows W] [Fintype W] [DecidableEq W] in
 /-- **Commutative by construction, from an order.** -/
 theorem commutes_of_order {faces : List (Face W)} (hF : ∀ φ ∈ faces, φ.Holds G)
     (order : List ℕ) (uses : List (List FaceUse))

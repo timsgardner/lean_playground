@@ -88,18 +88,30 @@ def pathsFrom (n : ℕ) (ends : Array (ℕ × ℕ)) (prior : List ℕ) (x : ℕ)
 
 /-- The minimal obligations of adding arrow `k` to the arrows `prior`, as
 `(x, y, lhs, rhs)` with `lhs = α ++ [k] ++ β` and `rhs = γ`, and `reach a b`, a path
-from `a` to `b` within `prior`. -/
+from `a` to `b` within `prior`.
+
+If the source `u` of `k` already reaches its target `v`, the only minimal
+obligation is `(u, v)`: every other lies above it. Otherwise an obligation `(x, y)`
+is minimal when neither end can move inwards on its own; if some obligation lies
+strictly below `(x, y)`, so does one with a single end moved. -/
 def obligations (n : ℕ) (ends : Array (ℕ × ℕ)) (prior : List ℕ) (k : ℕ) :
     (ℕ → ℕ → Option (List ℕ)) × List (ℕ × ℕ × List ℕ × List ℕ) :=
   let paths := (List.range n).toArray.map (pathsFrom n ends prior)
   let reach (a b : ℕ) := paths[a]![b]!
   let (u, v) := ends[k]!
-  let obl := (List.range n).flatMap fun x => (List.range n).filterMap fun y =>
-    match reach x u, reach v y, reach x y with
-    | some α, some β, some γ => some (x, y, α ++ [k] ++ β, γ)
-    | _, _, _ => none
-  (reach, obl.filter fun (x, y, _) => obl.all fun (x₀, y₀, _) =>
-    (reach x x₀).isNone || (reach y₀ y).isNone || (x₀ == x && y₀ == y))
+  match reach u v with
+  | some γ => (reach, [(u, v, [k], γ)])
+  | none =>
+    let isObl (x y : ℕ) := (reach x u).isSome && (reach v y).isSome && (reach x y).isSome
+    let isMin (x y : ℕ) := isObl x y &&
+      (List.range n).all (fun x₀ => x₀ == x || (reach x x₀).isNone || !isObl x₀ y) &&
+      (List.range n).all (fun y₀ => y₀ == y || (reach y₀ y).isNone || !isObl x y₀)
+    (reach, (List.range n).flatMap fun x => (List.range n).filterMap fun y =>
+      if isMin x y then
+        match reach x u, reach v y, reach x y with
+        | some α, some β, some γ => some (x, y, α ++ [k] ++ β, γ)
+        | _, _, _ => none
+      else none)
 
 end Declare
 
@@ -136,6 +148,17 @@ elab_rules : command
     -- Finite-shape instances.
     let verts := objs.map vertex
     let arrowTerms ← arrowsData.mapM fun (f, _, _) => `(arrow $(arrowName f))
+    let idxId := qual ns `Hom.idx
+    let idxAlts ← (arrowsData.zipIdx).mapM fun ((f, _, _), i) =>
+      `(Lean.Parser.Term.matchAltExpr| | $(arrowName f) => $(Syntax.mkNumLit (toString i)))
+    elabCommand (← `(/-- The position of an arrow in the declaration. -/
+      def $idxId {x y : $N} (e : $Hom x y) : ℕ := match e with $idxAlts:matchAlt*))
+    let atAlts ← (arrowTerms.zipIdx).mapM fun (t, i) =>
+      `(Lean.Parser.Term.matchAltExpr| | $(Syntax.mkNumLit (toString i)) => $t)
+    elabCommand (← `(instance : NumArrows $N where
+      arrowIndex e := $idxId e.hom
+      arrowAt i := match i with $atAlts:matchAlt* | _ => $(arrowTerms.back!)
+      arrowAt_index := fun ⟨_, _, e⟩ => by cases e <;> rfl))
     elabCommand (← `(instance : FinShape $N where
       vertices := [$verts,*]
       mem_vertices x := by cases x <;> decide
@@ -254,11 +277,11 @@ elab_rules : command
       let lhsT ← liftMacroM <| compTerm (lhs.map arrowId)
       let rhsT ← liftMacroM <| compTerm (rhs.map arrowId)
       `(bracketedBinder| ($h : $lhsT = $rhsT))
-    let attempts ← facesData.mapM fun (_, h, _) =>
-      `(Lean.Parser.Tactic.tacticSeq| simpa [Diagrams.Face.Holds, $faceId:ident, $pathId:ident, $diagramId:ident]
-          using $h)
-    let faceTac ← if attempts.isEmpty then `(tactic| cases n)
-      else `(tactic| cases n <;> first $[| $attempts]*)
+    -- Each face case is proved by its own hypothesis.
+    let caseTacs ← facesData.mapM fun (n, h, _) =>
+      `(tactic| case $(mkIdent n):ident =>
+        simpa [Diagrams.Face.Holds, $faceId:ident, $pathId:ident, $diagramId:ident] using $h)
+    let faceTac ← `(tactic| (cases n; $[$caseTacs]*))
     -- The build: arrows in declared order, each with the faces it completes.
     let mut usesTerms : Array Term := #[]
     for k in [0:arrowsData.size] do
