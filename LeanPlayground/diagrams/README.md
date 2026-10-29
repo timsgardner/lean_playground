@@ -92,6 +92,21 @@ matches each factor of a composite to an arrow whose image is that morphism,
 turning each side into a path. `examples.lean` declares Riehl's commutative cube
 the same way.
 
+A face is an equation assumed between two parallel composites, not a region of a
+drawing. A region whose boundary zigzags (more than one source and sink around
+it) contains no pair of parallel paths and so asserts nothing; `Zigzag` in
+`examples.lean` is such a diagram. Face names are optional: `(f h = g k)` becomes
+`face1`, with hypothesis `h1`.
+
+The `faces` block itself is optional. Without it, the faces are inferred: the
+arrows are added in declared order, the minimal obligations of each become the
+faces, and the command reports them. By `isMinObligation_necessary`, no smaller
+set of equations makes the diagram commute when built in that order. For the
+rectangle and the cube, the inferred faces are the squares.
+
+When declared faces do not cover some obligation, the command names the first
+equation left uncovered and the arrow that created it.
+
 ## Main results
 
 **Basic facts** (`core`):
@@ -214,7 +229,7 @@ which need only local chases, one per obligation.
 - `diagram_eq` for subshapes (`CommutesOn`), for sides that are identities, and
   for rewriting inside a goal rather than closing it.
 - Choosing a different arrow order when the declared order leaves an obligation
-  uncovered, and reporting which obligation it was.
+  uncovered (the uncovered equation is reported, but the order is not changed).
 - Local chase search through the growth theorems, and faster global search
   (bidirectional, or native compilation of the search code).
 - Drawing a recorded chase in the infoview, one step at a time.

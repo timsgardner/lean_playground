@@ -345,4 +345,52 @@ example {D : Type*} [Category D] {o X Y Z XY XZ YZ T : D}
     x₁ ≫ y₂ ≫ z₄ = z₁ ≫ y₃ ≫ x₄ := by
   diagram_eq (Cube.commutes x₁ y₁ z₁ y₂ z₂ x₂ z₃ x₃ y₃ z₄ y₄ x₄ hBot hFr hLt hTop hBk hRt)
 
+/-! ### Inferred faces
+
+Without a `faces` block, `diagram_shape` infers the faces, as the minimal
+obligations of adding the arrows in declared order. -/
+
+-- The rectangle again: the inferred faces are its two squares.
+/--
+info: diagram_shape: inferred faces
+h1 : g ≫ k = f ≫ h
+h2 : h ≫ m = j ≫ l
+-/
+#guard_msgs in
+diagram_shape RectInferred where
+  arrows (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a') (h : b ⟶ b') (l : c ⟶ c')
+    (k : a' ⟶ b') (m : b' ⟶ c')
+
+-- A square `s ⇉ t` through `a` and `b`, with a vertex `m` inside mapping to both.
+-- The cell `s → a ← m → b ← s` is a zigzag: its boundary is not two parallel paths,
+-- so it asserts nothing. The faces are the cell `m ⇉ t` and the outer square, which
+-- the inner cell does not imply.
+/--
+info: diagram_shape: inferred faces
+h1 : q ≫ y = p ≫ x
+h2 : w ≫ y = u ≫ x
+-/
+#guard_msgs in
+diagram_shape Zigzag where
+  arrows (p : s ⟶ a) (q : s ⟶ b) (u : m ⟶ a) (w : m ⟶ b) (x : a ⟶ t) (y : b ⟶ t)
+
+-- In this order, `m` arrives before `h`, so its equation is the outer rectangle,
+-- which neither square gives until `h` is present.
+/--
+error: diagram_shape: adding m creates the equation
+  g ≫ k ≫ m = f ≫ j ≫ l
+which no face it completes covers. Either the faces do not imply it, so it must be added as a face, or the faces that imply it contain arrows declared after m, and another order of the arrows avoids it.
+-/
+#guard_msgs in
+diagram_shape RectBadOrder where
+  arrows (f : a ⟶ b) (j : b ⟶ c) (l : c ⟶ c') (g : a ⟶ a') (k : a' ⟶ b') (m : b' ⟶ c')
+    (h : b ⟶ b')
+  faces (L : f h = g k) (R : j l = h m)
+
+-- The cube, with faces inferred.
+diagram_shape CubeInferred where
+  arrows (x₁ : o ⟶ X) (y₁ : o ⟶ Y) (z₁ : o ⟶ Z)
+    (y₂ : X ⟶ XY) (z₂ : X ⟶ XZ) (x₂ : Y ⟶ XY) (z₃ : Y ⟶ YZ) (x₃ : Z ⟶ XZ) (y₃ : Z ⟶ YZ)
+    (z₄ : XY ⟶ T) (y₄ : XZ ⟶ T) (x₄ : YZ ⟶ T)
+
 end Diagrams
