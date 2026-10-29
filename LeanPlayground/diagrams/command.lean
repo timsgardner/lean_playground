@@ -190,8 +190,13 @@ elab_rules : command
     let (found, exhaustive) := shape.searchOrder faceArr
     let some buildOrder := found
       | if !exhaustive then
+          let witness := match shape.explainFailure faceArr with
+            | some (k, (l, r)) => s!" For example, in the most direct order, adding \
+                {arrowsData[k]!.1.getId} closes the cell\n  {showSide l} = {showSide r}\n\
+                which no face covers."
+            | none => ""
           throwError "diagram_shape: no order of the arrows in which the faces cover every \
-            cell was found within the search budget"
+            cell was found within the search budget.{witness}"
         match shape.explainFailure faceArr with
         | some (k, (l, r)) => throwError "diagram_shape: the faces do not cover every cell, \
             in any order of the arrows. For example, adding {arrowsData[k]!.1.getId} closes \
