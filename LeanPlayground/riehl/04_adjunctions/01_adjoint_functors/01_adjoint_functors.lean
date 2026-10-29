@@ -8,6 +8,7 @@ import Mathlib.CategoryTheory.Types.Basic
 import Mathlib.Algebra.Order.Floor.Defs
 import Mathlib.Data.Set.Lattice.Image
 import LeanPlayground.Scratch.category_kindergarten.common_tools
+import LeanPlayground.Scratch.category_kindergarten.diagram_tools
 
 open CategoryTheory Opposite
 open scoped CategoryKindergarten
@@ -16,6 +17,10 @@ open scoped CategoryKindergarten
 -- set_option pp.proofs true          -- print proof terms instead of ⋯
 set_option pp.deepTerms true       -- don't elide deeply nested subterms
 set_option linter.unusedTactic false
+
+-- Shift-click a hypothesis or goal in the infoview to draw it as a diagram;
+-- see `diagram_tools` for the available presenters.
+show_panel_widgets [local ProofWidgets.SelectionPanel]
 
 universe v₁ v₂ u₁ u₂
 
@@ -252,12 +257,30 @@ In the notation of the exercises below, the data are morphisms `h : c ⟶ c'` in
 `𝒞` and `k : d ⟶ d'` in `𝒟`, together with `f : F.obj c ⟶ d` and
 `g : F.obj c' ⟶ d'`, whose transposes are `f♭ : c ⟶ G.obj d` and
 `g♭ : c' ⟶ G.obj d'`. The square in `𝒟` has `f` on top, `F.map h` on the left,
-`k` on the right, and `g` on the bottom, so it commutes when
-`f ≫ k = F.map h ≫ g`. The transposed square in `𝒞` has `f♭` on top, `h` on
-the left, `G.map k` on the right, and `g♭` on the bottom, so it commutes when
-`f♭ ≫ G.map k = h ≫ g♭`.
+`k` on the right, and `g` on the bottom. The transposed square in `𝒞` has `f♭`
+on top, `h` on the left, `G.map k` on the right, and `g♭` on the bottom.
 
 [Diagram](assets/transposed_squares.svg)
+
+The statements below record these squares with Mathlib's `CommSq`. The
+proposition `CommSq top left right bottom` says that the square with those four
+sides commutes, and its arguments are listed in exactly that order. So the
+square in `𝒟` is `CommSq f (F.map h) k g`, and the transposed square in `𝒞` is
+`CommSq f♭ h (G.map k) g♭`. A `CommSq` is a structure with a single field `w`,
+the equation `top ≫ right = left ≫ bottom`:
+
+- from `sq : CommSq f (F.map h) k g`, the term `sq.w` is the equation
+  `f ≫ k = F.map h ≫ g`;
+- to prove a `CommSq`, use `refine ⟨?_⟩`, which leaves that equation as the
+  goal, or write `⟨w⟩` for a proof `w` of the equation (`constructor` also
+  works, but it wraps the goal in an `autoParam` that clutters the display);
+- a square that commutes for trivial reasons, for instance because one side is
+  an identity, can often be proved by `{}`, since the field `w` defaults to the
+  tactic `cat_disch`.
+
+In the infoview, shift-click the type of a `CommSq` hypothesis or goal and
+choose "CommSq diagram" to see it drawn as a square. An equation of the form
+`a ≫ b = c ≫ d` can be drawn the same way with "Commutative square".
 
 Riehl leaves the proof as Exercise 4.1.i. Exercise 1 proves the forward
 direction: if the bijections are natural, then the squares correspond. Exercise
@@ -268,31 +291,37 @@ derive it from the two naturality equations.
 
 /-
 Exercise 1a. If the square in `𝒟` commutes, then so does the transposed square
-in `𝒞`. Rewrite the composites `f♭ ≫ G.map k` and `h ≫ g♭` as transposes of
-composites in `𝒟`, using the two naturality lemmas from right to left.
+in `𝒞`. After `refine ⟨?_⟩`, rewrite the composites `f♭ ≫ G.map k` and
+`h ≫ g♭` as transposes of composites in `𝒟`, using the two naturality lemmas
+from right to left.
+
+Mathlib's version is `CommSq.right_adjoint`, stated for an adjunction `G ⊣ F`
+with the letters exchanged.
 -/
 example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d d' : 𝒟}
     (h : c ⟶ c') (k : d ⟶ d') (f : F.obj c ⟶ d) (g : F.obj c' ⟶ d')
-    (w : f ≫ k = F.map h ≫ g) :
-    f ♭[adj] ≫ G.map k = h ≫ g ♭[adj] := by
+    (sq : CommSq f (F.map h) k g) :
+    CommSq (f ♭[adj]) h (G.map k) (g ♭[adj]) := by
+  refine ⟨?_⟩
   have h2 := adj.homEquiv_naturality_right f k
   have h3 := adj.homEquiv_naturality_left h g
-  rw [← h2, ← h3, w]
+  rw [← h2, ← h3, sq.w]
 
 /-
 Exercise 1b. Conversely, if the transposed square in `𝒞` commutes, then so does
-the square in `𝒟`. Both sides of the goal are morphisms `F.obj c ⟶ d'`, so it
-suffices to show that their transposes agree. Begin with
-`apply (adj.homEquiv c d').injective`.
+the square in `𝒟`. After `refine ⟨?_⟩`, both sides of the goal are morphisms
+`F.obj c ⟶ d'`, so it suffices to show that their transposes agree. Continue
+with `apply (adj.homEquiv c d').injective`.
 -/
 example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d d' : 𝒟}
     (h : c ⟶ c') (k : d ⟶ d') (f : F.obj c ⟶ d) (g : F.obj c' ⟶ d')
-    (w : f ♭[adj] ≫ G.map k = h ≫ g ♭[adj]) :
-    f ≫ k = F.map h ≫ g := by
+    (sq : CommSq (f ♭[adj]) h (G.map k) (g ♭[adj])) :
+    CommSq f (F.map h) k g := by
+  refine ⟨?_⟩
   apply (adj.homEquiv c d').injective
   calc
     (f ≫ k)♭[adj] = f ♭[adj] ≫ G.map k := by exact adj.homEquiv_naturality_right f k
-    _ = h ≫ g ♭[adj] := by exact w
+    _ = h ≫ g ♭[adj] := by exact sq.w
     _ = (F.map h ≫ g)♭[adj] := by exact (adj.homEquiv_naturality_left h g).symm
 
 /-
@@ -304,36 +333,52 @@ is to show that `e` is natural in both variables, and hence defines an
 adjunction.
 
 The idea in both parts is to choose a square in which one side is an identity.
-For naturality in `𝒟` (4a), take `h := 𝟙 c` and `g := f ≫ k`. The square in
+For naturality in `𝒟` (2a), take `h := 𝟙 c` and `g := f ≫ k`. The square in
 `𝒟` then commutes for trivial reasons, so `hsq` makes the transposed square
 commute, and that square is the naturality equation up to an identity. For
-naturality in `𝒞` (4b), take `k := 𝟙 d` and work from the `𝒞` side instead.
+naturality in `𝒞` (2b), take `k := 𝟙 d` and work from the `𝒞` side instead.
 
-To use `hsq`, write `have := (hsq h k f g).mp ?_` (or `.mpr`) with the
-morphisms you have chosen, and prove the trivial square with `simp`.
+To use `hsq`, write `have := (hsq h k f g).mp {}` (or `.mpr`) with the
+morphisms you have chosen. Here `{}` proves the trivial square; if `cat_disch`
+cannot close it, write `⟨by simp⟩` instead. The result is a `CommSq`, and
+`this.w` is its equation.
 -/
 section Squares
 
 variable {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (e : ∀ c d, (F.obj c ⟶ d) ≃ (c ⟶ G.obj d))
   (hsq : ∀ {c c' : 𝒞} {d d' : 𝒟} (h : c ⟶ c') (k : d ⟶ d')
     (f : F.obj c ⟶ d) (g : F.obj c' ⟶ d'),
-    f ≫ k = F.map h ≫ g ↔ e c d f ≫ G.map k = h ≫ e c' d' g)
+    CommSq f (F.map h) k g ↔ CommSq (e c d f) h (G.map k) (e c' d' g))
 include hsq
 
--- Exercise 2a: naturality in `𝒟`, the field `homEquiv_naturality_right`.
+/-
+Exercise 2a. The bijections `e` are natural in `𝒟`. For a morphism
+`f : F.obj c ⟶ d` and a morphism `k : d ⟶ d'` in `𝒟`, the transpose of the
+composite `f ≫ k` is the transpose of `f` followed by `G.map k`. This equation
+is the field `homEquiv_naturality_right` of `Adjunction.CoreHomEquiv`.
+-/
 theorem nat_right_of_squares {c : 𝒞} {d d' : 𝒟} (f : F.obj c ⟶ d) (k : d ⟶ d') :
     e c d' (f ≫ k) = e c d f ≫ G.map k := by
-  sorry
+  have h := (hsq (h := 𝟙 c) (g := f ≫ k) k f |>.mp {}).w
+  simp at h
+  exact h.symm
 
--- Exercise 2b: naturality in `𝒞` for the inverse, the field
--- `homEquiv_naturality_left_symm`.
+/-
+Exercise 2b. The inverse bijections `(e c d).symm` are natural in `𝒞`. For a
+morphism `h : c' ⟶ c` in `𝒞` and a morphism `g : c ⟶ G.obj d`, the inverse
+transpose of the composite `h ≫ g` is `F.map h` followed by the inverse
+transpose of `g`. This equation is the field `homEquiv_naturality_left_symm` of
+`Adjunction.CoreHomEquiv`.
+-/
 theorem nat_left_symm_of_squares {c' c : 𝒞} {d : 𝒟} (h : c' ⟶ c) (g : c ⟶ G.obj d) :
     (e c' d).symm (h ≫ g) = F.map h ≫ (e c d).symm g := by
   sorry
 
 /-
-Exercise 2c. Assemble an adjunction from `e`, using `Adjunction.mkOfHomEquiv`
-and a `CoreHomEquiv` whose three fields are `e` and the results of 2a and 2b.
+Exercise 2c. The functor `F` is left adjoint to `G`, by an adjunction whose
+bijections on hom-sets are the given `e`. Assemble it using
+`Adjunction.mkOfHomEquiv` and a `CoreHomEquiv` whose three fields are `e` and
+the results of 2a and 2b.
 -/
 def adjOfSquares : F ⊣ G :=
   sorry
@@ -360,33 +405,43 @@ morphism is a proof of `x ≤ y`, packaged so that it lives in `Type`. A monoton
 function `l` with proof `hl : Monotone l` becomes a functor `hl.functor`, whose
 action on objects is `l` itself.
 
-(P) Warm-ups on preorder categories. `homOfLE h` (or `h.hom`) turns
-`h : x ≤ y` into a morphism `x ⟶ y`, and `leOfHom f` (or `f.le`) turns a
-morphism `f : x ⟶ y` back into `x ≤ y`. Any two morphisms `x ⟶ y` are equal,
-because a proposition has at most one proof; the instance is
-`CategoryTheory.Preorder.subsingleton_hom`, and `Subsingleton.elim` uses it.
+(P) Warm-ups on preorder categories. Each of the four facts below is used in
+Exercise 3.
 -/
 section Preorders
 
 variable {X : Type*} [Preorder X]
 
+-- (P1) A proof of `x ≤ y` gives a morphism `x ⟶ y`. Use `homOfLE h`, or its
+-- dot-notation form `h.hom`.
 example {x y : X} (h : x ≤ y) : x ⟶ y := by
   sorry
 
+-- (P2) Conversely, a morphism `x ⟶ y` gives a proof of `x ≤ y`. Use
+-- `leOfHom f`, or its dot-notation form `f.le`.
 example {x y : X} (f : x ⟶ y) : x ≤ y := by
   sorry
 
+-- (P3) Any two morphisms `x ⟶ y` in a preorder are equal, because a
+-- proposition has at most one proof. The instance behind this is
+-- `CategoryTheory.Preorder.subsingleton_hom`, and `Subsingleton.elim` uses it.
 example {x y : X} (f g : x ⟶ y) : f = g := by
   sorry
 
+-- (P4) The functor `hl.functor` built from a monotone function `l` acts on
+-- objects as `l` itself, and this holds by definition.
 example {l : X → X} (hl : Monotone l) (x : X) : hl.functor.obj x = l x := by
   sorry
 
 end Preorders
 
 /-
-Exercise 3. A Galois connection is an adjunction in the sense of Definition
-4.1.1. Build the adjunction with `Adjunction.mkOfHomEquiv`. You only need to
+Exercise 3. Every Galois connection is an adjunction in the sense of Definition
+4.1.1. Precisely, if `l : X → Y` and `u : Y → X` form a Galois connection
+`gc`, then the functor `gc.monotone_l.functor : X ⥤ Y` induced by `l` is left
+adjoint to the functor `gc.monotone_u.functor : Y ⥤ X` induced by `u`.
+
+Build the adjunction with `Adjunction.mkOfHomEquiv`. You only need to
 supply the field `homEquiv`, a bijection `(l x ⟶ y) ≃ (x ⟶ u y)` for each `x`
 and `y`: its two directions come from `gc.le_u` and `gc.l_le`, and its two
 round-trip conditions hold because all morphisms with the same domain and
