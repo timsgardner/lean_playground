@@ -29,9 +29,11 @@ universe v₂ u₂
 /-! ## An example where a drawing undercounts
 
 Take objects `s, u, v, t, y` with arrows `s ⟶ u`, `s ⟶ v`, `u ⟶ t`, `v ⟶ t`,
-`u ⟶ y`, `v ⟶ y`, and add a new arrow `u ⟶ v`. Drawn in the plane with the new
-arrow between `t` and `y`, it borders two regions, which give the obligations
-`(u, t)` and `(u, y)`. But `(s, v)` is a minimal obligation too: the new path
+`u ⟶ y`, `v ⟶ y`, and add a new arrow `u ⟶ v`. In the drawing below, `u` sits
+above `v`, with `t` to the left and `y` to the right, so the new arrow runs down
+the middle and borders two regions: the triangle `u ⟶ t ⟵ v` on its left and
+the triangle `u ⟶ y ⟵ v` on its right. These give the obligations `(u, t)` and
+`(u, y)`. But `(s, v)` is a minimal obligation too: the new path
 `s ⟶ u ⟶ v` is parallel to the old arrow `s ⟶ v`. By `isMinObligation_necessary`, the
 two regions alone do not make the diagram commute.
 
