@@ -162,14 +162,26 @@ example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d
   adj.homEquiv_naturality_left h f
 
 /-
-Look at the fields of `CoreHomEquiv` printed above. Naturality in `𝒟` appears as
-`homEquiv_naturality_right`, in the form just shown. Naturality in `𝒞`, however,
-appears as `homEquiv_naturality_left_symm`, which states it for the inverse
-bijection: the morphism `h ≫ g : c' ⟶ G d` transposes to `F.map h ≫ g♯`, where
-`g♯ := (homEquiv c d).symm g`. Because each `homEquiv c d` is a bijection, a
-naturality equation for the bijection and the same equation for its inverse
-say the same thing. Exercises 1 and 2 make this precise, and the warm-ups
-below practice the `Equiv` API on its own first.
+The four naturality equations. For `adj : F ⊣ G`, Mathlib states naturality in
+each variable twice, once for the bijection `adj.homEquiv` and once for its
+inverse. Writing `f` for a morphism `F c ⟶ d` playing the role of `f♯`, and `g`
+for a morphism `c ⟶ G d` playing the role of `g♭`, they are:
+
+* `adj.homEquiv_naturality_left h f`: the transpose of `f♯ · F h` is `f♭ · h`,
+  that is, `adj.homEquiv c' d (F.map h ≫ f) = h ≫ adj.homEquiv c d f`.
+* `adj.homEquiv_naturality_right f k`: the transpose of `k · f♯` is `G k · f♭`,
+  that is, `adj.homEquiv c d' (f ≫ k) = adj.homEquiv c d f ≫ G.map k`.
+* `adj.homEquiv_naturality_left_symm h g`: the transpose of `g♭ · h` is
+  `g♯ · F h`, that is,
+  `(adj.homEquiv c' d).symm (h ≫ g) = F.map h ≫ (adj.homEquiv c d).symm g`.
+* `adj.homEquiv_naturality_right_symm g k`: the transpose of `G k · g♭` is
+  `k · g♯`, that is,
+  `(adj.homEquiv c d').symm (g ≫ G.map k) = (adj.homEquiv c d).symm g ≫ k`.
+
+Because each `adj.homEquiv c d` is a bijection, the `_symm` form of each
+equation says the same thing as the plain form, so in a proof you can use
+whichever one matches the goal. The warm-ups below practice the `Equiv` moves
+that let you pass between the two forms.
 
 (E) Warm-ups on `Equiv`. For a bijection `e : α ≃ β`, the inverse is
 `e.symm : β ≃ α`. The basic facts are that the two round trips are identities,
@@ -195,51 +207,6 @@ example {α β : Type*} (e : α ≃ β) (a : α) (b : β) : a = e.symm b ↔ e a
 example {α β : Type*} (e : α ≃ β) (a a' : α) (h : e a = e a') : a = a' := by
   exact e.injective h
 
-/-
-Exercise 1. From the fields of a `CoreHomEquiv`, derive naturality in `𝒞` in
-the forward direction, which is the form in which Riehl states it. Here `adj`
-is only a `CoreHomEquiv`, not an `F ⊣ G`, so the Mathlib lemma
-`Adjunction.homEquiv_naturality_left` does not apply; use the field
-`adj.homEquiv_naturality_left_symm` together with the warm-ups.
-
-Hint: move `adj.homEquiv c' d` to the other side of the equation with
-`← Equiv.eq_symm_apply`, so that the field can rewrite the right-hand side.
-
-In the diagram below, `f` plays the role of `f♯`. The left triangle lives in
-`𝒟` and commutes by definition, since its diagonal is the composite
-`f · F h`, which is `F.map h ≫ f` in Lean. The right triangle lives in `𝒞`,
-and its diagonal is the transpose of that composite. The exercise is to show
-that the right triangle also commutes.
-
-[Diagram](assets/naturality_left.svg)
--/
-example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : Adjunction.CoreHomEquiv F G)
-    {c c' : 𝒞} {d : 𝒟} (h : c' ⟶ c) (f : F.obj c ⟶ d) :
-    adj.homEquiv c' d (F.map h ≫ f) = h ≫ adj.homEquiv c d f := by
-
-  sorry
-
-/-
-Exercise 2. Dually, derive naturality in `𝒟` for the inverse bijection from the
-field `adj.homEquiv_naturality_right`: the morphism `g ≫ G.map k : c ⟶ G d'`
-transposes to `g♯ ≫ k`.
-
-This time the given triangle is on the `𝒞` side. In the diagram below, `g`
-plays the role of `g♭`. The left triangle lives in `𝒞` and commutes by
-definition, since its diagonal is the composite `G k · g`, which is
-`g ≫ G.map k` in Lean. The right triangle lives in `𝒟`, and its diagonal is the
-transpose `(G k · g)♯` of that composite, which is
-`(adj.homEquiv c d').symm (g ≫ G.map k)` in Lean. The exercise is to show that
-the right triangle also commutes.
-
-[Diagram](assets/naturality_right_symm.svg)
--/
-example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : Adjunction.CoreHomEquiv F G)
-    {c : 𝒞} {d d' : 𝒟} (g : c ⟶ G.obj d) (k : d ⟶ d') :
-    (adj.homEquiv c d').symm (g ≫ G.map k) = (adj.homEquiv c d).symm g ≫ k := by
-  sorry
-
-
 -- Lemma 4.1.3: Naturality as a correspondence of commutative squares
 /-
 Riehl: consider functors `F : 𝒞 ⥤ 𝒟` and `G : 𝒟 ⥤ 𝒞` equipped with specified
@@ -260,15 +227,15 @@ the left, `G.map k` on the right, and `g♭` on the bottom, so it commutes when
 
 [Diagram](assets/transposed_squares.svg)
 
-Riehl leaves the proof as Exercise 4.1.i. Exercise 3 proves the forward
+Riehl leaves the proof as Exercise 4.1.i. Exercise 1 proves the forward
 direction: if the bijections are natural, then the squares correspond. Exercise
-4 proves the converse. Mathlib states the forward direction as
+2 proves the converse. Mathlib states the forward direction as
 `Adjunction.homEquiv_naturality_left_square_iff`, but the point here is to
 derive it from the two naturality equations.
 -/
 
 /-
-Exercise 3a. If the square in `𝒟` commutes, then so does the transposed square
+Exercise 1a. If the square in `𝒟` commutes, then so does the transposed square
 in `𝒞`. Rewrite the composites `f♭ ≫ G.map k` and `h ≫ g♭` as transposes of
 composites in `𝒟`, using the two naturality lemmas from right to left.
 -/
@@ -276,10 +243,12 @@ example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d
     (h : c ⟶ c') (k : d ⟶ d') (f : F.obj c ⟶ d) (g : F.obj c' ⟶ d')
     (w : f ≫ k = F.map h ≫ g) :
     adj.homEquiv c d f ≫ G.map k = h ≫ adj.homEquiv c' d' g := by
-  sorry
+  have h2 := adj.homEquiv_naturality_right f k
+  have h3 := adj.homEquiv_naturality_left h g
+  rw [← h2, ← h3, w]
 
 /-
-Exercise 3b. Conversely, if the transposed square in `𝒞` commutes, then so does
+Exercise 1b. Conversely, if the transposed square in `𝒞` commutes, then so does
 the square in `𝒟`. Both sides of the goal are morphisms `F.obj c ⟶ d'`, so it
 suffices to show that their transposes agree. Begin with
 `apply (adj.homEquiv c d').injective`.
@@ -288,10 +257,14 @@ example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d
     (h : c ⟶ c') (k : d ⟶ d') (f : F.obj c ⟶ d) (g : F.obj c' ⟶ d')
     (w : adj.homEquiv c d f ≫ G.map k = h ≫ adj.homEquiv c' d' g) :
     f ≫ k = F.map h ≫ g := by
-  sorry
+  apply (adj.homEquiv c d').injective
+  calc
+    (adj.homEquiv c d') (f ≫ k) = (adj.homEquiv c d) f ≫ G.map k := by exact adj.homEquiv_naturality_right f k
+    _ = h ≫ (adj.homEquiv c' d') g := by exact w
+    _ = (adj.homEquiv c d') (F.map h ≫ g) := by exact (adj.homEquiv_naturality_left h g).symm
 
 /-
-Exercise 4. The converse half of Lemma 4.1.3. In this section, `e` is a family
+Exercise 2. The converse half of Lemma 4.1.3. In this section, `e` is a family
 of bijections `e c d : (F.obj c ⟶ d) ≃ (c ⟶ G.obj d)` about which nothing is
 assumed except the hypothesis `hsq`: for every configuration (4.1.4), the square
 in `𝒟` commutes if and only if the transposed square in `𝒞` commutes. The task
@@ -315,20 +288,20 @@ variable {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (e : ∀ c d, (F.obj c ⟶ d) �
     f ≫ k = F.map h ≫ g ↔ e c d f ≫ G.map k = h ≫ e c' d' g)
 include hsq
 
--- Exercise 4a: naturality in `𝒟`, the field `homEquiv_naturality_right`.
+-- Exercise 2a: naturality in `𝒟`, the field `homEquiv_naturality_right`.
 theorem nat_right_of_squares {c : 𝒞} {d d' : 𝒟} (f : F.obj c ⟶ d) (k : d ⟶ d') :
     e c d' (f ≫ k) = e c d f ≫ G.map k := by
   sorry
 
--- Exercise 4b: naturality in `𝒞` for the inverse, the field
+-- Exercise 2b: naturality in `𝒞` for the inverse, the field
 -- `homEquiv_naturality_left_symm`.
 theorem nat_left_symm_of_squares {c' c : 𝒞} {d : 𝒟} (h : c' ⟶ c) (g : c ⟶ G.obj d) :
     (e c' d).symm (h ≫ g) = F.map h ≫ (e c d).symm g := by
   sorry
 
 /-
-Exercise 4c. Assemble an adjunction from `e`, using `Adjunction.mkOfHomEquiv`
-and a `CoreHomEquiv` whose three fields are `e` and the results of 4a and 4b.
+Exercise 2c. Assemble an adjunction from `e`, using `Adjunction.mkOfHomEquiv`
+and a `CoreHomEquiv` whose three fields are `e` and the results of 2a and 2b.
 -/
 def adjOfSquares : F ⊣ G :=
   sorry
@@ -380,7 +353,7 @@ example {l : X → X} (hl : Monotone l) (x : X) : hl.functor.obj x = l x := by
 end Preorders
 
 /-
-Exercise 5. A Galois connection is an adjunction in the sense of Definition
+Exercise 3. A Galois connection is an adjunction in the sense of Definition
 4.1.1. Build the adjunction with `Adjunction.mkOfHomEquiv`. You only need to
 supply the field `homEquiv`, a bijection `(l x ⟶ y) ≃ (x ⟶ u y)` for each `x`
 and `y`: its two directions come from `gc.le_u` and `gc.l_le`, and its two
@@ -411,7 +384,7 @@ any linearly ordered ring `α` with a `FloorRing` instance, and `ℝ` and `ℚ` 
 both examples. We work in that generality, which keeps the real numbers out of
 the imports. The inclusion `ℤ ↪ α` is the cast `(↑) : ℤ → α`.
 
-Exercise 6. Prove both Galois connections. Each is one lemma about `Int.floor`
+Exercise 4. Prove both Galois connections. Each is one lemma about `Int.floor`
 or `Int.ceil`; `exact?` will find them, or look for `Int.le_floor` and
 `Int.ceil_le`.
 -/
@@ -464,7 +437,7 @@ In Mathlib, `P A` is `Set A`, ordered by `⊆`. The direct image is
 (written `f ⁻¹' t`), and `f_!` is `Set.kernImage f`, defined as
 `{b | ∀ ⦃a⦄, f a = b → a ∈ s}`.
 
-Exercise 7. Prove both Galois connections by working with elements, without
+Exercise 5. Prove both Galois connections by working with elements, without
 the library lemmas. After `intro` and `constructor`, each direction unfolds to a
 statement about membership; `rintro _ ⟨a, ha, rfl⟩` is a convenient way to
 introduce an element of an image. (The library versions are
@@ -498,7 +471,7 @@ is `X → Prop` with the pointwise order. Both orders unfold by definition, so
 `intro` sees through them: a proof of `p ≤ q` for `p q : X → Prop` can begin
 with `intro x hx`.
 
-Exercise 8. Prove both Galois connections.
+Exercise 6. Prove both Galois connections.
 -/
 section Quantifiers
 

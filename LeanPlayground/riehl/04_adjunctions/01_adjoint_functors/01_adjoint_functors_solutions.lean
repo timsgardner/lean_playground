@@ -27,19 +27,7 @@ example {α β : Type*} (e : α ≃ β) (a : α) (b : β) : a = e.symm b ↔ e a
 
 example {α β : Type*} (e : α ≃ β) (a a' : α) (h : e a = e a') : a = a' := e.injective h
 
-/-! ## Exercises 1 and 2: the two forms of naturality -/
-
-example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : Adjunction.CoreHomEquiv F G)
-    {c c' : 𝒞} {d : 𝒟} (h : c' ⟶ c) (f : F.obj c ⟶ d) :
-    adj.homEquiv c' d (F.map h ≫ f) = h ≫ adj.homEquiv c d f := by
-  rw [← Equiv.eq_symm_apply, adj.homEquiv_naturality_left_symm, Equiv.symm_apply_apply]
-
-example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : Adjunction.CoreHomEquiv F G)
-    {c : 𝒞} {d d' : 𝒟} (g : c ⟶ G.obj d) (k : d ⟶ d') :
-    (adj.homEquiv c d').symm (g ≫ G.map k) = (adj.homEquiv c d).symm g ≫ k := by
-  rw [Equiv.symm_apply_eq, adj.homEquiv_naturality_right, Equiv.apply_symm_apply]
-
-/-! ## Exercise 3: Lemma 4.1.3, forward direction -/
+/-! ## Exercise 1: Lemma 4.1.3, forward direction -/
 
 example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d d' : 𝒟}
     (h : c ⟶ c') (k : d ⟶ d') (f : F.obj c ⟶ d) (g : F.obj c' ⟶ d')
@@ -54,7 +42,7 @@ example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d
   apply (adj.homEquiv c d').injective
   rw [adj.homEquiv_naturality_right, adj.homEquiv_naturality_left, w]
 
-/-! ## Exercise 4: Lemma 4.1.3, converse -/
+/-! ## Exercise 2: Lemma 4.1.3, converse -/
 
 section Squares
 
@@ -98,7 +86,7 @@ example {l : X → X} (hl : Monotone l) (x : X) : hl.functor.obj x = l x := rfl
 
 end Preorders
 
-/-! ## Exercise 5: a Galois connection is an adjunction -/
+/-! ## Exercise 3: a Galois connection is an adjunction -/
 
 example {X Y : Type*} [Preorder X] [Preorder Y] {l : X → Y} {u : Y → X}
     (gc : GaloisConnection l u) :
@@ -110,7 +98,7 @@ example {X Y : Type*} [Preorder X] [Preorder Y] {l : X → Y} {u : Y → X}
           left_inv := fun _ => Subsingleton.elim _ _
           right_inv := fun _ => Subsingleton.elim _ _ } }
 
-/-! ## Exercise 6: floor and ceiling -/
+/-! ## Exercise 4: floor and ceiling -/
 
 section Floor
 
@@ -124,7 +112,7 @@ theorem gc_ceil_cast_sol : GaloisConnection Int.ceil ((↑) : ℤ → α) :=
 
 end Floor
 
-/-! ## Exercise 7: image, preimage, and `kernImage` -/
+/-! ## Exercise 5: image, preimage, and `kernImage` -/
 
 section Image
 
@@ -149,7 +137,7 @@ theorem gc_preimage_kernImage_sol :
 
 end Image
 
-/-! ## Exercise 8: quantifiers -/
+/-! ## Exercise 6: quantifiers -/
 
 section Quantifiers
 
