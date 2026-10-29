@@ -356,8 +356,9 @@ example {D : Type*} [Category D] {o X Y Z XY XZ YZ T : D}
 
 /-! ### Inferred faces
 
-Without a `faces` block, `diagram_shape` infers the faces, as the minimal
-cells of adding the arrows in declared order. -/
+Without a `faces` block, `diagram_shape` infers the faces. They depend only on
+the shape and the names of the arrows, never on the order of declaration: the
+smallest cells are closed first, and faces implied by the others are dropped. -/
 
 -- The rectangle again: the inferred faces are its two squares.
 /--
@@ -383,19 +384,52 @@ h2 : w ≫ y = u ≫ x
 diagram_shape Zigzag where
   arrows (p : s ⟶ a) (q : s ⟶ b) (u : m ⟶ a) (w : m ⟶ b) (x : a ⟶ t) (y : b ⟶ t)
 
--- In this order, `m` arrives before `h`, so its equation is the outer rectangle,
--- which neither square gives until `h` is present. The arrows are numbered in
--- declared order: [Diagram](assets/rectangle_bad_order.svg)
+-- The rectangle declared in another order gives the same faces.
 /--
-error: diagram_shape: adding m closes the cell
-  g ≫ k ≫ m = f ≫ j ≫ l
-which no face it completes covers. Either the faces do not imply it, so it must be added as a face, or the faces that imply it contain arrows declared after m, and another order of the arrows avoids it.
+info: diagram_shape: inferred faces
+h1 : g ≫ k = f ≫ h
+h2 : h ≫ m = j ≫ l
 -/
 #guard_msgs in
-diagram_shape RectBadOrder where
+diagram_shape RectReordered where
+  arrows (m : b' ⟶ c') (k : a' ⟶ b') (l : c ⟶ c') (j : b ⟶ c) (h : b ⟶ b')
+    (g : a ⟶ a') (f : a ⟶ b)
+
+-- A square with a diagonal: the faces are its two triangles. (The square
+-- `f g = h k` would do instead of either, but it is not the smallest cell.)
+/--
+info: diagram_shape: inferred faces
+h1 : f ≫ g = e
+h2 : h ≫ k = e
+-/
+#guard_msgs in
+diagram_shape Diagonal where
+  arrows (e : a ⟶ c) (f : a ⟶ b) (g : b ⟶ c) (h : a ⟶ d) (k : d ⟶ c)
+
+/-! ### Declared faces in any order
+
+The order in which a build adds the arrows is chosen internally, so declared
+faces work whatever the order of the arrows. Here `m` is declared before `h`;
+added in that order, `m` would close the whole outer rectangle, which neither
+square gives until `h` is present ([Diagram](assets/rectangle_bad_order.svg)).
+The build adds `h` first. -/
+
+diagram_shape RectAnyOrder where
   arrows (f : a ⟶ b) (j : b ⟶ c) (l : c ⟶ c') (g : a ⟶ a') (k : a' ⟶ b') (m : b' ⟶ c')
     (h : b ⟶ b')
   faces (L : f h = g k) (R : j l = h m)
+
+-- Faces that leave a cell uncovered in every order are rejected, with a cell they miss.
+/--
+error: diagram_shape: the faces do not cover every cell, in any order of the arrows. For example, adding m closes the cell
+  h ≫ m = j ≫ l
+which no face covers.
+-/
+#guard_msgs in
+diagram_shape RectMissingFace where
+  arrows (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a') (h : b ⟶ b') (l : c ⟶ c')
+    (k : a' ⟶ b') (m : b' ⟶ c')
+  faces (L : f h = g k)
 
 -- The cube, with faces inferred.
 diagram_shape CubeInferred where

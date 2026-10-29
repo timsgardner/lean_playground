@@ -3,10 +3,11 @@
 
 Two tactics connect the framework to goals stated in a diagram's own morphisms.
 
-* `diagram_build faces using hF` proves `Commutes G` by construction. It adds the
-  arrows in the order of `FinShape.arrows`; for each arrow it uses the faces that
-  arrow completes (those whose other arrows came earlier). The resulting build is
-  checked by the kernel (`commutes_of_order`). `hF` says the faces hold in `G`.
+* `diagram_build faces using hF` proves `Commutes G` by construction. It searches
+  for an order of the arrows in which the faces cover every cell (`Order`); for
+  each arrow it uses the faces that arrow completes (those whose other arrows came
+  earlier). The resulting build is checked by the kernel (`commutes_of_order`).
+  `hF` says the faces hold in `G`.
 * `diagram_eq h` proves an equation between composites of the diagram's
   morphisms, such as `f ≫ j ≫ ℓ = g ≫ k ≫ m`, from `h : Commutes G`. It matches
   each factor to an arrow of the shape whose image under `G` is that morphism,
@@ -14,6 +15,7 @@ Two tactics connect the framework to goals stated in a diagram's own morphisms.
 -/
 
 import LeanPlayground.diagrams.construct
+import LeanPlayground.diagrams.order
 
 open CategoryTheory Quiver Lean Meta Elab Tactic
 
@@ -53,18 +55,6 @@ theorem commutes_of_order {faces : List (Face W)} (hF : ∀ φ ∈ faces, φ.Hol
 
 end Order
 
-/-- For each arrow position, in order, the faces it completes: those containing it
-once, whose other arrows all come earlier. -/
-def Search.faceUses (numArrows : ℕ) (faces : List (List ℕ × List ℕ)) : List (List FaceUse) :=
-  (List.range numArrows).map fun k =>
-    (faces.zipIdx.filterMap fun ((lhs, rhs), i) =>
-      let all := lhs ++ rhs
-      if all.count k == 1 && all.all (· ≤ k) then
-        match lhs.idxOf? k with
-        | some n => some ⟨i, false, n⟩
-        | none => (rhs.idxOf? k).map fun n => ⟨i, true, n⟩
-      else none)
-
 /-! ## Evaluation -/
 
 unsafe def evalBuildDataImpl (e : Expr) : MetaM (List (ℕ × ℕ) × List (List ℕ × List ℕ)) := do
@@ -100,17 +90,22 @@ elab "diagram_build " faces:term:max " using " hF:term : tactic => withMainConte
   let _ := G
   let facesE ← Term.elabTermEnsuringType faces (← mkAppM ``List #[← mkAppOptM ``Face #[W, none]])
   let (arrows, faceData) ← evalBuildData (← mkAppM ``buildData #[facesE])
-  let n := arrows.length
-  let uses := Search.faceUses n faceData
-  let order := List.range n
+  let ends := arrows.toArray
+  let shape : Order.Shape := ⟨ends.foldl (fun m (a, b) => max m (max a b + 1)) 0, ends,
+    (List.range ends.size).toArray⟩
+  let faceArr : Array Order.FaceData := faceData.toArray.map fun (l, r) => (l.toArray, r.toArray)
+  let some order := shape.findOrder faceArr
+    | throwError "diagram_build: no order of the arrows was found in which the faces cover \
+        every cell"
+  let uses := (shape.faceUses faceArr order).map fun us =>
+    us.map fun (i, side, pos) => (⟨i, side, pos⟩ : FaceUse)
   let orderE := toExpr order
   let usesE ← mkListLit (← mkAppM ``List #[mkConst ``FaceUse])
     (← uses.mapM fun us => mkListLit (mkConst ``FaceUse) (us.map faceUseExpr))
   let stepsE ← mkAppOptM ``stepsOf #[W, none, none, orderE, usesE]
   let okE ← mkAppM ``buildOK #[facesE, stepsE]
   unless ← evalBool okE do
-    throwError "diagram_build: the faces do not cover every cell when the arrows \
-      are added in the order of `FinShape.arrows`"
+    throwError "diagram_build: the build found does not pass its check"
   let orderStx ← Term.exprToSyntax orderE
   let usesStx ← Term.exprToSyntax usesE
   evalTactic (← `(tactic| exact commutes_of_order (faces := $faces) $hF $orderStx $usesStx

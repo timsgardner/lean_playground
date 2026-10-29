@@ -27,13 +27,15 @@ A face is an equation assumed between two parallel composites, each written as a
 sequence of arrow names. It need not be a region of a drawing. The name is
 optional: `(f h = g k)` gives the face `face1` and the hypothesis `h1`.
 
-Without a `faces` block, the faces are inferred: adding the arrows in declared
-order, each arrow's minimal cells become the faces, and the command reports
-them. They are the fewest equations that make the diagram commute when built in
-that order (`closesMin_necessary`).
+The order of the arrows does not matter: the build order is chosen internally
+(`Order.Shape.searchOrder`), and the kernel checks the build.
 
-When the declared faces do not suffice in the declared order, the command names
-the first equation that no face covers.
+Without a `faces` block, the faces are inferred (`Order.Shape.inferFaces`) and
+reported. They depend only on the shape and the arrow names: the smallest cells
+are closed first, and faces implied by the others are dropped.
+
+When the declared faces leave a cell uncovered in every order of the arrows, the
+command names an arrow and a cell it closes that no face covers.
 
 Equations between composites of the diagram then follow by
 `diagram_eq (Rect.commutes …)`.
@@ -60,60 +62,6 @@ syntax (name := diagramShape) "diagram_shape " ident " where "
 
 /-- `ns.n`, as an identifier. -/
 private def qual (ns : Name) (n : Name) : Ident := mkIdent (ns ++ n)
-
-/-! ## Cells at declaration time
-
-Plain computations on arrow indices, used to infer the faces of a shape and to
-explain a build that fails. Arrow `i` runs between the vertex indices `ends[i]`. -/
-
-namespace Declare
-
-/-- For each vertex, a path from `x` using the arrows `prior`, as a list of arrow
-indices, found breadth first. -/
-def pathsFrom (n : ℕ) (ends : Array (ℕ × ℕ)) (prior : List ℕ) (x : ℕ) :
-    Array (Option (List ℕ)) := Id.run do
-  let mut paths : Array (Option (List ℕ)) := (Array.replicate n none).set! x (some [])
-  let mut queue := #[x]
-  let mut i := 0
-  while i < queue.size do
-    let w := queue[i]!
-    i := i + 1
-    let p := paths[w]!.getD []
-    for a in prior do
-      let (s, t) := ends[a]!
-      if s == w && paths[t]!.isNone then
-        paths := paths.set! t (some (p ++ [a]))
-        queue := queue.push t
-  return paths
-
-/-- The minimal cells of adding arrow `k` to the arrows `prior`, as
-`(x, y, lhs, rhs)` with `lhs = α ++ [k] ++ β` and `rhs = γ`, and `reach a b`, a path
-from `a` to `b` within `prior`.
-
-If the source `u` of `k` already reaches its target `v`, the only minimal
-cell is `(u, v)`: every other lies above it. Otherwise a cell `(x, y)`
-is minimal when neither end can move inwards on its own; if some cell lies
-strictly below `(x, y)`, so does one with a single end moved. -/
-def cells (n : ℕ) (ends : Array (ℕ × ℕ)) (prior : List ℕ) (k : ℕ) :
-    (ℕ → ℕ → Option (List ℕ)) × List (ℕ × ℕ × List ℕ × List ℕ) :=
-  let paths := (List.range n).toArray.map (pathsFrom n ends prior)
-  let reach (a b : ℕ) := paths[a]![b]!
-  let (u, v) := ends[k]!
-  match reach u v with
-  | some γ => (reach, [(u, v, [k], γ)])
-  | none =>
-    let isObl (x y : ℕ) := (reach x u).isSome && (reach v y).isSome && (reach x y).isSome
-    let isMin (x y : ℕ) := isObl x y &&
-      (List.range n).all (fun x₀ => x₀ == x || (reach x x₀).isNone || !isObl x₀ y) &&
-      (List.range n).all (fun y₀ => y₀ == y || (reach y₀ y).isNone || !isObl x y₀)
-    (reach, (List.range n).flatMap fun x => (List.range n).filterMap fun y =>
-      if isMin x y then
-        match reach x u, reach v y, reach x y with
-        | some α, some β, some γ => some (x, y, α ++ [k] ++ β, γ)
-        | _, _, _ => none
-      else none)
-
-end Declare
 
 /-- `a ≫ b ≫ …` for the given arrow names. -/
 private def compTerm (as : Array Ident) : MacroM Term := do
@@ -200,9 +148,13 @@ elab_rules : command
           $N ⥤q D where
         obj x := match x with $objAlts:matchAlt*
         map {x y} (e : $Hom x y) := match e with $mapAlts:matchAlt*))
-    -- Faces: as declared, or inferred as the minimal cells of each arrow.
+    -- The shape as plain data, with arrows ranked by name for breaking ties.
     let ends : Array (ℕ × ℕ) := arrowsData.map fun (_, s, t) =>
       (objs.findIdx (·.getId == s.getId), objs.findIdx (·.getId == t.getId))
+    let byName := (List.range arrowsData.size).mergeSort fun a b =>
+      arrowsData[a]!.1.getId.toString ≤ arrowsData[b]!.1.getId.toString
+    let rank := (List.range arrowsData.size).toArray.map fun k => byName.idxOf k
+    let shape : Order.Shape := ⟨objs.size, ends, rank⟩
     let arrowIdx (a : Ident) : CommandElabM ℕ := do
       let some i := arrowsData.findIdx? (·.1.getId == a.getId)
         | throwErrorAt a "diagram_shape: unknown arrow {a.getId}"
@@ -212,6 +164,10 @@ elab_rules : command
       " ≫ ".intercalate (as.toList.map fun i => arrowsData[i]!.1.getId.toString)
     let unnamed (i : ℕ) : Name × Ident :=
       (Name.mkSimple s!"face{i + 1}", mkIdent (Name.mkSimple s!"h{i + 1}"))
+    -- A commutative diagram here is acyclic: some order adds every arrow without a cycle.
+    if !shape.acyclic then
+      throwError "diagram_shape: the arrows contain a cycle"
+    -- Faces: as declared, or inferred canonically.
     let mut facesData : Array (Name × Ident × Array ℕ × Array ℕ) := #[]
     match fs with
     | some fs =>
@@ -223,38 +179,25 @@ elab_rules : command
           | _ => throwUnsupportedSyntax
         facesData := facesData.push (n.1, n.2, ← lhs.mapM arrowIdx, ← rhs.mapM arrowIdx)
     | none =>
-      for k in [0:arrowsData.size] do
-        let (_, obl) := Declare.cells objs.size ends (List.range k) k
-        for (_, _, lhs, rhs) in obl do
-          let n := unnamed facesData.size
-          facesData := facesData.push (n.1, n.2, lhs.toArray, rhs.toArray)
+      for (l, r) in shape.inferFaces do
+        let n := unnamed facesData.size
+        facesData := facesData.push (n.1, n.2, l, r)
       logInfo <| if facesData.isEmpty then m!"diagram_shape: no faces needed"
         else m!"diagram_shape: inferred faces\n{"\n".intercalate (facesData.toList.map
           fun (_, h, l, r) => s!"{h.getId} : {showSide l} = {showSide r}")}"
-    -- For each arrow, in declared order, the faces it completes: those containing it
-    -- once, all of whose other arrows come earlier.
-    let completed (k : ℕ) : List ℕ := (List.range facesData.size).filter fun i =>
-      let (_, _, l, r) := facesData[i]!
-      let all := l ++ r
-      all.count k == 1 && all.all (· ≤ k)
-    -- Explain a failed build: a cycle, or a cell no completed face covers.
-    for k in [0:arrowsData.size] do
-      let (reach, obl) := Declare.cells objs.size ends (List.range k) k
-      let (u, v) := ends[k]!
-      if (reach v u).isSome then
-        throwError "diagram_shape: arrow {arrowsData[k]!.1.getId} closes a cycle"
-      for (x, y, lhs, rhs) in obl do
-        let covered := (completed k).any fun i =>
-          let (_, _, l, _) := facesData[i]!
-          let src := ends[l[0]!]!.1
-          let tgt := ends[l.back!]!.2
-          (reach x src).isSome && (reach tgt y).isSome
-        unless covered do
-          throwError "diagram_shape: adding {arrowsData[k]!.1.getId} closes the cell\n  \
-            {showSide lhs.toArray} = {showSide rhs.toArray}\nwhich no face it completes covers. \
-            Either the faces do not imply it, so it must be added as a face, or the faces \
-            that imply it contain arrows declared after {arrowsData[k]!.1.getId}, and \
-            another order of the arrows avoids it."
+    -- The order of the build is ours to choose: search for one the faces cover.
+    let faceArr : Array Order.FaceData := facesData.map fun (_, _, l, r) => (l, r)
+    let (found, exhaustive) := shape.searchOrder faceArr
+    let some buildOrder := found
+      | if !exhaustive then
+          throwError "diagram_shape: no order of the arrows in which the faces cover every \
+            cell was found within the search budget"
+        match shape.explainFailure faceArr with
+        | some (k, (l, r)) => throwError "diagram_shape: the faces do not cover every cell, \
+            in any order of the arrows. For example, adding {arrowsData[k]!.1.getId} closes \
+            the cell\n  {showSide l} = {showSide r}\nwhich no face covers."
+        | none => throwError "diagram_shape: the faces do not cover every cell, in any order \
+            of the arrows"
     let FaceT := qual ns `Face
     let fCtors ← facesData.mapM fun (n, _) => `(Lean.Parser.Command.ctor| | $(mkIdent n):ident)
     elabCommand (← `(inductive $FaceT where $fCtors:ctor* deriving DecidableEq))
@@ -282,20 +225,14 @@ elab_rules : command
       `(tactic| case $(mkIdent n):ident =>
         simpa [Diagrams.Face.Holds, $faceId:ident, $pathId:ident, $diagramId:ident] using $h)
     let faceTac ← `(tactic| (cases n; $[$caseTacs]*))
-    -- The build: arrows in declared order, each with the faces it completes.
+    -- The build: the arrows in the order found, each with the faces it completes.
     let mut usesTerms : Array Term := #[]
-    for k in [0:arrowsData.size] do
-      let mut us : Array Term := #[]
-      for i in completed k do
-        let (_, _, l, r) := facesData[i]!
-        let (side, pos) := match l.idxOf? k with
-          | some n => (false, n)
-          | none => (true, (r.idxOf? k).getD 0)
+    for us in shape.faceUses faceArr buildOrder do
+      let ts ← us.toArray.mapM fun (i, side, pos) => do
         let sideT ← if side then `(true) else `(false)
-        us := us.push (← `(⟨$(Syntax.mkNumLit (toString i)), $sideT,
-          $(Syntax.mkNumLit (toString pos))⟩))
-      usesTerms := usesTerms.push (← `([$us,*]))
-    let order ← `([$((List.range arrowsData.size).toArray.map fun k => Syntax.mkNumLit (toString k)),*])
+        `(⟨$(Syntax.mkNumLit (toString i)), $sideT, $(Syntax.mkNumLit (toString pos))⟩)
+      usesTerms := usesTerms.push (← `([$ts,*]))
+    let order ← `([$(buildOrder.toArray.map fun k => Syntax.mkNumLit (toString k)),*])
     let commutesId := qual ns `commutes
     elabCommand (← `(/-- The diagram commutes, given the equations of its faces. -/
       theorem $commutesId {D : Type _} [CategoryTheory.Category D] $objBinders* $arrBinders*

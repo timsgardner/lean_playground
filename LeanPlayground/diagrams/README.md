@@ -46,6 +46,7 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | `decide.lean` | Decision procedures: `ReachIn`, `AcyclicOn`, cells and minimality, `Shared`, `Chain`; rank and closed-set certificates. |
 | `search.lean` | Chase scripts on edge lists, `replay` with its soundness theorem, and a breadth-first chase search checked by replay. |
 | `tactics.lean` | Certificate checks (`rankCheck`, `fenceCheck`, `replayCheck`) and the tactics that find certificates with compiled code: `diagram_acyclic`, `diagram_unreachable`, `find_chase`. |
+| `order.lean` | Choosing the build order (search, mirroring the kernel's check) and canonical inferred faces; plain data, outside the kernel. |
 | `construct.lean` | Commutative by construction: builds (arrows added in turn, each with the faces it completes), `buildOK`, `commutesOn_of_build`. |
 | `frontend.lean` | The tactics `diagram_build` (prove `Commutes G` by construction) and `diagram_eq` (read off an equation in the diagram's own morphisms). |
 | `command.lean` | The `diagram_shape` command: declare a shape, its faces, its diagrams, and their commutativity theorem. |
@@ -83,8 +84,9 @@ Any equation between parallel composites then follows in one line:
 example … : f ≫ j ≫ l = g ≫ k ≫ m := by diagram_eq (Rect.commutes f j g h l k m hL hR)
 ```
 
-The diagram commutes *by construction*. Its arrows are added in the order they
-are declared. When an arrow `e` is added, a face with `e` on one side,
+The diagram commutes *by construction*. Its arrows are added one at a time, in
+an order the command chooses (`order.lean`): the order of declaration never
+matters. When an arrow `e` is added, a face with `e` on one side,
 `α ≫ e ≫ β = γ`, and its other arrows already present, is exactly a cell
 that `e` closes (`cellHolds_of_face`). `Rect.commutes` is valid when the cells
 given by faces cover every cell each arrow closes; the kernel checks that by
@@ -99,14 +101,18 @@ it) contains no pair of parallel paths and so asserts nothing; `Zigzag` in
 `examples/examples.lean` is such a diagram. Face names are optional: `(f h = g k)` becomes
 `face1`, with hypothesis `h1`.
 
-The `faces` block itself is optional. Without it, the faces are inferred: the
-arrows are added in declared order, the minimal cells of each become the
-faces, and the command reports them. By `closesMin_necessary`, no smaller
-set of equations makes the diagram commute when built in that order. For the
-rectangle and the cube, the inferred faces are the squares.
+The `faces` block itself is optional. Without it, the faces are inferred, and the
+command reports them. They depend only on the shape and the arrow names: the
+arrows are added in a canonical order that always closes the smallest available
+cell next, the minimal cells closed become the faces (each needed at its step,
+by `closesMin_necessary`), and any face that the others imply is dropped. For
+the rectangle and the cube the inferred faces are the squares; for a square with
+a diagonal, the two triangles. A commutative diagram has no unique irredundant
+set of faces in general (the square with a diagonal has three), so ties are
+broken by the smallest cell and then by name.
 
-When declared faces do not cover some cell, the command names the first
-equation left uncovered and the arrow that created it.
+When the declared faces leave some cell uncovered in every order of the arrows,
+the command names an arrow and a cell it closes that no face covers.
 
 ## Main results
 
@@ -233,10 +239,14 @@ bitwise operations on one mask per vertex. A grid of squares declared with
 `diagram_shape`, timing the command alone (Lean's startup excluded; measured with
 `Elab.async false` and `trace.profiler`):
 
-| Grid | Arrows | Faces | Command | Generated instances and definitions | `commutes` theorem |
-|---|---|---|---|---|---|
-| 6 × 6 vertices | 60 | 25 | 7.7 s | 4.4 s | 3.0 s |
-| 8 × 8 vertices | 112 | 49 | 23.3 s | 11.8 s | 10.1 s |
+| Grid | Arrows | Faces | Command, faces declared | Command, faces inferred |
+|---|---|---|---|---|
+| 4 × 4 vertices | 24 | 9 | — | 2.1 s |
+| 6 × 6 vertices | 60 | 25 | 8.3 s | 11.2 s |
+| 8 × 8 vertices | 112 | 49 | 22.7 s | — |
+
+With faces declared at 8 × 8, about half the time is the generated instances and
+definitions, and the `commutes` theorem takes about 10 s.
 
 The `commutes` theorem is the kernel check of the build (3.8 s at 8 × 8) and one
 `simp` proof per face hypothesis (3.8 s). The instances are dominated by their
@@ -247,8 +257,11 @@ The `commutes` theorem is the kernel check of the build (3.8 s at 8 × 8) and on
 
 - `diagram_eq` for subshapes (`CommutesOn`), for sides that are identities, and
   for rewriting inside a goal rather than closing it.
-- Choosing a different arrow order when the declared order leaves a cell
-  uncovered (the uncovered equation is reported, but the order is not changed).
+- Proving that the order search is complete: whether faces that make a diagram
+  commute always admit an order in which each cell is covered by a single face.
+  (The search is exhaustive over orders, but a cell might in principle need
+  several faces at once.) Likewise, pruning of inferred faces uses a greedy
+  test, which may keep a redundant face.
 - Local chase search through the growth theorems, and faster global search
   (bidirectional, or native compilation of the search code).
 - Drawing a recorded chase in the infoview, one step at a time.
