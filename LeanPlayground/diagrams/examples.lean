@@ -15,7 +15,7 @@ import LeanPlayground.diagrams.extend
 import LeanPlayground.diagrams.chase
 import LeanPlayground.diagrams.decide
 import LeanPlayground.diagrams.tactics
-import LeanPlayground.diagrams.construct
+import LeanPlayground.diagrams.frontend
 
 open CategoryTheory Quiver
 
@@ -296,6 +296,21 @@ theorem rectangle_commutes (f : A ⟶ B) (j : B ⟶ E) (g : A ⟶ A') (h : B ⟶
   exact commutes_of_commutesOn_ofList (commutesOn_of_build hF
     [(arrow H.m, [⟨1, true, 1⟩]), (arrow H.k, [⟨0, true, 1⟩]), (arrow H.l, []), (arrow H.h, []),
       (arrow H.g, []), (arrow H.j, []), (arrow H.f, [])] (by decide +kernel)) (by decide)
+
+/-- The same, with the build found by the `diagram_build` tactic, and equations
+read off with `diagram_eq`. -/
+example (f : A ⟶ B) (j : B ⟶ E) (g : A ⟶ A') (h : B ⟶ B') (l : E ⟶ E')
+    (k : A' ⟶ B') (m : B' ⟶ E') (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) :
+    f ≫ j ≫ l = g ≫ k ≫ m := by
+  have hF : ∀ φ ∈ [squares .L, squares .R], φ.Holds (diagram f j g h l k m) := by
+    intro φ hφ
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hφ
+    rcases hφ with rfl | rfl
+    · simpa [Face.Holds, squares, H.path, diagram] using hL
+    · simpa [Face.Holds, squares, H.path, diagram] using hR
+  have hD : Commutes (diagram f j g h l k m) := by
+    diagram_build [squares .L, squares .R] using hF
+  diagram_eq hD
 
 end RectExample
 

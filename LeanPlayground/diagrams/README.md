@@ -45,12 +45,36 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | `decide.lean` | Decision procedures: `ReachIn`, `AcyclicOn`, obligations and minimality, `Shared`, `Chain`; rank and closed-set certificates. |
 | `search.lean` | Chase scripts on edge lists, `replay` with its soundness theorem, and a breadth-first chase search checked by replay. |
 | `tactics.lean` | Certificate checks (`rankCheck`, `fenceCheck`, `replayCheck`) and the tactics that find certificates with compiled code: `diagram_acyclic`, `diagram_unreachable`, `find_chase`. |
+| `construct.lean` | Commutative by construction: builds (arrows added in turn, each with the faces it completes), `buildOK`, `commutesOn_of_build`. |
+| `frontend.lean` | The tactics `diagram_build` (prove `Commutes G` by construction) and `diagram_eq` (read off an equation in the diagram's own morphisms). |
 | `examples.lean` | The five-object undercount example and Riehl's rectangle. |
 
 `core` is imported by everything. `extend`, `paste`, `chase` and `finite` each
 import only `core`; `chase_growth` imports `extend`, `paste` and `chase`, and
 `decide` imports `finite`, `extend` and `paste`; `search` imports `chase` and
-`finite`; and `tactics` imports `decide` and `search`.
+`finite`; `tactics` imports `decide` and `search`; `construct` imports `decide`
+and `search`; and `frontend` imports `construct` and `tactics`.
+
+## Workflow
+
+A diagram is proved to commute *by construction*, then used:
+
+```lean
+-- the faces, with their equations
+have hF : ∀ φ ∈ [squares .L, squares .R], φ.Holds (diagram f j g h l k m) := …
+-- the diagram commutes: arrows are added in turn, each owing only the faces it completes
+have hD : Commutes (diagram f j g h l k m) := by diagram_build [squares .L, squares .R] using hF
+-- any equation between parallel composites follows
+example : f ≫ j ≫ l = g ≫ k ≫ m := by diagram_eq hD
+```
+
+`diagram_build` adds the arrows in the order of `FinShape.arrows`. When an arrow
+`e` is added, a face with `e` on one side, `α ≫ e ≫ β = γ`, and its other arrows
+already present, is exactly an obligation for `e` (`obligationHolds_of_face`). The
+build is valid when these face obligations cover every obligation `e` creates; the
+kernel checks that by deciding questions about the shape. No chase search is
+involved. `diagram_eq` matches each factor of a composite to an arrow of the shape
+whose image under `G` is that morphism, turning each side into a path.
 
 ## Main results
 
@@ -171,8 +195,12 @@ which need only local chases, one per obligation.
 
 ## Not yet done
 
-- A tactic front end that reifies a goal stated in a diagram's own morphisms into
-  two paths, and rewrites inside goals rather than only closing them.
+- `diagram_eq` for subshapes (`CommutesOn`), for sides that are identities, and
+  for rewriting inside a goal rather than closing it.
+- `diagram_build` with an arrow order other than `FinShape.arrows`, and proving
+  the face equations `hF` from hypotheses automatically.
+- A command that generates a shape's inductive type, `FinShape`, `NumShape` and
+  decidable-equality instances from a list of arrows.
 - Local chase search through the growth theorems, and faster global search
   (bidirectional, or native compilation of the search code).
 - Drawing a recorded chase in the infoview, one step at a time.
