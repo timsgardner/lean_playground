@@ -76,6 +76,13 @@ instance : FinShape (Grid m n) where
     cases d
     · exact Or.inl (mem_arrowsFrom h)
     · exact Or.inr (mem_arrowsFrom h)
+instance : OutArrows (Grid m n) where
+  out a := arrowsFrom a .right ++ arrowsFrom a .down
+  mem_out := by
+    rintro ⟨a, b, d, h⟩
+    cases d
+    · exact List.mem_append_left _ (mem_arrowsFrom h)
+    · exact List.mem_append_right _ (mem_arrowsFrom h)
 
 /-! ## Faces -/
 

@@ -71,6 +71,17 @@ class FinShape (W : Type u₁) [Quiver.{v₁} W] where
   arrows : List (Total W)
   mem_arrows : ∀ e : Total W, e ∈ arrows
 
+/-- For each vertex, a list containing at least the arrows leaving it. Shapes that
+can list these directly make reachability much cheaper; every finite shape has the
+default instance, which lists all arrows for every vertex. -/
+class OutArrows (W : Type u₁) [Quiver.{v₁} W] where
+  /-- A list containing the arrows leaving `a`. -/
+  out : W → List (Total W)
+  mem_out : ∀ e : Total W, e ∈ out e.left
+
+instance (priority := 100) [FinShape W] : OutArrows W :=
+  ⟨fun _ => FinShape.arrows, FinShape.mem_arrows⟩
+
 namespace FinShape
 
 variable [FinShape W]

@@ -187,25 +187,183 @@ theorem reachIn_iff_mem_reachSet {a b : W} : ReachIn S a b ↔ b ∈ reachSet S 
   ⟨mem_of_reachIn (reachStep_reachSet a) (self_mem_reachIter a _),
     reachIn_of_mem_reachIter _⟩
 
+end Reach
+
+/-! ## Fast reachability
+
+`reachList S a` explores from `a` with a worklist, visiting each vertex once and
+looking at the arrows leaving it (`OutArrows.out`), using lists only. The result is then checked to be closed under
+arrows of `S`; when it is, it is exactly the set of vertices reachable from `a`.
+The check succeeds whenever the fuel suffices, which it always does, but
+correctness does not depend on that: if the check failed, `reachList` would fall
+back to `reachSet`.
+-/
+
+section FastReach
+
+variable [FinShape W] [OutArrows W] [DecidableEq W] (S)
+  [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ S a b)]
+
+/-- The targets of the arrows of `S` leaving `x`. -/
+def succs (x : W) : List W :=
+  ((OutArrows.out x).filter fun e =>
+    decide (e.left = x) && decide (e.hom ∈ S e.left e.right)).map (·.right)
+
+/-- The elements of `l` not in `seen`, without repetitions. -/
+def fresh (seen l : List W) : List W :=
+  l.foldl (fun acc y => if y ∈ seen ∨ y ∈ acc then acc else acc ++ [y]) []
+
+/-- Worklist exploration: pop a vertex, push its unvisited successors. -/
+def explore : ℕ → List W → List W → List W
+  | 0, _, visited => visited
+  | _, [], visited => visited
+  | fuel + 1, x :: work, visited =>
+    let new := fresh visited (succs S x)
+    explore fuel (work ++ new) (visited ++ new)
+
+/-- `X` is closed under arrows of `S`. -/
+def isClosed (X : List W) : Bool :=
+  (FinShape.arrows : List (Total W)).all fun e =>
+    !(decide (e.hom ∈ S e.left e.right) && decide (e.left ∈ X)) || decide (e.right ∈ X)
+
+/-- The vertices reachable from `a` within `S`, as a list. -/
+def reachList [Fintype W] (a : W) : List W :=
+  let R := explore S ((FinShape.vertices : List W).length + 1) [a] [a]
+  if isClosed S R then R else (FinShape.vertices : List W).filter (· ∈ reachSet S a)
+
+variable {S}
+
+omit [FinShape W] in
+theorem reachIn_of_mem_succs {x y : W} (h : y ∈ succs S x) : ReachIn S x y := by
+  simp only [succs, List.mem_map, List.mem_filter, Bool.and_eq_true, decide_eq_true_eq] at h
+  obtain ⟨e, ⟨_, rfl, he⟩, rfl⟩ := h
+  exact ⟨e.hom.toPath, Within.toPath he⟩
+
+omit [Quiver W] [FinShape W] in
+theorem mem_of_mem_foldl_fresh {seen : List W} {y : W} : ∀ (l acc : List W),
+    y ∈ l.foldl (fun acc y => if y ∈ seen ∨ y ∈ acc then acc else acc ++ [y]) acc →
+      y ∈ acc ∨ y ∈ l
+  | [], _, h => Or.inl h
+  | z :: l, acc, h => by
+    rw [List.foldl_cons] at h
+    rcases mem_of_mem_foldl_fresh l _ h with h | h
+    · split_ifs at h
+      · exact Or.inl h
+      · rcases List.mem_append.1 h with h | h
+        · exact Or.inl h
+        · exact Or.inr (List.mem_singleton.1 h ▸ List.mem_cons_self ..)
+    · exact Or.inr (List.mem_cons_of_mem _ h)
+
+omit [Quiver W] [FinShape W] in
+theorem mem_of_mem_fresh {seen l : List W} {y : W} (h : y ∈ fresh seen l) : y ∈ l :=
+  (mem_of_mem_foldl_fresh l [] h).resolve_left (by simp)
+
+omit [FinShape W] in
+theorem subset_explore : ∀ (fuel : ℕ) (work visited : List W), visited ⊆ explore S fuel work visited
+  | 0, _, _ => List.Subset.refl _
+  | _ + 1, [], _ => List.Subset.refl _
+  | fuel + 1, _ :: _, _ =>
+    fun _ hx => subset_explore fuel _ _ (List.mem_append_left _ hx)
+
+omit [FinShape W] in
+/-- Everything `explore` visits is reachable, if everything it starts from is. -/
+theorem reachIn_of_mem_explore {a : W} : ∀ (fuel : ℕ) (work visited : List W),
+    (∀ v ∈ work, ReachIn S a v) → (∀ v ∈ visited, ReachIn S a v) →
+      ∀ v ∈ explore S fuel work visited, ReachIn S a v
+  | 0, _, _, _, hv => hv
+  | _ + 1, [], _, _, hv => hv
+  | fuel + 1, x :: work, visited, hw, hv => by
+    have hnew : ∀ v ∈ fresh visited (succs S x), ReachIn S a v := fun v h =>
+      (hw x (List.mem_cons_self ..)).trans (reachIn_of_mem_succs (mem_of_mem_fresh h))
+    refine reachIn_of_mem_explore fuel _ _ ?_ ?_
+    · intro v h
+      rcases List.mem_append.1 h with h | h
+      · exact hw v (List.mem_cons_of_mem _ h)
+      · exact hnew v h
+    · intro v h
+      rcases List.mem_append.1 h with h | h
+      · exact hv v h
+      · exact hnew v h
+
+omit [OutArrows W] in
+theorem mem_of_isClosed {X : List W} (hX : isClosed S X = true) {a b : W} {f : a ⟶ b}
+    (hf : f ∈ S a b) (ha : a ∈ X) : b ∈ X := by
+  simp only [isClosed, List.all_eq_true, Bool.or_eq_true, Bool.not_eq_true',
+    Bool.and_eq_false_iff, decide_eq_false_iff_not, decide_eq_true_eq] at hX
+  rcases hX (arrow f) (FinShape.mem_arrows _) with (h | h) | h
+  · exact absurd hf h
+  · exact absurd ha h
+  · exact h
+
+variable [Fintype W]
+
+/-- `reachList S a` is exactly the list of vertices reachable from `a` within `S`. -/
+theorem reachIn_iff_mem_reachList {a b : W} : ReachIn S a b ↔ b ∈ reachList S a := by
+  unfold reachList
+  dsimp only
+  split_ifs with hc
+  · refine ⟨fun h => mem_of_reachIn_of_closed (· ∈ _) (fun _ _ _ hf hx => mem_of_isClosed hc hf hx)
+      (subset_explore _ _ _ (List.mem_singleton_self a)) h, fun h => ?_⟩
+    exact reachIn_of_mem_explore _ _ _ (by simpa using ReachIn.refl a)
+      (by simpa using ReachIn.refl a) b h
+  · simp [FinShape.mem_vertices, ← reachIn_iff_mem_reachSet]
+
 instance {a b : W} : Decidable (ReachIn S a b) :=
-  decidable_of_iff _ reachIn_iff_mem_reachSet.symm
+  decidable_of_iff _ reachIn_iff_mem_reachList.symm
+
+end FastReach
+
+/-! ## Acyclicity, obligations and minimality -/
+
+section Derived
+
+variable [FinShape W] [OutArrows W] [Fintype W] [DecidableEq W]
+  [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ S a b)]
+
+omit [OutArrows W] [Fintype W] [DecidableEq W] [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ S a b)] in
+/-- `S` is acyclic exactly when no arrow of `S` has a path back, except a loop. This
+needs one reachability question per arrow, not one per pair of vertices. -/
+theorem acyclicOn_iff_arrows : AcyclicOn S ↔ ∀ e ∈ (FinShape.arrows : List (Total W)),
+    e.hom ∈ S e.left e.right → ReachIn S e.right e.left → e.left = e.right := by
+  constructor
+  · intro h e _ he hback
+    exact h _ _ ⟨e.hom.toPath, Within.toPath he⟩ hback
+  · intro h a b ⟨p, hp⟩ hba
+    induction hp with
+    | nil => rfl
+    | @cons c d p f hp hf ih =>
+      obtain rfl : c = d := h (arrow f) (FinShape.mem_arrows _) hf (hba.trans ⟨p, hp⟩)
+      exact ih hba
 
 instance : Decidable (AcyclicOn S) :=
-  inferInstanceAs (Decidable (∀ a b : W, ReachIn S a b → ReachIn S b a → a = b))
+  decidable_of_iff _ acyclicOn_iff_arrows.symm
 
 instance {u v x y : W} : Decidable (IsObligation S u v x y) :=
   inferInstanceAs (Decidable (_ ∧ _ ∧ _))
 
-instance {u v x y : W} : Decidable (IsMinObligation S u v x y) :=
-  inferInstanceAs (Decidable (_ ∧ _))
+/-- Minimality only needs to look at the vertices reachable from `x`, and the
+vertices reachable from `v`. -/
+theorem isMinObligation_iff {u v x y : W} : IsMinObligation S u v x y ↔
+    IsObligation S u v x y ∧ ∀ x₀ ∈ reachList S x, ReachIn S x₀ u →
+      ∀ y₀ ∈ reachList S v, ReachIn S y₀ y → ReachIn S x₀ y₀ → x₀ = x ∧ y₀ = y := by
+  simp only [IsMinObligation, IsObligation, ← reachIn_iff_mem_reachList]
+  constructor
+  · rintro ⟨ho, h⟩
+    exact ⟨ho, fun x₀ hx₀ hu y₀ hy₀ hy hxy => h x₀ y₀ ⟨hu, hy₀, hxy⟩ hx₀ hy⟩
+  · rintro ⟨ho, h⟩
+    exact ⟨ho, fun x₀ y₀ ⟨hu, hy₀, hxy⟩ hx₀ hy => h x₀ hx₀ hu y₀ hy₀ hy hxy⟩
 
-end Reach
+instance {u v x y : W} : Decidable (IsMinObligation S u v x y) :=
+  haveI : ∀ a b : W, Decidable (ReachIn S a b) := fun _ _ => inferInstance
+  decidable_of_iff _ isMinObligation_iff.symm
+
+end Derived
 
 /-! ## Shared vertices and the chain condition -/
 
 section Shared
 
-variable [FinShape W] [Fintype W] [DecidableEq W]
+variable [FinShape W] [OutArrows W] [Fintype W] [DecidableEq W]
 
 instance {R : Subshape W} [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ R a b)] {v : W} :
     Decidable (Touches R v) :=
@@ -215,9 +373,21 @@ instance [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ S a b)]
     [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ T a b)] {v : W} : Decidable (Shared S T v) :=
   inferInstanceAs (Decidable (_ ∧ _))
 
+omit [OutArrows W] [Fintype W] in
+/-- The chain condition only needs to look at pairs of shared vertices. -/
+theorem chain_iff_shared [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ S a b)]
+    [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ T a b)] :
+    Chain S T ↔ ∀ s ∈ (FinShape.vertices : List W).filter (Shared S T ·),
+      ∀ s' ∈ (FinShape.vertices : List W).filter (Shared S T ·),
+        ReachIn (S ⊓ T) s s' ∨ ReachIn (S ⊓ T) s' s := by
+  rw [chain_iff]
+  simp only [List.mem_filter, decide_eq_true_eq]
+  exact ⟨fun h s ⟨_, hs⟩ s' ⟨_, hs'⟩ => h s s' hs hs',
+    fun h s s' hs hs' => h s ⟨FinShape.mem_vertices s, hs⟩ s' ⟨FinShape.mem_vertices s', hs'⟩⟩
+
 instance [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ S a b)]
     [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ T a b)] : Decidable (Chain S T) :=
-  decidable_of_iff _ chain_iff.symm
+  decidable_of_iff _ chain_iff_shared.symm
 
 end Shared
 
