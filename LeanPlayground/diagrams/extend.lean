@@ -1,5 +1,5 @@
 /-
-# Category Kindergarten: Adding one arrow to a commuting diagram
+# Adding one arrow to a commuting diagram
 
 Riehl (§1.6) observes that commutativity of a diagram can usually be checked
 one minimal subdiagram at a time. This file makes one precise version of that
@@ -22,7 +22,7 @@ example, `Example.two_regions_not_enough`, applies this to a five-object diagram
 where a planar drawing shows two new regions but three checks are needed.
 -/
 
-import LeanPlayground.Scratch.category_kindergarten.diagram_core
+import LeanPlayground.diagrams.core
 import Mathlib.CategoryTheory.Types.Basic
 import Mathlib.Data.Fintype.Card
 import Mathlib.Basic.Finite.Prod
@@ -282,7 +282,7 @@ theorem eval_model_val {a b : W} {p : Path a b} (hp : Within S p) (s : M S u v x
     · exact absurd (h₂.mono ⟨f.toPath, .toPath hf⟩) h₁
     · rfl
 
-theorem model_commutesOn : CommutesOn (model x y e hW) S := fun _ _ hp hq =>
+theorem model_commutesOn : CommutesOn (model x y e hW) S := fun _ _ _ _ hp hq =>
   ConcreteCategory.hom_ext _ _ fun s => Subtype.ext (by rw [eval_model_val hp, eval_model_val hq])
 
 /-- In the model, the equation holds at every obligation other than `(x, y)`. -/

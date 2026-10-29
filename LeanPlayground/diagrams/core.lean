@@ -1,5 +1,5 @@
 /-
-# Category Kindergarten: Diagrams and commutativity
+# Diagrams and commutativity
 
 This file is the interface for the commutative-diagram development. Everything
 else is stated in its terms.
@@ -16,7 +16,7 @@ from arrows of `S` have the same composite. Working with subshapes of one
 ambient shape lets results compose: the theorems elsewhere have the form "if `G`
 commutes on `S`, then `G` commutes on a larger subshape", so a proof that a
 large diagram commutes can be assembled from the empty subshape, by adding
-arrows (`diagram_extend`) and pasting (`diagram_paste`).
+arrows (`extend`) and pasting (`paste`).
 
 The basic facts here are:
 
@@ -152,10 +152,10 @@ theorem AcyclicOn.mono {S T : Subshape W} (h : S ≤ T) (hT : AcyclicOn T) : Acy
 
 /-- `G` commutes on `S`: parallel paths within `S` have the same composite. -/
 def CommutesOn (G : W ⥤q C) (S : Subshape W) : Prop :=
-  ∀ {a b : W} (p q : Path a b), Within S p → Within S q → eval G p = eval G q
+  ∀ ⦃a b : W⦄ (p q : Path a b), Within S p → Within S q → eval G p = eval G q
 
 /-- `G` commutes: any two parallel paths have the same composite. -/
-def Commutes (G : W ⥤q C) : Prop := ∀ {a b : W} (p q : Path a b), eval G p = eval G q
+def Commutes (G : W ⥤q C) : Prop := ∀ ⦃a b : W⦄ (p q : Path a b), eval G p = eval G q
 
 variable {G : W ⥤q C} {S T : Subshape W}
 
@@ -163,10 +163,10 @@ theorem commutesOn_top_iff : CommutesOn G ⊤ ↔ Commutes G :=
   ⟨fun h _ _ p q => h p q (.top p) (.top q), fun h _ _ p q _ _ => h p q⟩
 
 theorem Commutes.commutesOn (h : Commutes G) (S : Subshape W) : CommutesOn G S :=
-  fun p q _ _ => h p q
+  fun _ _ p q _ _ => h p q
 
 theorem CommutesOn.mono (h : S ≤ T) (hT : CommutesOn G T) : CommutesOn G S :=
-  fun p q hp hq => hT p q (hp.mono h) (hq.mono h)
+  fun _ _ p q hp hq => hT p q (hp.mono h) (hq.mono h)
 
 /-- Every diagram commutes on the empty subshape, whose only paths are empty. -/
 theorem commutesOn_bot : CommutesOn G ⊥ := by
@@ -179,12 +179,12 @@ theorem commutesOn_bot : CommutesOn G ⊥ := by
 
 /-- Functors preserve commutative diagrams (Riehl, Lemma 1.6.5). -/
 theorem CommutesOn.map (F : C ⥤ D) (h : CommutesOn G S) :
-    CommutesOn (G ⋙q F.toPrefunctor) S := fun p q hp hq => by
+    CommutesOn (G ⋙q F.toPrefunctor) S := fun _ _ p q hp hq => by
   rw [eval_map, eval_map, h p q hp hq]
 
 /-- Faithful functors reflect commutative diagrams (Riehl, Lemma 1.6.20). -/
 theorem CommutesOn.of_map (F : C ⥤ D) [F.Faithful] (h : CommutesOn (G ⋙q F.toPrefunctor) S) :
-    CommutesOn G S := fun p q hp hq =>
+    CommutesOn G S := fun _ _ p q hp hq =>
   F.map_injective (by rw [← eval_map, ← eval_map]; exact h p q hp hq)
 
 end Diagrams

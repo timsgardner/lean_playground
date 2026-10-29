@@ -1,5 +1,5 @@
 /-
-# Category Kindergarten: Pasting commutative diagrams
+# Pasting commutative diagrams
 
 Riehl (1.6.10) pastes two commutative squares along a common edge to get a
 commutative rectangle. This file proves a general version of that pasting step,
@@ -25,7 +25,7 @@ with the switch at a shared vertex. Then it compares normal forms. Internally th
 two pieces are indexed by `Bool`, so that "the other piece" is `!i`.
 -/
 
-import LeanPlayground.Scratch.category_kindergarten.diagram_core
+import LeanPlayground.diagrams.core
 
 open CategoryTheory Quiver
 
