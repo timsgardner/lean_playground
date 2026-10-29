@@ -75,9 +75,9 @@ namespace FinShape
 
 variable [FinShape W]
 
-/-- A finite shape has finitely many vertices. -/
-instance (priority := 100) [DecidableEq W] : Finite W :=
-  @Finite.of_fintype _ (Fintype.ofList vertices mem_vertices)
+/-- The vertices of a finite shape form a `Fintype`. -/
+instance (priority := 100) fintype [DecidableEq W] : Fintype W :=
+  Fintype.ofList vertices mem_vertices
 
 theorem forall_vertex {P : W → Prop} : (∀ a, P a) ↔ ∀ a ∈ vertices, P a :=
   ⟨fun h a _ => h a, fun h a => h a (mem_vertices a)⟩

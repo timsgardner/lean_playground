@@ -42,10 +42,12 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | `chase.lean` | Steps and chases; soundness and completeness; `ChasesOn`. |
 | `chase_growth.lean` | Adding an arrow and pasting, restated for chases. |
 | `finite.lean` | The computational view: `arrow`, `FinShape`, `ofList`, decidable membership, `Path.edges`. |
+| `decide.lean` | Decision procedures: `ReachIn`, `AcyclicOn`, obligations and minimality, `Shared`, `Chain`; rank and closed-set certificates. |
 | `examples.lean` | The five-object undercount example and Riehl's rectangle. |
 
 `core` is imported by everything. `extend`, `paste`, `chase` and `finite` each
-import only `core`; `chase_growth` imports `extend`, `paste` and `chase`.
+import only `core`; `chase_growth` imports `extend`, `paste` and `chase`, and
+`decide` imports `finite`, `extend` and `paste`.
 
 ## Main results
 
@@ -90,6 +92,14 @@ equation they must satisfy; `ObligationHolds` says some such equation holds.
   chase-level versions of the two growth steps. They prove that the chases
   exist, by working in the free model; they do not construct them.
 
+**Deciding shape conditions** (`decide`). On a shape with `FinShape`, decidable
+equality and decidable subshape membership, `decide` proves reachability and its
+failure, acyclicity, obligations and their minimality, shared vertices and the
+chain condition. `reachIn_iff_mem_reachSet` is the core: a reachability set
+computed by rounds, which is closed after `Fintype.card W` rounds. Without
+finiteness, `acyclicOn_of_rank` and `not_reachIn_of_closed` turn a rank or a
+closed set into the same conclusions.
+
 ## Conventions
 
 - `CommutesOn`, `Commutes` and `ChasesOn` use strict implicit binders `∀ ⦃a b⦄`,
@@ -110,9 +120,6 @@ equation they must satisfy; `ObligationHolds` says some such equation holds.
 
 ## Not yet done
 
-- Decision procedures for the shape conditions (reachability, acyclicity,
-  obligations, the chain condition) on finite shapes. The plan is a meta-level
-  search that emits certificates for the kernel to check cheaply.
 - A chase-search tactic that closes or rewrites goals stated in a diagram's own
   morphisms, and returns the chase it found.
 - Drawing a recorded chase in the infoview, one step at a time.

@@ -6,14 +6,14 @@ Worked examples for the diagrams framework.
 * `UndercountExample`: a five-object diagram where adding one arrow creates three
   minimal obligations, although a planar drawing shows only two new regions next
   to the arrow. By `isMinObligation_necessary`, checking the two regions is not
-  enough.
+  enough. The shape conditions are all proved by `decide`.
 * `RectExample`: Riehl's rectangle (1.6.10), proved by replaying the recorded
   two-step chase `f ◁ R`, then `L ▷ m`.
 -/
 
 import LeanPlayground.diagrams.extend
 import LeanPlayground.diagrams.chase
-import LeanPlayground.diagrams.finite
+import LeanPlayground.diagrams.decide
 
 open CategoryTheory Quiver
 
@@ -92,27 +92,6 @@ def KHom.path {a b : K} (f : KHom a b) : Path a b := Quiver.Hom.toPath (V := K) 
 theorem KHom.within {a b : K} (f : KHom a b) (h : f.old = true := by rfl) :
     Within oldArrows f.path := Within.toPath h
 
-theorem KHom.reach {a b : K} (f : KHom a b) (h : f.old = true := by rfl) :
-    ReachIn oldArrows a b := ⟨f.path, f.within h⟩
-
-/-- Reachability along old arrows, as a table. -/
-def R : K → K → Bool
-  | .s, _ => true
-  | .u, b => b == .u || b == .t || b == .y
-  | .v, b => b == .v || b == .t || b == .y
-  | .t, b => b == .t
-  | .y, b => b == .y
-
-theorem R_of_reachIn {a b : K} : ReachIn oldArrows a b → R a b = true
-  | ⟨_, hp⟩ => by
-    induction hp with
-    | nil => cases a <;> rfl
-    | @cons b c p f _ hf ih =>
-      cases f
-      all_goals first
-        | exact absurd hf Bool.false_ne_true
-        | (revert ih; cases a <;> decide)
-
 theorem hW {a b : K} (f : a ⟶ b) : f ∈ oldArrows a b ∨ IsArrow uv f := by
   cases f
   all_goals first
@@ -121,25 +100,21 @@ theorem hW {a b : K} (f : a ⟶ b) : f ∈ oldArrows a b ∨ IsArrow uv f := by
 
 theorem uv_not_old : uv ∉ oldArrows K.u K.v := Bool.false_ne_true
 
-/-- Decide minimality of an obligation from the reachability table. -/
-macro "min_obl_by_table" : tactic => `(tactic| (
-  rintro x₀ y₀ ⟨h₁, h₂, h₃⟩ h₄ h₅
-  have r₁ := R_of_reachIn h₁; have r₂ := R_of_reachIn h₂; have r₃ := R_of_reachIn h₃
-  have r₄ := R_of_reachIn h₄; have r₅ := R_of_reachIn h₅
-  clear h₁ h₂ h₃ h₄ h₅
-  revert r₁ r₂ r₃ r₄ r₅
-  cases x₀ <;> cases y₀ <;> decide))
-
 /-- `(s, v)` is a minimal obligation for the new arrow `u ⟶ v`. -/
-theorem minObl_sv : IsMinObligation oldArrows K.u K.v K.s K.v :=
-  ⟨⟨KHom.su.reach, ReachIn.refl _, KHom.sv.reach⟩, by min_obl_by_table⟩
+theorem minObl_sv : IsMinObligation oldArrows K.u K.v K.s K.v := by decide
 
 /-- The two obligations that a planar drawing shows are minimal too. -/
-theorem minObl_ut : IsMinObligation oldArrows K.u K.v K.u K.t :=
-  ⟨⟨ReachIn.refl _, KHom.vt.reach, KHom.ut.reach⟩, by min_obl_by_table⟩
+theorem minObl_ut : IsMinObligation oldArrows K.u K.v K.u K.t := by decide
 
-theorem minObl_uy : IsMinObligation oldArrows K.u K.v K.u K.y :=
-  ⟨⟨ReachIn.refl _, KHom.vy.reach, KHom.uy.reach⟩, by min_obl_by_table⟩
+theorem minObl_uy : IsMinObligation oldArrows K.u K.v K.u K.y := by decide
+
+/-- These three are all the minimal obligations. -/
+example (a b : K) : IsMinObligation oldArrows K.u K.v a b ↔
+    (a, b) = (K.s, K.v) ∨ (a, b) = (K.u, K.t) ∨ (a, b) = (K.u, K.y) := by
+  revert a b; decide
+
+/-- The old arrows are acyclic, and the new arrow closes no cycle. -/
+example : AcyclicOn oldArrows ∧ ¬ ReachIn oldArrows K.v K.u := by decide
 
 /-- There is a diagram of shape `K`, commuting on the old arrows, for which the
 equations at `(u, t)` and `(u, y)` hold, yet the whole diagram does not
@@ -201,6 +176,15 @@ instance : FinShape V where
 
 /-- An arrow, as a path of length one. -/
 def H.path {x y : V} (e : H x y) : Path x y := Quiver.Hom.toPath (V := V) e
+
+/-- The two squares, as subshapes. -/
+def leftSquare : Subshape V := ofList [arrow H.f, arrow H.g, arrow H.h, arrow H.k]
+def rightSquare : Subshape V := ofList [arrow H.j, arrow H.h, arrow H.l, arrow H.m]
+
+/-- The squares meet along the edge `h`, so they satisfy the chain condition, and
+their union is acyclic: the hypotheses of `CommutesOn.paste`. -/
+example : Chain leftSquare rightSquare ∧ AcyclicOn (leftSquare ⊔ rightSquare) := by
+  unfold leftSquare rightSquare; decide
 
 /-- The names of the two faces. -/
 inductive Cell | L | R
