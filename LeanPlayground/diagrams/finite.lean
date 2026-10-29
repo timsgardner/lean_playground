@@ -82,6 +82,25 @@ class OutArrows (W : Type u₁) [Quiver.{v₁} W] where
 instance (priority := 100) [FinShape W] : OutArrows W :=
   ⟨fun _ => FinShape.arrows, FinShape.mem_arrows⟩
 
+/-- A numbering of the vertices of a shape: `index` sends vertices injectively into
+`0, …, size - 1`, and `vertexAt` sends the index of each vertex back to it. Kernel
+computations run on indices, with sets of vertices as bitmasks, and recover a
+vertex from its index with `vertexAt`, so the vertices they handle stay small. -/
+class NumShape (W : Type u₁) [Quiver.{v₁} W] where
+  /-- The number of indices. -/
+  size : ℕ
+  /-- The index of a vertex. -/
+  index : W → ℕ
+  index_lt : ∀ a, index a < size
+  /-- The vertex with a given index. Its value at numbers that index no vertex is
+  irrelevant. -/
+  vertexAt : ℕ → W
+  vertexAt_index : ∀ a, vertexAt (index a) = a
+
+theorem NumShape.index_injective [NumShape W] {a b : W} (h : NumShape.index a = NumShape.index b) :
+    a = b := by
+  rw [← NumShape.vertexAt_index a, h, NumShape.vertexAt_index]
+
 namespace FinShape
 
 variable [FinShape W]

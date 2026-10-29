@@ -94,11 +94,11 @@ equation they must satisfy; `ObligationHolds` says some such equation holds.
   chase-level versions of the two growth steps. They prove that the chases
   exist, by working in the free model; they do not construct them.
 
-**Deciding shape conditions** (`decide`). On a shape with `FinShape`, decidable
-equality and decidable subshape membership, `decide` proves reachability and its
+**Deciding shape conditions** (`decide`). On a shape with `FinShape`, `NumShape`,
+decidable equality and decidable subshape membership, `decide` proves reachability and its
 failure, acyclicity, obligations and their minimality, shared vertices and the
-chain condition. `reachIn_iff_mem_reachSet` is the core: a reachability set
-computed by rounds, which is closed after `Fintype.card W` rounds. Without
+chain condition. `reachIn_iff_testBit` is the core: a depth-first search over vertex
+indices with a bitmask for the visited set, checked to be closed under arrows. Without
 finiteness, `acyclicOn_of_rank` and `not_reachIn_of_closed` turn a rank or a
 closed set into the same conclusions.
 
@@ -129,18 +129,25 @@ answer by replay. Only the check is trusted: `eq_of_chaseCheck` turns
   `RectExample.H`. A diagram on it is built by pattern matching, which keeps its
   arrows readable in goals (`G.map .f` reduces to `f`).
 
-## Known problem: complexity
+## Complexity
 
-**The decision procedures in `decide.lean` and the search in `search.lean` scale
-very badly, and are not fit for anything beyond toy diagrams.** On the benchmark
-grids (`bench/grid.lean`), deciding reachability on a 6 × 6-vertex grid takes
-about 15 seconds and peaks at 2.7 GB of resident memory in the kernel; one size
-larger exceeds 3 GB. Acyclicity and minimal obligations are worse, and the chase
-search grows exponentially. The causes are known: the kernel shares no
-evaluation, so each reachability query rebuilds `Finset`s from scratch, and the
-derived procedures repeat those queries for every pair of vertices. The fixes
-(worklist reachability, per-arrow acyclicity, restricted quantifiers, and
-running the search outside the kernel) are the next piece of work.
+The decision procedures in `decide.lean` run in the kernel, whose evaluator
+rewrites terms lazily. Two lessons from making them usable:
+
+* Computed values must not pile up as unevaluated expressions. Reachability
+  therefore runs on vertex indices (`NumShape`), keeps the visited set as a
+  bitmask (bitwise arithmetic on number literals is native in the kernel), uses a
+  stack rather than an appended queue, and recovers vertices from indices.
+* Each bounded quantifier or implication that `decide` unfolds costs on the order
+  of a millisecond, so procedures should not check something for every pair of
+  vertices.
+
+On the benchmark grids (`bench/grid.lean`, `bench/bench.py`), reachability on 81
+vertices takes about 0.4 s and on 1089 vertices about 6 s; minimal obligations
+and the chain condition are of the same order. Acyclicity runs one search per
+arrow and is still slow beyond a few dozen vertices; the rank certificate
+(`acyclicOn_of_rank`) is the cheap route there. The chase search is exponential
+in the worst case and still runs inside the kernel.
 
 `bench/bench.py` times the workloads under hard wall-clock and memory limits.
 

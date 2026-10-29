@@ -53,6 +53,13 @@ instance : Quiver K := ⟨KHom⟩
 
 instance (a b : K) : DecidableEq (a ⟶ b) := inferInstanceAs (DecidableEq (KHom a b))
 
+instance : NumShape K where
+  size := 5
+  index | .s => 0 | .u => 1 | .v => 2 | .t => 3 | .y => 4
+  index_lt a := by cases a <;> decide
+  vertexAt | 0 => .s | 1 => .u | 2 => .v | 3 => .t | _ => .y
+  vertexAt_index a := by cases a <;> rfl
+
 instance : FinShape K where
   vertices := [.s, .u, .v, .t, .y]
   mem_vertices a := by cases a <;> decide
@@ -168,6 +175,13 @@ inductive H : V → V → Type
 instance : Quiver V := ⟨H⟩
 
 instance (x y : V) : DecidableEq (x ⟶ y) := inferInstanceAs (DecidableEq (H x y))
+
+instance : NumShape V where
+  size := 6
+  index | .a => 0 | .b => 1 | .c => 2 | .a' => 3 | .b' => 4 | .c' => 5
+  index_lt x := by cases x <;> decide
+  vertexAt | 0 => .a | 1 => .b | 2 => .c | 3 => .a' | 4 => .b' | _ => .c'
+  vertexAt_index x := by cases x <;> rfl
 
 instance : FinShape V where
   vertices := [.a, .b, .c, .a', .b', .c']

@@ -84,6 +84,24 @@ instance : OutArrows (Grid m n) where
     · exact List.mem_append_left _ (mem_arrowsFrom h)
     · exact List.mem_append_right _ (mem_arrowsFrom h)
 
+instance : NumShape (Grid (m + 1) (n + 1)) where
+  size := (m + 1) * (n + 1)
+  index a := a.2.val + a.1.val * (n + 1)
+  index_lt a := by
+    have h : a.2.val + a.1.val * (n + 1) < (a.1.val + 1) * (n + 1) := by
+      rw [Nat.succ_mul]; have := a.2.isLt; omega
+    exact Nat.lt_of_lt_of_le h (Nat.mul_le_mul_right _ a.1.isLt)
+  vertexAt t := (⟨t / (n + 1) % (m + 1), Nat.mod_lt _ (Nat.succ_pos m)⟩,
+    ⟨t % (n + 1), Nat.mod_lt _ (Nat.succ_pos n)⟩)
+  vertexAt_index a := by
+    obtain ⟨⟨i, hi⟩, ⟨j, hj⟩⟩ := a
+    refine Prod.ext (Fin.ext ?_) (Fin.ext ?_)
+    · show (j + i * (n + 1)) / (n + 1) % (m + 1) = i
+      rw [Nat.add_mul_div_right _ _ (Nat.succ_pos n), Nat.div_eq_of_lt hj, Nat.zero_add,
+        Nat.mod_eq_of_lt hi]
+    · show (j + i * (n + 1)) % (n + 1) = j
+      rw [Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hj]
+
 /-! ## Faces -/
 
 /-- A unit square, named by its top-left corner. -/

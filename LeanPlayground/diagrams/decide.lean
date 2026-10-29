@@ -308,19 +308,172 @@ theorem reachIn_iff_mem_reachList {a b : W} : ReachIn S a b ↔ b ∈ reachList 
       (by simpa using ReachIn.refl a) b h
   · simp [FinShape.mem_vertices, ← reachIn_iff_mem_reachSet]
 
-instance {a b : W} : Decidable (ReachIn S a b) :=
-  decidable_of_iff _ reachIn_iff_mem_reachList.symm
-
 end FastReach
+
+/-! ## Reachability on indices
+
+This is the reachability procedure that `decide` uses. It works on the indices of a
+`NumShape`: the stack holds indices, the set of visited vertices is a bitmask, and
+the neighbours of index `i` are read off the arrows leaving the canonical vertex
+`vertexAt i`. Bitmask operations are native in the kernel and keep the visited set
+evaluated; the stack is only ever touched at its front; and recovering vertices
+from indices keeps them small. The result is checked to be closed under arrows of
+`S`, so it is exact; if the check failed, `reachMask` would fall back to
+`reachList`.
+-/
+
+section NumReach
+
+variable [FinShape W] [OutArrows W] [NumShape W] (S)
+  [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ S a b)]
+
+open NumShape
+
+/-- The indices of the targets of the arrows of `S` leaving vertex number `i`. -/
+def succIdx (i : ℕ) : List ℕ :=
+  ((OutArrows.out (vertexAt i : W)).filter fun e =>
+    decide (index e.left = i) && decide (e.hom ∈ S e.left e.right)).map (index ·.right)
+
+/-- Set the bits listed in `l`. -/
+def setBits (m : ℕ) (l : List ℕ) : ℕ := l.foldl (fun m j => m ||| (1 <<< j)) m
+
+/-- Depth-first search: pop an index, push its neighbours not yet visited. -/
+def dfs : ℕ → List ℕ → ℕ → ℕ
+  | 0, _, vis => vis
+  | _, [], vis => vis
+  | fuel + 1, i :: stack, vis =>
+    let new := (succIdx S i).filter fun j => !vis.testBit j
+    dfs fuel (new ++ stack) (setBits vis new)
+
+/-- The bitmask `m` is closed under arrows of `S`. -/
+def closedMask (m : ℕ) : Bool :=
+  (FinShape.arrows : List (Total W)).all fun e =>
+    !(decide (e.hom ∈ S e.left e.right) && m.testBit (index e.left)) || m.testBit (index e.right)
+
+/-- The indices of the vertices reachable from vertex number `i`, as a bitmask. -/
+def reachMask [DecidableEq W] [Fintype W] (i : ℕ) : ℕ :=
+  let m := dfs S ((FinShape.arrows : List (Total W)).length + size W + 1) [i] (1 <<< i)
+  if closedMask S m then m else setBits 0 ((reachList S (vertexAt i)).map index)
+
+variable {S}
+
+omit [FinShape W] in
+theorem reachIn_of_mem_succIdx {i j : ℕ} (h : j ∈ succIdx S i) :
+    ∃ a b : W, index a = i ∧ index b = j ∧ ReachIn S a b := by
+  simp only [succIdx, List.mem_map, List.mem_filter, Bool.and_eq_true, decide_eq_true_eq] at h
+  obtain ⟨e, ⟨_, hi, he⟩, rfl⟩ := h
+  exact ⟨e.left, e.right, hi, rfl, ⟨e.hom.toPath, Within.toPath he⟩⟩
+
+omit [Quiver W] in
+theorem testBit_setBits {j : ℕ} : ∀ (l : List ℕ) (m : ℕ),
+    (setBits m l).testBit j = true ↔ m.testBit j = true ∨ j ∈ l
+  | [], m => by simp [setBits]
+  | k :: l, m => by
+    show (setBits (m ||| 1 <<< k) l).testBit j = true ↔ _
+    rw [testBit_setBits l, Nat.testBit_or, Nat.one_shiftLeft, Nat.testBit_two_pow]
+    simp only [Bool.or_eq_true, decide_eq_true_eq, List.mem_cons]
+    rw [@eq_comm _ k j]
+    exact or_assoc
+
+omit [FinShape W] in
+theorem testBit_dfs_of {j : ℕ} : ∀ (fuel : ℕ) (stack : List ℕ) (vis : ℕ),
+    vis.testBit j = true → (dfs S fuel stack vis).testBit j = true
+  | 0, _, _, h => h
+  | _ + 1, [], _, h => h
+  | fuel + 1, _ :: _, _, h => testBit_dfs_of fuel _ _ ((testBit_setBits _ _).2 (Or.inl h))
+
+omit [FinShape W] in
+/-- Every bit `dfs` sets is the index of a vertex reachable from `a`, if this holds
+for the stack and the visited set it starts from. -/
+theorem dfs_sound {a : W} : ∀ (fuel : ℕ) (stack : List ℕ) (vis : ℕ),
+    (∀ i ∈ stack, ∃ b, index b = i ∧ ReachIn S a b) →
+    (∀ j, vis.testBit j = true → ∃ b, index b = j ∧ ReachIn S a b) →
+      ∀ j, (dfs S fuel stack vis).testBit j = true → ∃ b, index b = j ∧ ReachIn S a b
+  | 0, _, _, _, hv => hv
+  | _ + 1, [], _, _, hv => hv
+  | fuel + 1, i :: stack, vis, hs, hv => by
+    have hnew : ∀ j ∈ (succIdx S i).filter fun j => !vis.testBit j,
+        ∃ b, index b = j ∧ ReachIn S a b := by
+      intro j hj
+      obtain ⟨c, d, hc, hd, hcd⟩ := reachIn_of_mem_succIdx (List.mem_of_mem_filter hj)
+      obtain ⟨b, hb, hab⟩ := hs i (List.mem_cons_self ..)
+      obtain rfl : b = c := index_injective (hb.trans hc.symm)
+      exact ⟨d, hd, hab.trans hcd⟩
+    refine dfs_sound fuel _ _ ?_ ?_
+    · intro k hk
+      rcases List.mem_append.1 hk with hk | hk
+      · exact hnew k hk
+      · exact hs k (List.mem_cons_of_mem _ hk)
+    · intro k hk
+      rcases (testBit_setBits _ _).1 hk with hk | hk
+      · exact hv k hk
+      · exact hnew k hk
+
+omit [OutArrows W] in
+theorem mem_of_closedMask {m : ℕ} (hm : closedMask S m = true) {a b : W} {f : a ⟶ b}
+    (hf : f ∈ S a b) (ha : m.testBit (index a) = true) : m.testBit (index b) = true := by
+  simp only [closedMask, List.all_eq_true, Bool.or_eq_true, Bool.not_eq_true',
+    Bool.and_eq_false_iff, decide_eq_false_iff_not] at hm
+  rcases hm (arrow f) (FinShape.mem_arrows _) with (h | h) | h
+  · exact absurd hf h
+  · rw [h] at ha; exact absurd ha (by simp)
+  · exact h
+
+variable [DecidableEq W] [Fintype W]
+
+/-- The bits of `reachMask S (index a)` are exactly the indices of the vertices
+reachable from `a`. -/
+theorem testBit_reachMask {a : W} {j : ℕ} :
+    (reachMask S (index a)).testBit j = true ↔ ∃ b, index b = j ∧ ReachIn S a b := by
+  unfold reachMask
+  dsimp only
+  split_ifs with hc
+  · constructor
+    · refine dfs_sound _ _ _ (by simpa using ⟨a, rfl, ReachIn.refl a⟩) ?_ j
+      intro k hk
+      rw [Nat.one_shiftLeft, Nat.testBit_two_pow, decide_eq_true_eq] at hk
+      exact ⟨a, hk, ReachIn.refl a⟩
+    · rintro ⟨b, rfl, hab⟩
+      refine mem_of_reachIn_of_closed (fun w => _ = true)
+        (fun _ _ _ hf hx => mem_of_closedMask hc hf hx) ?_ hab
+      exact testBit_dfs_of _ _ _ (by simp [Nat.one_shiftLeft])
+  · rw [testBit_setBits]
+    simp only [Nat.zero_testBit, Bool.false_eq_true, false_or, List.mem_map,
+      ← reachIn_iff_mem_reachList, vertexAt_index]
+    exact ⟨fun ⟨b, h, e⟩ => ⟨b, e, h⟩, fun ⟨b, e, h⟩ => ⟨b, h, e⟩⟩
+
+theorem reachIn_iff_testBit {a b : W} :
+    ReachIn S a b ↔ (reachMask S (index a)).testBit (index b) = true := by
+  rw [testBit_reachMask]
+  exact ⟨fun h => ⟨b, rfl, h⟩, fun ⟨_, hc, h⟩ => index_injective hc ▸ h⟩
+
+instance {a b : W} : Decidable (ReachIn S a b) :=
+  decidable_of_iff _ reachIn_iff_testBit.symm
+
+/-- The vertices reachable from `a`, as canonical vertices `vertexAt j`. -/
+def reachVerts (S : Subshape W) [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ S a b)] (a : W) :
+    List W :=
+  ((List.range (size W)).filter fun j => (reachMask S (index a)).testBit j).map vertexAt
+
+theorem mem_reachVerts {a b : W} : b ∈ reachVerts S a ↔ ReachIn S a b := by
+  simp only [reachVerts, List.mem_map, List.mem_filter, List.mem_range, testBit_reachMask]
+  constructor
+  · rintro ⟨j, ⟨_, c, rfl, hc⟩, rfl⟩
+    rwa [vertexAt_index]
+  · intro h
+    exact ⟨index b, ⟨index_lt b, b, rfl, h⟩, vertexAt_index b⟩
+
+end NumReach
 
 /-! ## Acyclicity, obligations and minimality -/
 
 section Derived
 
-variable [FinShape W] [OutArrows W] [Fintype W] [DecidableEq W]
+variable [FinShape W] [OutArrows W] [NumShape W] [Fintype W] [DecidableEq W]
   [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ S a b)]
 
-omit [OutArrows W] [Fintype W] [DecidableEq W] [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ S a b)] in
+omit [OutArrows W] [NumShape W] [Fintype W] [DecidableEq W]
+  [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ S a b)] in
 /-- `S` is acyclic exactly when no arrow of `S` has a path back, except a loop. This
 needs one reachability question per arrow, not one per pair of vertices. -/
 theorem acyclicOn_iff_arrows : AcyclicOn S ↔ ∀ e ∈ (FinShape.arrows : List (Total W)),
@@ -335,6 +488,8 @@ theorem acyclicOn_iff_arrows : AcyclicOn S ↔ ∀ e ∈ (FinShape.arrows : List
       obtain rfl : c = d := h (arrow f) (FinShape.mem_arrows _) hf (hba.trans ⟨p, hp⟩)
       exact ih hba
 
+/-- Acyclicity is decided with one reachability search per arrow. For large shapes
+the rank certificate (`acyclicOn_of_rank`) is much cheaper to check. -/
 instance : Decidable (AcyclicOn S) :=
   decidable_of_iff _ acyclicOn_iff_arrows.symm
 
@@ -344,9 +499,9 @@ instance {u v x y : W} : Decidable (IsObligation S u v x y) :=
 /-- Minimality only needs to look at the vertices reachable from `x`, and the
 vertices reachable from `v`. -/
 theorem isMinObligation_iff {u v x y : W} : IsMinObligation S u v x y ↔
-    IsObligation S u v x y ∧ ∀ x₀ ∈ reachList S x, ReachIn S x₀ u →
-      ∀ y₀ ∈ reachList S v, ReachIn S y₀ y → ReachIn S x₀ y₀ → x₀ = x ∧ y₀ = y := by
-  simp only [IsMinObligation, IsObligation, ← reachIn_iff_mem_reachList]
+    IsObligation S u v x y ∧ ∀ x₀ ∈ reachVerts S x, ReachIn S x₀ u →
+      ∀ y₀ ∈ reachVerts S v, ReachIn S y₀ y → ReachIn S x₀ y₀ → x₀ = x ∧ y₀ = y := by
+  simp only [IsMinObligation, IsObligation, mem_reachVerts]
   constructor
   · rintro ⟨ho, h⟩
     exact ⟨ho, fun x₀ hx₀ hu y₀ hy₀ hy hxy => h x₀ y₀ ⟨hu, hy₀, hxy⟩ hx₀ hy⟩
@@ -363,17 +518,43 @@ end Derived
 
 section Shared
 
-variable [FinShape W] [OutArrows W] [Fintype W] [DecidableEq W]
+variable [FinShape W] [OutArrows W] [NumShape W] [Fintype W] [DecidableEq W]
 
+/-- The indices of the vertices that arrows of `R` touch, as a bitmask. -/
+def touchMask (R : Subshape W) [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ R a b)] : ℕ :=
+  setBits 0 ((FinShape.arrows : List (Total W)).flatMap fun e =>
+    if e.hom ∈ R e.left e.right then [NumShape.index e.left, NumShape.index e.right] else [])
+
+omit [OutArrows W] [Fintype W] [DecidableEq W] in
+theorem touches_iff_testBit {R : Subshape W} [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ R a b)]
+    {v : W} : Touches R v ↔ (touchMask R).testBit (NumShape.index v) = true := by
+  rw [touchMask, testBit_setBits]
+  simp only [Nat.zero_testBit, Bool.false_eq_true, false_or, List.mem_flatMap]
+  constructor
+  · rintro ⟨a, b, f, hf, h⟩
+    refine ⟨arrow f, FinShape.mem_arrows _, ?_⟩
+    simp only [arrow, hf, ite_true, List.mem_cons, List.not_mem_nil, or_false]
+    rcases h with rfl | rfl
+    · exact Or.inl rfl
+    · exact Or.inr rfl
+  · rintro ⟨e, _, h⟩
+    split_ifs at h with he
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at h
+      rcases h with h | h
+      · exact ⟨_, _, e.hom, he, Or.inl (NumShape.index_injective h.symm)⟩
+      · exact ⟨_, _, e.hom, he, Or.inr (NumShape.index_injective h.symm)⟩
+    · exact absurd h (List.not_mem_nil)
+
+/-- Whether `v` is touched by `R` is one bit test in a bitmask computed once. -/
 instance {R : Subshape W} [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ R a b)] {v : W} :
     Decidable (Touches R v) :=
-  decidable_of_iff _ (FinShape.exists_arrow (P := fun {a b} f => f ∈ R a b ∧ (a = v ∨ b = v))).symm
+  decidable_of_iff _ touches_iff_testBit.symm
 
 instance [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ S a b)]
     [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ T a b)] {v : W} : Decidable (Shared S T v) :=
   inferInstanceAs (Decidable (_ ∧ _))
 
-omit [OutArrows W] [Fintype W] in
+omit [OutArrows W] [Fintype W] [DecidableEq W] in
 /-- The chain condition only needs to look at pairs of shared vertices. -/
 theorem chain_iff_shared [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ S a b)]
     [∀ (a b : W) (f : a ⟶ b), Decidable (f ∈ T a b)] :
