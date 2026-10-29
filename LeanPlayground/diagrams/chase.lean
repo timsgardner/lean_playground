@@ -28,6 +28,7 @@ exactly that `G` commutes on `S` for every `G` in which the faces hold
 
 import LeanPlayground.diagrams.core
 import Mathlib.CategoryTheory.Quotient
+import Mathlib.CategoryTheory.PathCategory.Basic
 
 open CategoryTheory Quiver
 

@@ -4,8 +4,8 @@
 Worked examples for the diagrams framework.
 
 * `UndercountExample`: a five-object diagram where adding one arrow creates three
-  minimal obligations, although a planar drawing shows only two new regions next
-  to the arrow. By `isMinObligation_necessary`, checking the two regions is not
+  minimal cells, although a planar drawing shows only two new regions next
+  to the arrow. By `closesMin_necessary`, checking the two regions is not
   enough. The shape conditions are all proved by `decide`.
 * `RectExample`: Riehl's rectangle (1.6.10), built by hand on each layer: a
   recorded chase, the chase search, and commutativity by construction.
@@ -14,7 +14,7 @@ Worked examples for the diagrams framework.
   `commutes` theorems.
 -/
 
-import LeanPlayground.diagrams.extend
+import LeanPlayground.diagrams.minimal
 import LeanPlayground.diagrams.chase
 import LeanPlayground.diagrams.decide
 import LeanPlayground.diagrams.tactics
@@ -32,9 +32,9 @@ Take objects `s, u, v, t, y` with arrows `s ⟶ u`, `s ⟶ v`, `u ⟶ t`, `v ⟶
 `u ⟶ y`, `v ⟶ y`, and add a new arrow `u ⟶ v`. In the drawing below, `u` sits
 above `v`, with `t` to the left and `y` to the right, so the new arrow runs down
 the middle and borders two regions: the triangle `u ⟶ t ⟵ v` on its left and
-the triangle `u ⟶ y ⟵ v` on its right. These give the obligations `(u, t)` and
-`(u, y)`. But `(s, v)` is a minimal obligation too: the new path
-`s ⟶ u ⟶ v` is parallel to the old arrow `s ⟶ v`. By `isMinObligation_necessary`, the
+the triangle `u ⟶ y ⟵ v` on its right. These give the cells `(u, t)` and
+`(u, y)`. But `(s, v)` is a minimal cell too: the new path
+`s ⟶ u ⟶ v` is parallel to the old arrow `s ⟶ v`. By `closesMin_necessary`, the
 two regions alone do not make the diagram commute.
 
 [Diagram](assets/undercount.svg)
@@ -116,16 +116,16 @@ theorem hW {a b : K} (f : a ⟶ b) : f ∈ oldArrows a b ∨ IsArrow uv f := by
 
 theorem uv_not_old : uv ∉ oldArrows K.u K.v := Bool.false_ne_true
 
-/-- `(s, v)` is a minimal obligation for the new arrow `u ⟶ v`. -/
-theorem minObl_sv : IsMinObligation oldArrows K.u K.v K.s K.v := by decide
+/-- `(s, v)` is a minimal cell for the new arrow `u ⟶ v`. -/
+theorem minObl_sv : ClosesMin oldArrows K.u K.v K.s K.v := by decide
 
-/-- The two obligations that a planar drawing shows are minimal too. -/
-theorem minObl_ut : IsMinObligation oldArrows K.u K.v K.u K.t := by decide
+/-- The two cells that a planar drawing shows are minimal too. -/
+theorem minObl_ut : ClosesMin oldArrows K.u K.v K.u K.t := by decide
 
-theorem minObl_uy : IsMinObligation oldArrows K.u K.v K.u K.y := by decide
+theorem minObl_uy : ClosesMin oldArrows K.u K.v K.u K.y := by decide
 
-/-- These three are all the minimal obligations. -/
-example (a b : K) : IsMinObligation oldArrows K.u K.v a b ↔
+/-- These three are all the minimal cells. -/
+example (a b : K) : ClosesMin oldArrows K.u K.v a b ↔
     (a, b) = (K.s, K.v) ∨ (a, b) = (K.u, K.t) ∨ (a, b) = (K.u, K.y) := by
   revert a b; decide
 
@@ -142,9 +142,9 @@ equations at `(u, t)` and `(u, y)` hold, yet the whole diagram does not
 commute. -/
 theorem two_regions_not_enough :
     ∃ G : K ⥤q Type, CommutesOn G oldArrows ∧
-      ObligationHolds oldArrows uv G .u .t ∧ ObligationHolds oldArrows uv G .u .y ∧
+      CellHolds oldArrows uv G .u .t ∧ CellHolds oldArrows uv G .u .y ∧
         ¬ Commutes G := by
-  obtain ⟨G, hG, hother, hfail⟩ := isMinObligation_necessary hW uv_not_old minObl_sv
+  obtain ⟨G, hG, hother, hfail⟩ := closesMin_necessary hW uv_not_old minObl_sv
   refine ⟨G, hG, ?_, ?_, fun h => hfail ?_⟩
   · exact ⟨⟨.nil, KHom.vt.path, KHom.ut.path, .nil, KHom.vt.within, KHom.ut.within⟩,
       hother _ _ minObl_ut.1 (by decide) .nil KHom.vt.within KHom.ut.within⟩
@@ -357,7 +357,7 @@ example {D : Type*} [Category D] {o X Y Z XY XZ YZ T : D}
 /-! ### Inferred faces
 
 Without a `faces` block, `diagram_shape` infers the faces, as the minimal
-obligations of adding the arrows in declared order. -/
+cells of adding the arrows in declared order. -/
 
 -- The rectangle again: the inferred faces are its two squares.
 /--
@@ -387,7 +387,7 @@ diagram_shape Zigzag where
 -- which neither square gives until `h` is present. The arrows are numbered in
 -- declared order: [Diagram](assets/rectangle_bad_order.svg)
 /--
-error: diagram_shape: adding m creates the equation
+error: diagram_shape: adding m closes the cell
   g ≫ k ≫ m = f ≫ j ≫ l
 which no face it completes covers. Either the faces do not imply it, so it must be added as a face, or the faces that imply it contain arrows declared after m, and another order of the arrows avoids it.
 -/

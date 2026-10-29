@@ -12,6 +12,7 @@ unit square is a face. The definitions ending in `Bench` are the workloads that
 side.
 -/
 
+import Mathlib.Data.Fintype.Prod
 import LeanPlayground.diagrams.decide
 import LeanPlayground.diagrams.search
 
@@ -171,12 +172,12 @@ instance (k : ℕ) {a b : Grid (k + 1) (k + 1)} {f : a ⟶ b} : Decidable (f ∈
 /-- The top-left corner of the last square. -/
 def lastCell (k : ℕ) : Grid (k + 1) (k + 1) := (⟨k - 1, by omega⟩, ⟨k - 1, by omega⟩)
 
-/-- Adding the last arrow: the last square is a minimal obligation. -/
-abbrev minObligationBench (k : ℕ) : Prop :=
-  IsMinObligation (allButLast k) (lastU k) (far k) (lastCell k) (far k)
+/-- Adding the last arrow: the last square is a minimal cell. -/
+abbrev minCellBench (k : ℕ) : Prop :=
+  ClosesMin (allButLast k) (lastU k) (far k) (lastCell k) (far k)
 
-instance (k : ℕ) : Decidable (minObligationBench k) :=
-  inferInstanceAs (Decidable (IsMinObligation (allButLast k) (lastU k) (far k) (lastCell k) (far k)))
+instance (k : ℕ) : Decidable (minCellBench k) :=
+  inferInstanceAs (Decidable (ClosesMin (allButLast k) (lastU k) (far k) (lastCell k) (far k)))
 
 /-- The arrows with both ends in columns `≤ c`, and those with both ends in
 columns `≥ c`. -/

@@ -4,14 +4,14 @@
 A diagram is built by adding its arrows one at a time. When an arrow `e` is added,
 the faces that `e` completes (those whose other arrows are already present) supply
 the equations `e` owes: a face with `e` on one side, `α ≫ e ≫ β = γ`, is an
-obligation at its source and target (`obligationHolds_of_face`). If those
-obligations cover every obligation `e` creates, the diagram still commutes
+cell at its source and target (`cellHolds_of_face`). If those
+cells cover every cell `e` creates, the diagram still commutes
 (`CommutesOn.cons`, from `CommutesOn.sup_single_of_cover`). No search for chases is
 involved: each equation comes from a face.
 
 A *build* is a list of steps, each an arrow together with the faces it completes,
 the last arrow first. `buildOK` checks a build: every face use has the right shape,
-the new arrow closes no cycle, and the faces cover every obligation. These are
+the new arrow closes no cycle, and the faces cover every cell. These are
 questions about the shape alone. `commutesOn_of_build` turns a checked build, and
 the equations of the faces, into `CommutesOn G (ofList arrows)`.
 
@@ -24,7 +24,6 @@ that need a face with the ends its face uses cover.
 -/
 
 import LeanPlayground.diagrams.decide
-import LeanPlayground.diagrams.search
 
 open CategoryTheory Quiver
 
@@ -41,9 +40,9 @@ open PathEdges
 /-- Adding an arrow to a subshape given by a list. -/
 theorem CommutesOn.cons {A : List (Total W)} (hS : CommutesOn G (ofList A)) {u v : W} (e : u ⟶ v)
     (huv : ¬ ReachIn (ofList A) v u)
-    (hcov : ∀ x y, IsObligation (ofList A) u v x y →
+    (hcov : ∀ x y, Closes (ofList A) u v x y →
       ∃ x' y', ReachIn (ofList A) x x' ∧ ReachIn (ofList A) y' y ∧
-        ObligationHolds (ofList A) e G x' y') :
+        CellHolds (ofList A) e G x' y') :
     CommutesOn G (ofList (arrow e :: A)) := by
   rw [ofList_cons, sup_comm]
   exact hS.sup_single_of_cover huv hcov
@@ -53,15 +52,15 @@ theorem within_ofList_iff {A : List (Total W)} {a b : W} {p : Path a b} :
   rw [within_iff_edges]
   rfl
 
-/-- **A face gives an obligation.** If one side of a face that holds in `G` is
+/-- **A face gives a cell.** If one side of a face that holds in `G` is
 `α ≫ e ≫ β`, with `e` at position `n`, and the rest of the face lies in `A`, then
-the obligation for `e` at the face's source and target holds. -/
-theorem obligationHolds_of_face {A : List (Total W)} {φ : Face W} (hφ : φ.Holds G) {u v : W}
+the cell that `e` closes at the face's source and target holds. -/
+theorem cellHolds_of_face {A : List (Total W)} {φ : Face W} (hφ : φ.Holds G) {u v : W}
     (e : u ⟶ v) (s : Bool) (n : ℕ) (he : (φ.side s).edges[n]? = some (arrow e))
     (hα : ∀ x ∈ (φ.side s).edges.take n, x ∈ A)
     (hβ : ∀ x ∈ (φ.side s).edges.drop (n + 1), x ∈ A)
     (hγ : ∀ x ∈ (φ.side (!s)).edges, x ∈ A) :
-    ObligationHolds (ofList A) e G φ.src φ.tgt := by
+    CellHolds (ofList A) e G φ.src φ.tgt := by
   obtain ⟨c, α, rest, hsplit, hαe, hreste⟩ := exists_split (φ.side s) n
   obtain ⟨d, mid, β, rfl, hmid, hβe⟩ := exists_split rest 1
   obtain ⟨hn, hx⟩ := List.getElem?_eq_some_iff.1 he
@@ -284,7 +283,7 @@ omit [FinShape W] [OutArrows W] [Fintype W] [DecidableEq W] [DecidableEq (Total 
 /-- **The coverage check is sound**: every cell is covered by a face use. -/
 theorem covered_of_coversOK {faces : List (Face W)} {A : List (Total W)} {R : List ℕ}
     (hR : MasksOK A R) {e : Total W} {uses : List FaceUse} (h : coversOK faces R e uses = true)
-    {x y : W} (hxy : IsObligation (ofList A) e.left e.right x y) :
+    {x y : W} (hxy : Closes (ofList A) e.left e.right x y) :
     ∃ c ∈ uses, coveredBy faces R x y c = true := by
   obtain ⟨hxu, hvy, hxy'⟩ := hxy
   unfold coversOK at h
@@ -333,12 +332,12 @@ def buildOK (faces : List (Face W)) (steps : List (Total W × List FaceUse)) : B
   (checkBuild faces steps).isSome
 
 omit [FinShape W] [OutArrows W] [NumShape W] [Fintype W] [DecidableEq W] in
-theorem obligationHolds_of_faceUseOK {faces : List (Face W)} (hF : ∀ φ ∈ faces, φ.Holds G)
+theorem cellHolds_of_faceUseOK {faces : List (Face W)} (hF : ∀ φ ∈ faces, φ.Holds G)
     {A : List (Total W)} {e : Total W} {c : FaceUse} (h : faceUseOK faces A e c = true)
-    {φ : Face W} (hφ : faces[c.face]? = some φ) : ObligationHolds (ofList A) e.hom G φ.src φ.tgt := by
+    {φ : Face W} (hφ : faces[c.face]? = some φ) : CellHolds (ofList A) e.hom G φ.src φ.tgt := by
   simp only [faceUseOK, hφ, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true] at h
   obtain ⟨⟨⟨he, hα⟩, hβ⟩, hγ⟩ := h
-  exact obligationHolds_of_face (hF φ (List.mem_of_getElem? hφ)) e.hom c.side c.pos he hα hβ hγ
+  exact cellHolds_of_face (hF φ (List.mem_of_getElem? hφ)) e.hom c.side c.pos he hα hβ hγ
 
 omit [FinShape W] [OutArrows W] [Fintype W] [DecidableEq W] in
 /-- A checked build commutes on its arrows, and its masks are their reachability. -/
@@ -371,7 +370,7 @@ theorem commutesOn_of_checkBuild {faces : List (Face W)} (hF : ∀ φ ∈ faces,
       · exact absurd hcx Bool.false_ne_true
       · rename_i φ hφ
         simp only [Bool.and_eq_true, ← hR.reachIn_iff] at hcx
-        exact ⟨φ.src, φ.tgt, hcx.1, hcx.2, obligationHolds_of_faceUseOK hF (huses c hc) hφ⟩
+        exact ⟨φ.src, φ.tgt, hcx.1, hcx.2, cellHolds_of_faceUseOK hF (huses c hc) hφ⟩
 
 omit [FinShape W] [OutArrows W] [Fintype W] [DecidableEq W] in
 /-- **Commutative by construction.** A valid build whose faces hold in `G` makes `G`

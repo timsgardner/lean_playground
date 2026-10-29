@@ -78,10 +78,6 @@ theorem not_reachIn_of_fenceCheck {X : ℕ} {v u : W} (h : fenceCheck S X v u = 
   exact not_reachIn_of_closed (fun w => X.testBit (index w) = true)
     (fun _ _ _ hf hx => mem_of_closedMask hc hf hx) hv (by rw [hu]; exact Bool.false_ne_true)
 
-/-- The position of an arrow in the arrow list of the shape. -/
-def arrowIdx [DecidableEq (Total W)] (e : Total W) : ℕ :=
-  (FinShape.arrows : List (Total W)).idxOf e
-
 /-- The data a chase search needs, as numbers: for each listed face, its two sides
 as lists of arrow positions together with the indices of its source and target;
 the index of the start vertex; the arrow positions of `p` and `q`; and the index of

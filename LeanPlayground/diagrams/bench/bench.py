@@ -39,7 +39,7 @@ IMPORTS = [MODULE, "LeanPlayground.diagrams.tactics"]
 WORKLOADS = {
     "reach": "example : reachBench {k} := by",
     "acyclic": "example : acyclicBench {k} := by",
-    "minObligation": "example : minObligationBench {k} := by",
+    "minCell": "example : minCellBench {k} := by",
     "chain": "example : chainBench {k} := by",
     "search": "example : searchBench {k} = true := by",
     "unreach": "example : unreachBench {k} := by",

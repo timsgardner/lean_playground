@@ -41,21 +41,6 @@ theorem target_eq_lastVertex {a : W} : ∀ {b : W} (p : Path a b), b = lastVerte
   | _, .nil => rfl
   | _, .cons p f => by simp [lastVertex]
 
-/-- Any path splits after its first `n` edges. -/
-theorem exists_split {a : W} : ∀ {b : W} (p : Path a b) (n : ℕ),
-    ∃ (c : W) (p₁ : Path a c) (p₂ : Path c b),
-      p = p₁.comp p₂ ∧ p₁.edges = p.edges.take n ∧ p₂.edges = p.edges.drop n
-  | _, .nil, n => ⟨a, .nil, .nil, rfl, by simp, by simp⟩
-  | _, .cons p f, n => by
-    by_cases hn : n ≤ p.length
-    · obtain ⟨c, p₁, p₂, rfl, h₁, h₂⟩ := exists_split p n
-      refine ⟨c, p₁, p₂.cons f, rfl, ?_, ?_⟩
-      · rw [h₁, edges_cons, List.take_append_of_le_length (by simpa using hn)]
-      · rw [edges_cons, h₂, edges_cons, List.drop_append_of_le_length (by simpa using hn)]
-    · refine ⟨_, p.cons f, .nil, rfl, ?_, ?_⟩
-      · rw [List.take_of_length_le (by simp; omega)]
-      · rw [edges_nil, List.drop_of_length_le (by simp; omega)]
-
 /-! ## Steps on edge lists -/
 
 variable {Φ : Type w} (faces : Φ → Face W)

@@ -37,12 +37,13 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | File | Contents |
 |---|---|
 | `core.lean` | The interface: `eval`, `Subshape`, `single`, `Within`, `ReachIn`, `AcyclicOn`, `CommutesOn`, `Commutes`, `Face`, and basic facts. |
-| `extend.lean` | Adding one arrow `e` to a subshape `S`, the obligations it creates, and why none can be dropped. |
+| `extend.lean` | Adding one arrow `e` to a subshape `S`: the cells it closes, and extending a cell that holds to the cells outside it. |
+| `minimal.lean` | Minimal cells: every cell lies outside one, so they suffice; and none can be dropped (a counter-model in types). |
 | `paste.lean` | Pasting two commuting subshapes into their union. |
 | `chase.lean` | Steps and chases; soundness and completeness; `ChasesOn`. |
 | `chase_growth.lean` | Adding an arrow and pasting, restated for chases. |
 | `finite.lean` | The computational view: `arrow`, `FinShape`, `ofList`, decidable membership, `Path.edges`. |
-| `decide.lean` | Decision procedures: `ReachIn`, `AcyclicOn`, obligations and minimality, `Shared`, `Chain`; rank and closed-set certificates. |
+| `decide.lean` | Decision procedures: `ReachIn`, `AcyclicOn`, cells and minimality, `Shared`, `Chain`; rank and closed-set certificates. |
 | `search.lean` | Chase scripts on edge lists, `replay` with its soundness theorem, and a breadth-first chase search checked by replay. |
 | `tactics.lean` | Certificate checks (`rankCheck`, `fenceCheck`, `replayCheck`) and the tactics that find certificates with compiled code: `diagram_acyclic`, `diagram_unreachable`, `find_chase`. |
 | `construct.lean` | Commutative by construction: builds (arrows added in turn, each with the faces it completes), `buildOK`, `commutesOn_of_build`. |
@@ -84,9 +85,9 @@ example … : f ≫ j ≫ l = g ≫ k ≫ m := by diagram_eq (Rect.commutes f j 
 
 The diagram commutes *by construction*. Its arrows are added in the order they
 are declared. When an arrow `e` is added, a face with `e` on one side,
-`α ≫ e ≫ β = γ`, and its other arrows already present, is exactly an obligation
-for `e` (`obligationHolds_of_face`). `Rect.commutes` is valid when these face
-obligations cover every obligation each arrow creates; the kernel checks that by
+`α ≫ e ≫ β = γ`, and its other arrows already present, is exactly a cell
+that `e` closes (`cellHolds_of_face`). `Rect.commutes` is valid when the cells
+given by faces cover every cell each arrow closes; the kernel checks that by
 deciding questions about the shape. No chase search is involved. `diagram_eq`
 matches each factor of a composite to an arrow whose image is that morphism,
 turning each side into a path. `examples/examples.lean` declares Riehl's commutative cube
@@ -99,12 +100,12 @@ it) contains no pair of parallel paths and so asserts nothing; `Zigzag` in
 `face1`, with hypothesis `h1`.
 
 The `faces` block itself is optional. Without it, the faces are inferred: the
-arrows are added in declared order, the minimal obligations of each become the
-faces, and the command reports them. By `isMinObligation_necessary`, no smaller
+arrows are added in declared order, the minimal cells of each become the
+faces, and the command reports them. By `closesMin_necessary`, no smaller
 set of equations makes the diagram commute when built in that order. For the
 rectangle and the cube, the inferred faces are the squares.
 
-When declared faces do not cover some obligation, the command names the first
+When declared faces do not cover some cell, the command names the first
 equation left uncovered and the arrow that created it.
 
 ## Main results
@@ -115,16 +116,18 @@ equation left uncovered and the arrow that created it.
 - `CommutesOn.map`: functors preserve commutativity (Riehl, Lemma 1.6.5).
 - `CommutesOn.of_map`: faithful functors reflect it (Riehl, Lemma 1.6.20).
 
-**Adding an arrow** (`extend`). For a new arrow `e : u ⟶ v`, a pair `(x, y)` is an
-*obligation* (`IsObligation`) when there are paths `x ⇝ u`, `v ⇝ y` and `x ⇝ y`
-within `S`. An `Obligation S e x y` carries such paths, and its `face` states the
-equation they must satisfy; `ObligationHolds` says some such equation holds.
+**Adding an arrow** (`extend`, `minimal`). A new arrow `e : u ⟶ v` *closes a
+cell* at a pair `(x, y)` (`Closes`) when there are paths `x ⇝ u`, `v ⇝ y` and
+`x ⇝ y` within `S`: the new path through `e` is parallel to an old one. A
+`ClosedCell S e x y` carries such paths, and its `face` states the equation they
+must satisfy; `CellHolds` says some such equation holds. A cell that holds
+implies every cell outside it (`CellHolds.extend`).
 - `commutesOn_sup_single_iff`: in a finite shape with `S` acyclic and no path
   `v ⇝ u`, `G` commutes on `S ⊔ single e` if and only if the equation holds at
-  each minimal obligation.
+  each minimal cell.
 - `CommutesOn.sup_single_of_cover`: the same, with any family of checked
-  obligations that every obligation lies above.
-- `isMinObligation_necessary`: no minimal obligation can be dropped. For each one there
+  cells such that every cell lies outside one of them.
+- `closesMin_necessary`: no minimal cell can be dropped. For each one there
   is a diagram of types in which every other equation holds and that one fails.
 - `UndercountExample.two_regions_not_enough` (in `examples`): a five-object diagram where a planar
   drawing shows two new regions, but three checks are needed.
@@ -152,7 +155,7 @@ equation they must satisfy; `ObligationHolds` says some such equation holds.
 
 **Deciding shape conditions** (`decide`). On a shape with `FinShape`, `NumShape`,
 decidable equality and decidable subshape membership, `decide` proves reachability and its
-failure, acyclicity, obligations and their minimality, shared vertices and the
+failure, acyclicity, cells and their minimality, shared vertices and the
 chain condition. `reachIn_iff_testBit` is the core: a depth-first search over vertex
 indices with a bitmask for the visited set, checked to be closed under arrows. Without
 finiteness, `acyclicOn_of_rank` and `not_reachIn_of_closed` turn a rank or a
@@ -220,7 +223,7 @@ face rewrites, which on a grid is every corner-to-corner path (12,870 at `k = 8`
 Its replay in the kernel is cheap (0.7 s at `k = 8`); the search itself runs in
 Lean's interpreter, since tactic code from imported modules is not compiled to
 native code. Checking a large diagram should go through the growth theorems,
-which need only local chases, one per obligation.
+which need only local chases, one per cell.
 
 `bench/bench.py` times the workloads under hard wall-clock and memory limits.
 
@@ -244,7 +247,7 @@ The `commutes` theorem is the kernel check of the build (3.8 s at 8 × 8) and on
 
 - `diagram_eq` for subshapes (`CommutesOn`), for sides that are identities, and
   for rewriting inside a goal rather than closing it.
-- Choosing a different arrow order when the declared order leaves an obligation
+- Choosing a different arrow order when the declared order leaves a cell
   uncovered (the uncovered equation is reported, but the order is not changed).
 - Local chase search through the growth theorems, and faster global search
   (bidirectional, or native compilation of the search code).

@@ -2,7 +2,7 @@
 # Deciding the shape conditions
 
 The theorems about adding an arrow and pasting have hypotheses about the shape
-alone: reachability, acyclicity, obligations and their minimality, shared
+alone: reachability, acyclicity, cells and their minimality, shared
 vertices, and the chain condition. On a finite shape all of them are decidable,
 so `decide` proves them. This file supplies the decision procedures.
 
@@ -465,7 +465,7 @@ theorem mem_reachVerts {a b : W} : b ∈ reachVerts S a ↔ ReachIn S a b := by
 
 end NumReach
 
-/-! ## Acyclicity, obligations and minimality -/
+/-! ## Acyclicity, cells and minimality -/
 
 section Derived
 
@@ -493,24 +493,24 @@ the rank certificate (`acyclicOn_of_rank`) is much cheaper to check. -/
 instance : Decidable (AcyclicOn S) :=
   decidable_of_iff _ acyclicOn_iff_arrows.symm
 
-instance {u v x y : W} : Decidable (IsObligation S u v x y) :=
+instance {u v x y : W} : Decidable (Closes S u v x y) :=
   inferInstanceAs (Decidable (_ ∧ _ ∧ _))
 
 /-- Minimality only needs to look at the vertices reachable from `x`, and the
 vertices reachable from `v`. -/
-theorem isMinObligation_iff {u v x y : W} : IsMinObligation S u v x y ↔
-    IsObligation S u v x y ∧ ∀ x₀ ∈ reachVerts S x, ReachIn S x₀ u →
+theorem closesMin_iff {u v x y : W} : ClosesMin S u v x y ↔
+    Closes S u v x y ∧ ∀ x₀ ∈ reachVerts S x, ReachIn S x₀ u →
       ∀ y₀ ∈ reachVerts S v, ReachIn S y₀ y → ReachIn S x₀ y₀ → x₀ = x ∧ y₀ = y := by
-  simp only [IsMinObligation, IsObligation, mem_reachVerts]
+  simp only [ClosesMin, Closes, mem_reachVerts]
   constructor
   · rintro ⟨ho, h⟩
     exact ⟨ho, fun x₀ hx₀ hu y₀ hy₀ hy hxy => h x₀ y₀ ⟨hu, hy₀, hxy⟩ hx₀ hy⟩
   · rintro ⟨ho, h⟩
     exact ⟨ho, fun x₀ y₀ ⟨hu, hy₀, hxy⟩ hx₀ hy => h x₀ hx₀ hu y₀ hy₀ hy hxy⟩
 
-instance {u v x y : W} : Decidable (IsMinObligation S u v x y) :=
+instance {u v x y : W} : Decidable (ClosesMin S u v x y) :=
   haveI : ∀ a b : W, Decidable (ReachIn S a b) := fun _ _ => inferInstance
-  decidable_of_iff _ isMinObligation_iff.symm
+  decidable_of_iff _ closesMin_iff.symm
 
 end Derived
 

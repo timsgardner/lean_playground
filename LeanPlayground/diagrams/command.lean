@@ -28,9 +28,9 @@ sequence of arrow names. It need not be a region of a drawing. The name is
 optional: `(f h = g k)` gives the face `face1` and the hypothesis `h1`.
 
 Without a `faces` block, the faces are inferred: adding the arrows in declared
-order, each arrow's minimal obligations become the faces, and the command reports
+order, each arrow's minimal cells become the faces, and the command reports
 them. They are the fewest equations that make the diagram commute when built in
-that order (`isMinObligation_necessary`).
+that order (`closesMin_necessary`).
 
 When the declared faces do not suffice in the declared order, the command names
 the first equation that no face covers.
@@ -61,7 +61,7 @@ syntax (name := diagramShape) "diagram_shape " ident " where "
 /-- `ns.n`, as an identifier. -/
 private def qual (ns : Name) (n : Name) : Ident := mkIdent (ns ++ n)
 
-/-! ## Obligations at declaration time
+/-! ## Cells at declaration time
 
 Plain computations on arrow indices, used to infer the faces of a shape and to
 explain a build that fails. Arrow `i` runs between the vertex indices `ends[i]`. -/
@@ -86,15 +86,15 @@ def pathsFrom (n : ℕ) (ends : Array (ℕ × ℕ)) (prior : List ℕ) (x : ℕ)
         queue := queue.push t
   return paths
 
-/-- The minimal obligations of adding arrow `k` to the arrows `prior`, as
+/-- The minimal cells of adding arrow `k` to the arrows `prior`, as
 `(x, y, lhs, rhs)` with `lhs = α ++ [k] ++ β` and `rhs = γ`, and `reach a b`, a path
 from `a` to `b` within `prior`.
 
 If the source `u` of `k` already reaches its target `v`, the only minimal
-obligation is `(u, v)`: every other lies above it. Otherwise an obligation `(x, y)`
-is minimal when neither end can move inwards on its own; if some obligation lies
+cell is `(u, v)`: every other lies above it. Otherwise a cell `(x, y)`
+is minimal when neither end can move inwards on its own; if some cell lies
 strictly below `(x, y)`, so does one with a single end moved. -/
-def obligations (n : ℕ) (ends : Array (ℕ × ℕ)) (prior : List ℕ) (k : ℕ) :
+def cells (n : ℕ) (ends : Array (ℕ × ℕ)) (prior : List ℕ) (k : ℕ) :
     (ℕ → ℕ → Option (List ℕ)) × List (ℕ × ℕ × List ℕ × List ℕ) :=
   let paths := (List.range n).toArray.map (pathsFrom n ends prior)
   let reach (a b : ℕ) := paths[a]![b]!
@@ -200,7 +200,7 @@ elab_rules : command
           $N ⥤q D where
         obj x := match x with $objAlts:matchAlt*
         map {x y} (e : $Hom x y) := match e with $mapAlts:matchAlt*))
-    -- Faces: as declared, or inferred as the minimal obligations of each arrow.
+    -- Faces: as declared, or inferred as the minimal cells of each arrow.
     let ends : Array (ℕ × ℕ) := arrowsData.map fun (_, s, t) =>
       (objs.findIdx (·.getId == s.getId), objs.findIdx (·.getId == t.getId))
     let arrowIdx (a : Ident) : CommandElabM ℕ := do
@@ -224,7 +224,7 @@ elab_rules : command
         facesData := facesData.push (n.1, n.2, ← lhs.mapM arrowIdx, ← rhs.mapM arrowIdx)
     | none =>
       for k in [0:arrowsData.size] do
-        let (_, obl) := Declare.obligations objs.size ends (List.range k) k
+        let (_, obl) := Declare.cells objs.size ends (List.range k) k
         for (_, _, lhs, rhs) in obl do
           let n := unnamed facesData.size
           facesData := facesData.push (n.1, n.2, lhs.toArray, rhs.toArray)
@@ -237,9 +237,9 @@ elab_rules : command
       let (_, _, l, r) := facesData[i]!
       let all := l ++ r
       all.count k == 1 && all.all (· ≤ k)
-    -- Explain a failed build: a cycle, or an obligation no completed face covers.
+    -- Explain a failed build: a cycle, or a cell no completed face covers.
     for k in [0:arrowsData.size] do
-      let (reach, obl) := Declare.obligations objs.size ends (List.range k) k
+      let (reach, obl) := Declare.cells objs.size ends (List.range k) k
       let (u, v) := ends[k]!
       if (reach v u).isSome then
         throwError "diagram_shape: arrow {arrowsData[k]!.1.getId} closes a cycle"
@@ -250,7 +250,7 @@ elab_rules : command
           let tgt := ends[l.back!]!.2
           (reach x src).isSome && (reach tgt y).isSome
         unless covered do
-          throwError "diagram_shape: adding {arrowsData[k]!.1.getId} creates the equation\n  \
+          throwError "diagram_shape: adding {arrowsData[k]!.1.getId} closes the cell\n  \
             {showSide lhs.toArray} = {showSide rhs.toArray}\nwhich no face it completes covers. \
             Either the faces do not imply it, so it must be added as a face, or the faces \
             that imply it contain arrows declared after {arrowsData[k]!.1.getId}, and \

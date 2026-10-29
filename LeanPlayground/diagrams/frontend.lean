@@ -14,7 +14,6 @@ Two tactics connect the framework to goals stated in a diagram's own morphisms.
 -/
 
 import LeanPlayground.diagrams.construct
-import LeanPlayground.diagrams.tactics
 
 open CategoryTheory Quiver Lean Meta Elab Tactic
 
@@ -110,7 +109,7 @@ elab "diagram_build " faces:term:max " using " hF:term : tactic => withMainConte
   let stepsE ← mkAppOptM ``stepsOf #[W, none, none, orderE, usesE]
   let okE ← mkAppM ``buildOK #[facesE, stepsE]
   unless ← evalBool okE do
-    throwError "diagram_build: the faces do not cover every obligation when the arrows \
+    throwError "diagram_build: the faces do not cover every cell when the arrows \
       are added in the order of `FinShape.arrows`"
   let orderStx ← Term.exprToSyntax orderE
   let usesStx ← Term.exprToSyntax usesE

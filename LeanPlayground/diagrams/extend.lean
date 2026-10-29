@@ -7,26 +7,18 @@ observation, phrased as an inductive step: if a diagram commutes on a subshape
 `S`, and we add one more arrow `e : u ⟶ v`, which equations must we check so
 that it commutes on `S ⊔ single e`?
 
-A pair of vertices `(x, y)` is an *obligation* when there are paths `x ⇝ u`,
-`v ⇝ y` and `x ⇝ y` within `S`, because then the new path `x ⇝ u ⟶ v ⇝ y` is
-parallel to an old one. The obligation at `(x, y)` implies the obligation at
-any pair `(x', y')` with paths `x' ⇝ x` and `y ⇝ y'`, by whiskering. The main
-theorem, `commutesOn_sup_single_iff`, says that when the shape is finite, `S` is
-acyclic, and there is no path `v ⇝ u` within `S`, the diagram commutes on
-`S ⊔ single e` if and only if the equation holds at each *minimal* obligation.
+The new arrow *closes a cell* at a pair of vertices `(x, y)` (`Closes`) when
+there are paths `x ⇝ u`, `v ⇝ y` and `x ⇝ y` within `S`: then the new path
+`x ⇝ u ⟶ v ⇝ y` is parallel to an old one, and the two must agree. A cell with
+its witness paths is a `ClosedCell`; `CellHolds` says that some witness of the
+cell at `(x, y)` holds in `G`. A cell that holds implies every cell outside it,
+by whiskering (`CellHolds.extend`). So `G` commutes on `S ⊔ single e` as soon as
+every cell lies outside one that holds (`CommutesOn.sup_single_of_cover`).
 
-Conversely, `isMinObligation_necessary` shows that no minimal obligation can be dropped:
-for each one there is a diagram of types, commuting on `S`, for which the
-equation holds at every other obligation and fails at that one. The file
-`examples` applies this to a five-object diagram where a planar drawing shows two
-new regions but three checks are needed.
+The minimal cells, which are exactly the ones needed, are in `minimal`.
 -/
 
 import LeanPlayground.diagrams.core
-import Mathlib.CategoryTheory.Types.Basic
-import Mathlib.Data.Fintype.Card
-import Mathlib.Basic.Finite.Prod
-import Mathlib.Order.WellFounded
 
 open CategoryTheory Quiver
 
@@ -36,21 +28,22 @@ universe v₁ v₂ u₁ u₂
 
 variable {W : Type u₁} [Quiver.{v₁} W] {C : Type u₂} [Category.{v₂} C]
 
-/-! ## Obligations -/
+/-! ## Cells -/
 
-/-- `(x, y)` is an obligation for a new arrow `u ⟶ v` when that arrow creates a
-path from `x` to `y` parallel to one within `S`. -/
-def IsObligation (S : Subshape W) (u v x y : W) : Prop :=
+/-- A new arrow `u ⟶ v` closes a cell at `(x, y)` when it creates a path from `x`
+to `y` parallel to one within `S`. -/
+def Closes (S : Subshape W) (u v x y : W) : Prop :=
   ReachIn S x u ∧ ReachIn S v y ∧ ReachIn S x y
 
-/-- An obligation is minimal when no other obligation lies below it. -/
-def IsMinObligation (S : Subshape W) (u v x y : W) : Prop :=
-  IsObligation S u v x y ∧
-    ∀ x₀ y₀, IsObligation S u v x₀ y₀ → ReachIn S x x₀ → ReachIn S y₀ y → x₀ = x ∧ y₀ = y
+/-- A cell is minimal when no other cell lies below (inside) it: one at `(x₀, y₀)`
+with `x ⇝ x₀` and `y₀ ⇝ y`. -/
+def ClosesMin (S : Subshape W) (u v x y : W) : Prop :=
+  Closes S u v x y ∧
+    ∀ x₀ y₀, Closes S u v x₀ y₀ → ReachIn S x x₀ → ReachIn S y₀ y → x₀ = x ∧ y₀ = y
 
-/-- An obligation at `(x, y)` for the new arrow `e`, with witnesses: paths `α` into
+/-- A cell closed by the new arrow `e` at `(x, y)`, with its witnesses: paths `α` into
 the source of `e`, `β` out of its target, and a parallel path `γ`, all within `S`. -/
-structure Obligation (S : Subshape W) {u v : W} (_e : u ⟶ v) (x y : W) where
+structure ClosedCell (S : Subshape W) {u v : W} (_e : u ⟶ v) (x y : W) where
   /-- The path into the source of `e`. -/
   α : Path x u
   /-- The path out of the target of `e`. -/
@@ -61,30 +54,30 @@ structure Obligation (S : Subshape W) {u v : W} (_e : u ⟶ v) (x y : W) where
   hβ : Within S β
   hγ : Within S γ
 
-namespace Obligation
+namespace ClosedCell
 
 variable {S : Subshape W} {u v : W} {e : u ⟶ v} {x y : W}
 
-/-- The face an obligation states: the new path `α ⟶ e ⟶ β` against `γ`. -/
-def face (o : Obligation S e x y) : Face W := ⟨x, y, o.α.comp (e.toPath.comp o.β), o.γ⟩
+/-- The face a cell states: the new path `α ⟶ e ⟶ β` against `γ`. -/
+def face (o : ClosedCell S e x y) : Face W := ⟨x, y, o.α.comp (e.toPath.comp o.β), o.γ⟩
 
-/-- The obligation's equation holds in `G`. -/
-abbrev Holds (G : W ⥤q C) (o : Obligation S e x y) : Prop :=
+/-- The cell's equation holds in `G`. -/
+abbrev Holds (G : W ⥤q C) (o : ClosedCell S e x y) : Prop :=
   eval G o.α ≫ G.map e ≫ eval G o.β = eval G o.γ
 
-theorem holds_iff_face {G : W ⥤q C} (o : Obligation S e x y) : o.Holds G ↔ o.face.Holds G := by
+theorem holds_iff_face {G : W ⥤q C} (o : ClosedCell S e x y) : o.Holds G ↔ o.face.Holds G := by
   simp [face, Face.Holds]
 
-/-- A witnessed obligation is an obligation. -/
-theorem isObligation (o : Obligation S e x y) : IsObligation S u v x y :=
+/-- A witnessed cell is a cell. -/
+theorem closes (o : ClosedCell S e x y) : Closes S u v x y :=
   ⟨⟨o.α, o.hα⟩, ⟨o.β, o.hβ⟩, ⟨o.γ, o.hγ⟩⟩
 
-end Obligation
+end ClosedCell
 
-/-- The equation holds at `(x, y)`: some obligation there holds in `G`. When `G`
-commutes on `S`, one instance is as good as all of them (see `whisker`). -/
-def ObligationHolds (S : Subshape W) {u v : W} (e : u ⟶ v) (G : W ⥤q C) (x y : W) : Prop :=
-  ∃ o : Obligation S e x y, o.Holds G
+/-- The equation holds at `(x, y)`: some cell there holds in `G`. When `G`
+commutes on `S`, one instance is as good as all of them (see `CellHolds.extend`). -/
+def CellHolds (S : Subshape W) {u v : W} (e : u ⟶ v) (G : W ⥤q C) (x y : W) : Prop :=
+  ∃ o : ClosedCell S e x y, o.Holds G
 
 /-! ## Adding the arrow -/
 
@@ -112,10 +105,12 @@ theorem eval_old_or_new (huv : ¬ ReachIn S v u) {a b : W} {p : Path a b}
       · exact Or.inr ⟨q, .nil, hq, .nil, by simp [h]⟩
       · exact absurd ⟨β, hβ⟩ huv
 
-/-- Whiskering: the equation at `(x', y')` implies the equation at any pair
-`(x, y)` with paths `x ⇝ x'` and `y' ⇝ y`. This is Riehl's Lemma 1.6.11. -/
-theorem whisker (hD : CommutesOn G S) {x y x' y' : W} (hx : ReachIn S x x')
-    (hy : ReachIn S y' y) (h : ObligationHolds S e G x' y') {α : Path x u} {β : Path v y}
+/-- **Extending a cell.** If a cell closed by `e` at `(x', y')` holds, then every
+cell closed by `e` at a pair `(x, y)` outside it holds, whatever its witness paths.
+The cell is whiskered by paths `x ⇝ x'` and `y' ⇝ y` (Riehl's Lemma 1.6.11), and
+the old paths are then exchanged for the given ones, since `G` commutes on `S`. -/
+theorem CellHolds.extend {x y x' y' : W} (h : CellHolds S e G x' y') (hD : CommutesOn G S)
+    (hx : ReachIn S x x') (hy : ReachIn S y' y) {α : Path x u} {β : Path v y}
     {γ : Path x y} (hα : Within S α) (hβ : Within S β) (hγ : Within S γ) :
     eval G α ≫ G.map e ≫ eval G β = eval G γ := by
   obtain ⟨ρ, hρ⟩ := hx
@@ -127,17 +122,17 @@ theorem whisker (hD : CommutesOn G S) {x y x' y' : W} (hx : ReachIn S x x')
   rw [← h]
   simp only [Category.assoc]
 
-/-- If `G` commutes on `S`, and every obligation lies above one whose equation
+/-- If `G` commutes on `S`, and every cell lies above one whose equation
 has been checked, then `G` commutes on `S ⊔ single e`. -/
 theorem CommutesOn.sup_single_of_cover (hD : CommutesOn G S) (huv : ¬ ReachIn S v u)
-    (hcov : ∀ x y, IsObligation S u v x y →
-      ∃ x' y', ReachIn S x x' ∧ ReachIn S y' y ∧ ObligationHolds S e G x' y') :
+    (hcov : ∀ x y, Closes S u v x y →
+      ∃ x' y', ReachIn S x x' ∧ ReachIn S y' y ∧ CellHolds S e G x' y') :
     CommutesOn G (S ⊔ single e) := by
   have key : ∀ {x y : W} {α : Path x u} {β : Path v y} {γ : Path x y},
       Within S α → Within S β → Within S γ → eval G α ≫ G.map e ≫ eval G β = eval G γ := by
     intro x y α β γ hα hβ hγ
     obtain ⟨x', y', hx, hy, h⟩ := hcov x y ⟨⟨α, hα⟩, ⟨β, hβ⟩, ⟨γ, hγ⟩⟩
-    exact whisker hD hx hy h hα hβ hγ
+    exact h.extend hD hx hy hα hβ hγ
   intro a b p q hp hq
   rcases eval_old_or_new (G := G) huv hp with ⟨p', hp', h₁⟩ | ⟨α, β, hα, hβ, h₁⟩ <;>
   rcases eval_old_or_new (G := G) huv hq with ⟨q', hq', h₂⟩ | ⟨α', β', hα', hβ', h₂⟩ <;>
@@ -148,7 +143,7 @@ theorem CommutesOn.sup_single_of_cover (hD : CommutesOn G S) (huv : ¬ ReachIn S
   · rw [hD α α' hα hα', hD β β' hβ hβ']
 
 /-- Conversely, if `G` commutes on `S ⊔ single e`, the equation holds at every
-obligation. -/
+cell. -/
 theorem CommutesOn.eq_of_sup_single (h : CommutesOn G (S ⊔ single e)) {x y : W}
     {α : Path x u} {β : Path v y} {γ : Path x y}
     (hα : Within S α) (hβ : Within S β) (hγ : Within S γ) :
@@ -159,207 +154,6 @@ theorem CommutesOn.eq_of_sup_single (h : CommutesOn G (S ⊔ single e)) {x y : W
     (hγ.mono le_sup_left)
   simpa using this
 
-/-! ## Minimal obligations -/
-
-/-- In a finite acyclic shape, every obligation lies above a minimal one. -/
-theorem exists_isMinObligation_below [Finite W] (hacyc : AcyclicOn S) {x y : W} (h : IsObligation S u v x y) :
-    ∃ x' y', ReachIn S x x' ∧ ReachIn S y' y ∧ IsMinObligation S u v x' y' := by
-  -- `r p q` says that the pair `p` lies strictly below the pair `q`.
-  let r : W × W → W × W → Prop := fun p q => ReachIn S q.1 p.1 ∧ ReachIn S p.2 q.2 ∧ p ≠ q
-  have : IsTrans (W × W) r := ⟨fun p q w ⟨h1, h2, hpq⟩ ⟨h3, h4, _⟩ =>
-    ⟨h3.trans h1, h2.trans h4, fun hpw => hpq (by
-      subst hpw
-      exact Prod.ext (hacyc _ _ h3 h1) (hacyc _ _ h2 h4))⟩⟩
-  have : Std.Irrefl r := ⟨fun p ⟨_, _, h⟩ => h rfl⟩
-  let s : Set (W × W) := {p | IsObligation S u v p.1 p.2 ∧ ReachIn S x p.1 ∧ ReachIn S p.2 y}
-  obtain ⟨m, ⟨hm, hxm, hmy⟩, hmin⟩ := (Finite.wellFounded_of_trans_of_irrefl r).has_min s
-    ⟨(x, y), h, ReachIn.refl x, ReachIn.refl y⟩
-  refine ⟨m.1, m.2, hxm, hmy, hm, fun x₀ y₀ h₀ hx₀ hy₀ => ?_⟩
-  by_cases heq : (x₀, y₀) = m
-  · exact ⟨congrArg Prod.fst heq, congrArg Prod.snd heq⟩
-  · exact absurd ⟨hx₀, hy₀, heq⟩ (hmin (x₀, y₀) ⟨h₀, hxm.trans hx₀, hy₀.trans hmy⟩)
-
-/-- **Adding one arrow.** Let `G` commute on a subshape `S` of a finite shape,
-with `S` acyclic, and let `e : u ⟶ v` be an arrow with no path from `v` back to
-`u` within `S`. Then `G` commutes on `S ⊔ single e` if and only if the equation
-holds at each minimal obligation. -/
-theorem commutesOn_sup_single_iff [Finite W] (hD : CommutesOn G S) (hacyc : AcyclicOn S)
-    (huv : ¬ ReachIn S v u) :
-    CommutesOn G (S ⊔ single e) ↔ ∀ x y, IsMinObligation S u v x y → ObligationHolds S e G x y := by
-  constructor
-  · intro h x y ⟨⟨⟨α, hα⟩, ⟨β, hβ⟩, ⟨γ, hγ⟩⟩, _⟩
-    exact ⟨⟨α, β, γ, hα, hβ, hγ⟩, h.eq_of_sup_single hα hβ hγ⟩
-  · intro h
-    refine hD.sup_single_of_cover huv fun x y hxy => ?_
-    obtain ⟨x', y', hx, hy, hmin⟩ := exists_isMinObligation_below hacyc hxy
-    exact ⟨x', y', hx, hy, h x' y' hmin⟩
-
 end Extend
-
-/-! ## No minimal obligation can be dropped
-
-Fix a minimal obligation `(x, y)`. In a shape whose arrows are those of `S` and
-the new arrow `e`, we build a diagram of types that commutes on `S`, for which
-the equation holds at every other obligation but fails at `(x, y)`. So the check
-at `(x, y)` cannot be deduced from checks elsewhere.
-
-The model imitates the morphisms out of `x` in the free category on the shape,
-with every obligation other than `(x, y)` imposed as a relation. Over a vertex `b`
-there is an "old" element `false` when `x ⇝ b`, and a "new" element `true` when
-`v ⇝ b`. The two become identified (the element `true` disappears) as soon as
-some imposed obligation reachable from `x` lies below `b`; that is the condition
-`Coll`.
--/
-
-/-- Transport a function along a proof that `f` is the arrow `e`. -/
-def IsArrow.transport {u v : W} {X : W → Sort*} {e : u ⟶ v} {a b : W} {f : a ⟶ b}
-    (h : IsArrow e f) (g : X u → X v) : X a → X b := by
-  cases h; exact g
-
-theorem IsArrow.transport_self {u v : W} {X : W → Sort*} {e : u ⟶ v} (h : IsArrow e e)
-    (g : X u → X v) : h.transport g = g := by
-  cases h; rfl
-
-namespace NecessityModel
-
-variable (S : Subshape W) (u v x y : W)
-
-/-- Some obligation other than `(x, y)`, reachable from `x`, lies below `b`. -/
-def Coll (b : W) : Prop :=
-  ∃ x₁ y₁, IsObligation S u v x₁ y₁ ∧ (x₁, y₁) ≠ (x, y) ∧ ReachIn S x x₁ ∧ ReachIn S y₁ b
-
-/-- The value of the model at `b`: `false` stands for the old path from `x`,
-`true` for the new one. -/
-abbrev M (b : W) : Type :=
-  {t : Bool // (t = false → ReachIn S x b) ∧ (t = true → ReachIn S v b ∧ ¬ Coll S u v x y b)}
-
-variable {S u v x y}
-
-theorem Coll.reach {b : W} : Coll S u v x y b → ReachIn S x b
-  | ⟨_, _, ⟨_, _, h₁⟩, _, hx, hy⟩ => hx.trans (h₁.trans hy)
-
-theorem Coll.mono {b c : W} (h : ReachIn S b c) : Coll S u v x y b → Coll S u v x y c
-  | ⟨x₁, y₁, ho, hne, hx, hy⟩ => ⟨x₁, y₁, ho, hne, hx, hy.trans h⟩
-
-open Classical in
-/-- Along a path to `b`, the new element survives unless it is identified with
-the old one at `b`. -/
-noncomputable def clamp {a b : W} (h : ReachIn S a b) (s : M S u v x y a) : M S u v x y b :=
-  if hc : Coll S u v x y b then ⟨false, fun _ => hc.reach, by simp⟩
-  else ⟨s.1, fun hs => (s.2.1 hs).trans h, fun hs => ⟨(s.2.2 hs).1.trans h, hc⟩⟩
-
-open Classical in
-theorem clamp_val {a b : W} (h : ReachIn S a b) (s : M S u v x y a) :
-    (clamp h s).1 = if Coll S u v x y b then false else s.1 := by
-  unfold clamp; by_cases hc : Coll S u v x y b <;> simp [hc]
-
-open Classical in
-/-- The new arrow sends everything to the new element, if it is still there. -/
-noncomputable def newFun (_ : M S u v x y u) : M S u v x y v :=
-  if hc : Coll S u v x y v then ⟨false, fun _ => hc.reach, by simp⟩
-  else ⟨true, by simp, fun _ => ⟨ReachIn.refl v, hc⟩⟩
-
-open Classical in
-theorem newFun_val (s : M S u v x y u) :
-    (newFun s).1 = if Coll S u v x y v then false else true := by
-  unfold newFun; by_cases hc : Coll S u v x y v <;> simp [hc]
-
-variable (e : u ⟶ v) (hW : ∀ {a b : W} (f : a ⟶ b), f ∈ S a b ∨ IsArrow e f)
-
-variable (x y) in
-open Classical in
-/-- The model diagram: arrows of `S` act by `clamp`, and `e` by `newFun`. -/
-noncomputable abbrev model : W ⥤q Type where
-  obj := M S u v x y
-  map {a b} f := TypeCat.ofHom <|
-    if hf : f ∈ S a b then clamp ⟨f.toPath, .toPath hf⟩
-    else ((hW f).resolve_left hf).transport (X := M S u v x y) newFun
-
-variable {e hW}
-
-theorem model_map_of_mem {a b : W} {f : a ⟶ b} (hf : f ∈ S a b) (s : M S u v x y a) :
-    (model x y e hW).map f s = clamp ⟨f.toPath, .toPath hf⟩ s := by
-  simp [model, hf]
-
-theorem model_map_new (he : e ∉ S u v) (s : M S u v x y u) :
-    (model x y e hW).map e s = newFun s := by
-  simp only [model, he, dite_false]
-  rw [IsArrow.transport_self]
-  rfl
-
-open Classical in
-/-- The composite of a path within `S` acts by `clamp`. -/
-theorem eval_model_val {a b : W} {p : Path a b} (hp : Within S p) (s : M S u v x y a) :
-    (eval (model x y e hW) p s).1 = if Coll S u v x y b then false else s.1 := by
-  induction hp with
-  | nil =>
-    rw [eval_nil, types_id_apply]
-    by_cases hc : Coll S u v x y a
-    · cases hs : s.1
-      · simp
-      · exact absurd hc (s.2.2 hs).2
-    · simp [hc]
-  | @cons b c p f hp hf ih =>
-    rw [eval_cons, types_comp_apply, model_map_of_mem hf, clamp_val, ih]
-    split_ifs with h₁ h₂
-    · rfl
-    · exact absurd (h₂.mono ⟨f.toPath, .toPath hf⟩) h₁
-    · rfl
-
-theorem model_commutesOn : CommutesOn (model x y e hW) S := fun _ _ _ _ hp hq =>
-  ConcreteCategory.hom_ext _ _ fun s => Subtype.ext (by rw [eval_model_val hp, eval_model_val hq])
-
-/-- In the model, the equation holds at every obligation other than `(x, y)`. -/
-theorem model_eq_of_ne (he : e ∉ S u v) {x' y' : W} (ho : IsObligation S u v x' y')
-    (hne : (x', y') ≠ (x, y)) {α : Path x' u} {β : Path v y'} {γ : Path x' y'}
-    (_hα : Within S α) (hβ : Within S β) (hγ : Within S γ) :
-    eval (model x y e hW) α ≫ (model x y e hW).map e ≫ eval (model x y e hW) β =
-      eval (model x y e hW) γ := by
-  refine ConcreteCategory.hom_ext _ _ fun s => Subtype.ext ?_
-  rw [types_comp_apply, types_comp_apply, eval_model_val hβ, model_map_new he, newFun_val,
-    eval_model_val hγ]
-  by_cases hc : Coll S u v x y y'
-  · simp [hc]
-  · have hcv : ¬ Coll S u v x y v := fun h => hc (h.mono ⟨β, hβ⟩)
-    cases hs : s.1
-    · exact absurd ⟨x', y', ho, hne, s.2.1 hs, ReachIn.refl y'⟩ hc
-    · simp [hc, hcv]
-
-/-- In the model, the equation fails at the minimal obligation `(x, y)`. -/
-theorem model_not_check (he : e ∉ S u v) (hmin : IsMinObligation S u v x y) :
-    ¬ ObligationHolds S e (model x y e hW) x y := by
-  rintro ⟨⟨α, β, γ, hα, hβ, hγ⟩, h⟩
-  have hy : ¬ Coll S u v x y y := fun ⟨x₁, y₁, ho, hne, hx, hy⟩ => by
-    obtain ⟨rfl, rfl⟩ := hmin.2 x₁ y₁ ho hx hy
-    exact hne rfl
-  have hv : ¬ Coll S u v x y v := fun h => hy (h.mono ⟨β, hβ⟩)
-  let s : M S u v x y x := ⟨false, fun _ => ReachIn.refl x, by simp⟩
-  have h' : (eval (model x y e hW) β ((model x y e hW).map e
-      (eval (model x y e hW) α s))).1 = (eval (model x y e hW) γ s).1 := by
-    rw [← types_comp_apply, ← types_comp_apply, h]
-  rw [eval_model_val hβ, model_map_new he, newFun_val, eval_model_val hγ] at h'
-  simp [hy, hv, s] at h'
-
-end NecessityModel
-
-open NecessityModel in
-/-- **No minimal obligation can be dropped.** Suppose every arrow of the shape
-lies in `S` or is the new arrow `e`, which is not in `S`. For each minimal
-obligation `(x, y)` there is a diagram of types, commuting on `S`, for which the
-equation holds at every other obligation but fails at `(x, y)`. -/
-theorem isMinObligation_necessary {S : Subshape W} {u v x y : W} {e : u ⟶ v}
-    (hW : ∀ {a b : W} (f : a ⟶ b), f ∈ S a b ∨ IsArrow e f)
-    (he : e ∉ S u v) (hmin : IsMinObligation S u v x y) :
-    ∃ G : W ⥤q Type, CommutesOn G S ∧
-      (∀ x' y', IsObligation S u v x' y' → (x', y') ≠ (x, y) →
-        ∀ {α : Path x' u} {β : Path v y'} {γ : Path x' y'},
-          Within S α → Within S β → Within S γ →
-            eval G α ≫ G.map e ≫ eval G β = eval G γ) ∧
-      ¬ ObligationHolds S e G x y :=
-  ⟨model x y e hW, model_commutesOn,
-    fun _ _ ho hne _ _ _ hα hβ hγ => model_eq_of_ne he ho hne hα hβ hγ,
-    model_not_check he hmin⟩
-
-
 
 end Diagrams

@@ -26,11 +26,12 @@ The basic facts here are:
 * `CommutesOn.of_map`: faithful functors reflect it (Riehl, Lemma 1.6.20).
 
 A `Face` names two parallel paths, and `Face.Holds G` says they have the same
-composite. Faces are the vocabulary shared by obligations (`extend`) and chases
+composite. Faces are the vocabulary shared by cells (`extend`) and chases
 (`chase`).
 -/
 
-import Mathlib.CategoryTheory.PathCategory.Basic
+import Mathlib.Combinatorics.Quiver.Path
+import Mathlib.Data.Set.Basic
 import Mathlib.CategoryTheory.Functor.FullyFaithful
 
 open CategoryTheory Quiver
@@ -45,8 +46,9 @@ variable {C : Type u₂} [Category.{v₂} C] {D : Type u₃} [Category.{v₃} D]
 /-! ## Composites of paths -/
 
 /-- The composite in `C` of the image of a path under `G`. -/
-def eval (G : W ⥤q C) {a b : W} (p : Path a b) : G.obj a ⟶ G.obj b :=
-  composePath (G.mapPath p)
+def eval (G : W ⥤q C) {a : W} : ∀ {b : W}, Path a b → (G.obj a ⟶ G.obj b)
+  | _, .nil => 𝟙 _
+  | _, .cons p f => eval G p ≫ G.map f
 
 section Eval
 
@@ -57,12 +59,13 @@ variable (G : W ⥤q C)
 @[simp] theorem eval_cons {a b c : W} (p : Path a b) (f : b ⟶ c) :
     eval G (p.cons f) = eval G p ≫ G.map f := rfl
 
-@[simp] theorem eval_comp {a b c : W} (p : Path a b) (q : Path b c) :
-    eval G (p.comp q) = eval G p ≫ eval G q := by
-  simp [eval, Prefunctor.mapPath_comp]
+@[simp] theorem eval_comp {a b : W} (p : Path a b) : ∀ {d : W} (q : Path b d),
+    eval G (p.comp q) = eval G p ≫ eval G q
+  | _, .nil => by simp
+  | _, .cons q f => by rw [Path.comp_cons, eval_cons, eval_cons, eval_comp p q, Category.assoc]
 
 @[simp] theorem eval_toPath {a b : W} (f : a ⟶ b) : eval G f.toPath = G.map f := by
-  simp [eval, Prefunctor.mapPath_toPath]
+  simp [Quiver.Hom.toPath]
 
 /-- The composite of a path in the image of a functor is the image of its
 composite. -/
