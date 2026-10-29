@@ -14,6 +14,7 @@ Worked examples for the diagrams framework.
 import LeanPlayground.diagrams.extend
 import LeanPlayground.diagrams.chase
 import LeanPlayground.diagrams.decide
+import LeanPlayground.diagrams.search
 
 open CategoryTheory Quiver
 
@@ -227,6 +228,31 @@ theorem rectangle (f : A ⟶ B) (j : B ⟶ E) (g : A ⟶ A') (h : B ⟶ B') (l :
     cases φ
     · simpa [Face.Holds, squares, H.path, diagram] using hL
     · simpa [Face.Holds, squares, H.path, diagram] using hR)
+  simpa [H.path, diagram] using this
+
+/-- The search finds the chase around the rectangle, and the kernel checks it by
+replaying the script it found. -/
+example : chaseCheck squares [.L, .R] 3 (H.f.path.comp (H.j.path.comp H.l.path))
+    (H.g.path.comp (H.k.path.comp H.m.path)) = true := by decide
+
+/-- With only the face `L` available, the search finds no chase around the
+rectangle: the outer equation needs both faces. -/
+example : chaseCheck squares [.L] 3 (H.f.path.comp (H.j.path.comp H.l.path))
+    (H.g.path.comp (H.k.path.comp H.m.path)) = false := by decide
+
+/-- Riehl's rectangle again, with the chase found by search rather than written
+by hand. -/
+theorem rectangle_by_search (f : A ⟶ B) (j : B ⟶ E) (g : A ⟶ A') (h : B ⟶ B')
+    (l : E ⟶ E') (k : A' ⟶ B') (m : B' ⟶ E') (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) :
+    f ≫ j ≫ l = g ≫ k ≫ m := by
+  have := eq_of_chaseCheck (G := diagram f j g h l k m) (faces := squares) (names := [.L, .R])
+    (fuel := 3)
+    (p := H.f.path.comp (H.j.path.comp H.l.path)) (q := H.g.path.comp (H.k.path.comp H.m.path))
+    (fun φ => by
+      cases φ
+      · simpa [Face.Holds, squares, H.path, diagram] using hL
+      · simpa [Face.Holds, squares, H.path, diagram] using hR)
+    (by decide)
   simpa [H.path, diagram] using this
 
 end RectExample

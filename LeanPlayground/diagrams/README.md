@@ -43,11 +43,13 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | `chase_growth.lean` | Adding an arrow and pasting, restated for chases. |
 | `finite.lean` | The computational view: `arrow`, `FinShape`, `ofList`, decidable membership, `Path.edges`. |
 | `decide.lean` | Decision procedures: `ReachIn`, `AcyclicOn`, obligations and minimality, `Shared`, `Chain`; rank and closed-set certificates. |
+| `search.lean` | Chase scripts on edge lists, `replay` with its soundness theorem, and a breadth-first chase search checked by replay. |
 | `examples.lean` | The five-object undercount example and Riehl's rectangle. |
 
 `core` is imported by everything. `extend`, `paste`, `chase` and `finite` each
 import only `core`; `chase_growth` imports `extend`, `paste` and `chase`, and
-`decide` imports `finite`, `extend` and `paste`.
+`decide` imports `finite`, `extend` and `paste`, and `search` imports `chase` and
+`finite`.
 
 ## Main results
 
@@ -100,6 +102,15 @@ computed by rounds, which is closed after `Fintype.card W` rounds. Without
 finiteness, `acyclicOn_of_rank` and `not_reachIn_of_closed` turn a rank or a
 closed set into the same conclusions.
 
+**Searching for chases** (`search`). A `ChaseStep` names a face, a direction and a
+position in a path's edge list; a list of steps is a script, a chase in flat
+form. `chase_of_replay` says that if replaying a script turns the edges of `p`
+into those of `q`, some chase joins them, so a script is a certificate.
+`findChase` searches breadth-first for a script, and `chaseCheck` checks the
+answer by replay. Only the check is trusted: `eq_of_chaseCheck` turns
+`chaseCheck … = true`, proved by `decide`, into `eval G p = eval G q`.
+`RectExample.rectangle_by_search` proves Riehl's rectangle this way.
+
 ## Conventions
 
 - `CommutesOn`, `Commutes` and `ChasesOn` use strict implicit binders `∀ ⦃a b⦄`,
@@ -120,8 +131,10 @@ closed set into the same conclusions.
 
 ## Not yet done
 
-- A chase-search tactic that closes or rewrites goals stated in a diagram's own
-  morphisms, and returns the chase it found.
+- A tactic front end: reify a goal stated in a diagram's own morphisms into two
+  paths, run the search at the meta level rather than in the kernel, and rewrite
+  inside goals rather than only closing them. The kernel-side pieces (scripts,
+  replay, soundness) are in place.
 - Drawing a recorded chase in the infoview, one step at a time.
 - Riehl's remaining §1.6 moves as theorems: inverting isomorphisms (1.6.12–13),
   initial and terminal objects (1.6.17), mono and epi cancellation (1.6.22).
