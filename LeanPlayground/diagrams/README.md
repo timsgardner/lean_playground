@@ -36,14 +36,16 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 
 | File | Contents |
 |---|---|
-| `core.lean` | The interface: `eval`, `Subshape`, `single`, `Within`, `ReachIn`, `AcyclicOn`, `CommutesOn`, `Commutes`, and basic facts. |
+| `core.lean` | The interface: `eval`, `Subshape`, `single`, `Within`, `ReachIn`, `AcyclicOn`, `CommutesOn`, `Commutes`, `Face`, and basic facts. |
 | `extend.lean` | Adding one arrow `e` to a subshape `S`, the obligations it creates, and why none can be dropped. |
 | `paste.lean` | Pasting two commuting subshapes into their union. |
-| `chase.lean` | Faces, steps and chases; soundness and completeness; `ChasesOn`. |
+| `chase.lean` | Steps and chases; soundness and completeness; `ChasesOn`. |
 | `chase_growth.lean` | Adding an arrow and pasting, restated for chases. |
+| `examples.lean` | The five-object undercount example and Riehl's rectangle. |
 
 `core` is imported by everything. `extend`, `paste` and `chase` each import
-only `core`, and `chase_growth` imports all three.
+only `core`; `chase_growth` imports all three, and `examples` imports `extend`
+and `chase`.
 
 ## Main results
 
@@ -54,15 +56,17 @@ only `core`, and `chase_growth` imports all three.
 - `CommutesOn.of_map`: faithful functors reflect it (Riehl, Lemma 1.6.20).
 
 **Adding an arrow** (`extend`). For a new arrow `e : u ⟶ v`, a pair `(x, y)` is an
-*obligation* when there are paths `x ⇝ u`, `v ⇝ y` and `x ⇝ y` within `S`.
+*obligation* (`IsObligation`) when there are paths `x ⇝ u`, `v ⇝ y` and `x ⇝ y`
+within `S`. An `Obligation S e x y` carries such paths, and its `face` states the
+equation they must satisfy; `ObligationHolds` says some such equation holds.
 - `commutesOn_sup_single_iff`: in a finite shape with `S` acyclic and no path
   `v ⇝ u`, `G` commutes on `S ⊔ single e` if and only if the equation holds at
   each minimal obligation.
 - `CommutesOn.sup_single_of_cover`: the same, with any family of checked
   obligations that every obligation lies above.
-- `minObl_necessary`: no minimal obligation can be dropped. For each one there
+- `isMinObligation_necessary`: no minimal obligation can be dropped. For each one there
   is a diagram of types in which every other equation holds and that one fails.
-- `Example.two_regions_not_enough`: a five-object diagram where a planar
+- `UndercountExample.two_regions_not_enough` (in `examples`): a five-object diagram where a planar
   drawing shows two new regions, but three checks are needed.
 
 **Pasting** (`paste`).
@@ -79,10 +83,10 @@ only `core`, and `chase_growth` imports all three.
   of paths modulo "joined by a chase".
 - `chasesOn_iff`: chases join the parallel paths within `S` exactly when every
   diagram in which the faces hold commutes on `S`.
-- `RectExample.rectangle`: Riehl's rectangle, proved by replaying a two-step chase.
+- `RectExample.rectangle` (in `examples`): Riehl's rectangle, proved by replaying a two-step chase.
 
 **Chases, growing** (`chase_growth`).
-- `ChasesOn.paste`, `ChasesOn.sup_single` and `ChasesOn.sup_single_minObl` are
+- `ChasesOn.paste`, `ChasesOn.sup_single` and `ChasesOn.sup_single_minimal` are
   chase-level versions of the two growth steps. They prove that the chases
   exist, by working in the free model; they do not construct them.
 
@@ -93,7 +97,9 @@ only `core`, and `chase_growth` imports all three.
   vertices, as in `fun _ _ p q hp hq => …`.
 - `ReachIn` and the model in `extend` are `abbrev`s, so that `rw` can see
   through them.
-- A concrete shape is an inductive type of arrows, as in `Example.KHom` and
+- Proof internals live in sub-namespaces (`Paste`, `NecessityModel`); the top
+  level of `Diagrams` holds the interface.
+- A concrete shape is an inductive type of arrows, as in `UndercountExample.KHom` and
   `RectExample.H`. A diagram on it is built by pattern matching, which keeps its
   arrows readable in goals (`G.map .f` reduces to `f`).
 

@@ -24,9 +24,6 @@ every consequence of the faces has one. `ChasesOn faces S` says that chases join
 every pair of parallel paths within `S`; by soundness and completeness it means
 exactly that `G` commutes on `S` for every `G` in which the faces hold
 (`chasesOn_iff`).
-
-The file ends with Riehl's rectangle (1.6.10): the two-step chase `f ◁ R`, then
-`L ▷ m`, recovers the outer equation from the two squares.
 -/
 
 import LeanPlayground.diagrams.core
@@ -39,40 +36,6 @@ namespace Diagrams
 universe w v₁ v₂ u₁ u₂
 
 variable {W : Type u₁} [Quiver.{v₁} W] {C : Type u₂} [Category.{v₂} C]
-
-/-! ## Faces -/
-
-/-- A face of a shape: two parallel paths, `lhs` and `rhs`, that the face says
-have the same composite. -/
-structure Face (W : Type u₁) [Quiver.{v₁} W] where
-  /-- The common source of the two paths. -/
-  src : W
-  /-- The common target of the two paths. -/
-  tgt : W
-  /-- The side a forward step rewrites from. -/
-  lhs : Path src tgt
-  /-- The side a forward step rewrites to. -/
-  rhs : Path src tgt
-
-namespace Face
-
-/-- The two sides of a face, indexed by `Bool`: `false` is `lhs`, `true` is `rhs`. -/
-def side (φ : Face W) : Bool → Path φ.src φ.tgt
-  | false => φ.lhs
-  | true => φ.rhs
-
-/-- The face holds in `G`: its two sides have the same composite. -/
-def Holds (G : W ⥤q C) (φ : Face W) : Prop := eval G φ.lhs = eval G φ.rhs
-
-theorem Holds.side {G : W ⥤q C} {φ : Face W} (h : φ.Holds G) (b c : Bool) :
-    eval G (φ.side b) = eval G (φ.side c) := by
-  cases b <;> cases c
-  · rfl
-  · exact h
-  · exact h.symm
-  · rfl
-
-end Face
 
 /-! ## Steps and chases -/
 
@@ -89,7 +52,9 @@ structure Step {a b : W} (p q : Path a b) where
   pre : Path a (faces face).src
   /-- The part of the path after the rewritten stretch. -/
   post : Path (faces face).tgt b
+  /-- `p` is the context around the side the step rewrites from. -/
   hp : p = pre.comp (((faces face).side backward).comp post)
+  /-- `q` is the context around the side the step rewrites to. -/
   hq : q = pre.comp (((faces face).side (!backward)).comp post)
 
 /-- A chase from `p` to `q`: a list of steps whose endpoints line up. -/
@@ -358,82 +323,5 @@ theorem ChasesOn.comap {Ψ : Type*} {faces' : Ψ → Face W} (f : Φ → Ψ)
   let ⟨c⟩ := h p q hp hq
   ⟨c.comap f⟩
 
-/-! ## Example: Riehl's rectangle (1.6.10)
-
-```
-        f         j
-   a ──────▶ b ──────▶ c
-   │         │         │
- g │    L    │ h   R   │ ℓ
-   ▼         ▼         ▼
-   a'──────▶ b'──────▶ c'
-        k         m
-```
--/
-
-namespace RectExample
-
-/-- The six objects. -/
-inductive V | a | b | c | a' | b' | c'
-
-/-- The seven arrows. -/
-inductive H : V → V → Type
-  | f : H .a .b
-  | j : H .b .c
-  | g : H .a .a'
-  | h : H .b .b'
-  | l : H .c .c'
-  | k : H .a' .b'
-  | m : H .b' .c'
-
-instance : Quiver V := ⟨H⟩
-
-/-- An arrow, as a path of length one. -/
-def H.path {x y : V} (e : H x y) : Path x y := Quiver.Hom.toPath (V := V) e
-
-/-- The names of the two faces. -/
-inductive Cell | L | R
-  deriving DecidableEq
-
-/-- The two squares. -/
-def squares : Cell → Face V
-  | .L => ⟨.a, .b', H.f.path.comp H.h.path, H.g.path.comp H.k.path⟩
-  | .R => ⟨.b, .c', H.j.path.comp H.l.path, H.h.path.comp H.m.path⟩
-
-/-- The chase around the rectangle: apply `R` after `f`, then `L` before `m`. -/
-def outer :
-    Chase squares (H.f.path.comp (H.j.path.comp H.l.path))
-      (H.g.path.comp (H.k.path.comp H.m.path)) :=
-  .cons ⟨.R, false, H.f.path, .nil, rfl, rfl⟩ <|
-  .cons ⟨.L, false, .nil, H.m.path, rfl, rfl⟩ <|
-  .refl _
-
-/-- The chase uses `R`, then `L`. -/
-example : outer.used = [.R, .L] := rfl
-
-variable {D : Type u₂} [Category.{v₂} D] {A B E A' B' E' : D}
-
-/-- The rectangle in `D` with the given sides. -/
-def diagram (f : A ⟶ B) (j : B ⟶ E) (g : A ⟶ A') (h : B ⟶ B') (l : E ⟶ E')
-    (k : A' ⟶ B') (m : B' ⟶ E') : V ⥤q D where
-  obj
-    | .a => A | .b => B | .c => E
-    | .a' => A' | .b' => B' | .c' => E'
-  map {x y} (e : H x y) := match e with
-    | .f => f | .j => j | .g => g | .h => h | .l => l | .k => k | .m => m
-
-/-- Two commutative squares give a commutative rectangle, by replaying the
-recorded chase. -/
-theorem rectangle (f : A ⟶ B) (j : B ⟶ E) (g : A ⟶ A') (h : B ⟶ B') (l : E ⟶ E')
-    (k : A' ⟶ B') (m : B' ⟶ E') (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) :
-    f ≫ j ≫ l = g ≫ k ≫ m := by
-  have := outer.sound (G := diagram f j g h l k m) (by
-    intro φ _
-    cases φ
-    · simpa [Face.Holds, squares, H.path, diagram] using hL
-    · simpa [Face.Holds, squares, H.path, diagram] using hR)
-  simpa [H.path, diagram] using this
-
-end RectExample
 
 end Diagrams

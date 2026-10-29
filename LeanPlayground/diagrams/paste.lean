@@ -57,32 +57,7 @@ def Chain : Prop :=
   ∀ s s' : W, Shared S T s → Shared S T s' →
     (∃ c : Path s s', Common S T c) ∨ (∃ c : Path s' s, Common S T c)
 
-/-- The two pieces, indexed by `Bool`. -/
-def piece : Bool → Subshape W
-  | true => S
-  | false => T
-
 variable {S T}
-
-theorem piece_le (i : Bool) : piece S T i ≤ S ⊔ T := by
-  cases i
-  · exact le_sup_right
-  · exact le_sup_left
-
-theorem Common.within {a b : W} {c : Path a b} (hc : Common S T c) (i : Bool) :
-    Within (piece S T i) c := by
-  cases i
-  · exact hc.2
-  · exact hc.1
-
-theorem shared_of {i : Bool} {v : W} (h₁ : Touches (piece S T i) v)
-    (h₂ : Touches (piece S T (!i)) v) : Shared S T v := by
-  cases i
-  · exact ⟨h₂, h₁⟩
-  · exact ⟨h₁, h₂⟩
-
-theorem eq_not_of_ne {i j : Bool} (h : j ≠ i) : j = !i := by
-  revert h; cases i <;> cases j <;> decide
 
 /-- A nonempty path within `R` touches `R` at its end. -/
 theorem Within.touches_end {R : Subshape W} {a b : W} {p : Path a b} (hp : Within R p) :
@@ -105,9 +80,49 @@ theorem Within.touches_start {R : Subshape W} {a b : W} {p : Path a b} (hp : Wit
 
 end Pieces
 
+/-! ## Internals of the proof
+
+The two pieces are indexed by `Bool`, so that "the other piece" is `!i`.
+-/
+
+namespace Paste
+
+section Pieces
+
+variable (S T : Subshape W)
+
+/-- The two pieces, indexed by `Bool`. -/
+def piece : Bool → Subshape W
+  | true => S
+  | false => T
+
+variable {S T}
+
+theorem piece_le (i : Bool) : piece S T i ≤ S ⊔ T := by
+  cases i
+  · exact le_sup_right
+  · exact le_sup_left
+
+theorem _root_.Diagrams.Common.within {a b : W} {c : Path a b} (hc : Common S T c) (i : Bool) :
+    Within (piece S T i) c := by
+  cases i
+  · exact hc.2
+  · exact hc.1
+
+theorem shared_of {i : Bool} {v : W} (h₁ : Touches (piece S T i) v)
+    (h₂ : Touches (piece S T (!i)) v) : Shared S T v := by
+  cases i
+  · exact ⟨h₂, h₁⟩
+  · exact ⟨h₁, h₂⟩
+
+theorem eq_not_of_ne {i j : Bool} (h : j ≠ i) : j = !i := by
+  revert h; cases i <;> cases j <;> decide
+
+end Pieces
+
 /-! ## Normal forms -/
 
-section Paste
+section Normal
 
 variable {G : W ⥤q C} {S T : Subshape W}
 
@@ -268,6 +283,16 @@ theorem two_two (hcomm : ∀ i, CommutesOn G (piece S T i)) (hchain : Chain S T)
   obtain ⟨c, hc, hce⟩ := bridge hcomm hchain hacyc (shared_of ha ha') hs hq₁
   rw [← hce, ← eval_comp]
   exact single_two hcomm hchain hacyc hs' ((hc.within _).comp hq₂) hq₁' (by rwa [Bool.not_not])
+
+end Normal
+
+end Paste
+
+section Paste
+
+open Paste
+
+variable {G : W ⥤q C} {S T : Subshape W}
 
 /-! ## The pasting theorem -/
 

@@ -24,6 +24,10 @@ The basic facts here are:
 * `commutesOn_bot`: every diagram commutes on the empty subshape;
 * `CommutesOn.map`: functors preserve commutativity (Riehl, Lemma 1.6.5);
 * `CommutesOn.of_map`: faithful functors reflect it (Riehl, Lemma 1.6.20).
+
+A `Face` names two parallel paths, and `Face.Holds G` says they have the same
+composite. Faces are the vocabulary shared by obligations (`extend`) and chases
+(`chase`).
 -/
 
 import Mathlib.CategoryTheory.PathCategory.Basic
@@ -186,5 +190,39 @@ theorem CommutesOn.map (F : C ⥤ D) (h : CommutesOn G S) :
 theorem CommutesOn.of_map (F : C ⥤ D) [F.Faithful] (h : CommutesOn (G ⋙q F.toPrefunctor) S) :
     CommutesOn G S := fun _ _ p q hp hq =>
   F.map_injective (by rw [← eval_map, ← eval_map]; exact h p q hp hq)
+
+/-! ## Faces -/
+
+/-- A face of a shape: two parallel paths, `lhs` and `rhs`, that the face says
+have the same composite. -/
+structure Face (W : Type u₁) [Quiver.{v₁} W] where
+  /-- The common source of the two paths. -/
+  src : W
+  /-- The common target of the two paths. -/
+  tgt : W
+  /-- The side a forward step rewrites from. -/
+  lhs : Path src tgt
+  /-- The side a forward step rewrites to. -/
+  rhs : Path src tgt
+
+namespace Face
+
+/-- The two sides of a face, indexed by `Bool`: `false` is `lhs`, `true` is `rhs`. -/
+def side (φ : Face W) : Bool → Path φ.src φ.tgt
+  | false => φ.lhs
+  | true => φ.rhs
+
+/-- The face holds in `G`: its two sides have the same composite. -/
+def Holds (G : W ⥤q C) (φ : Face W) : Prop := eval G φ.lhs = eval G φ.rhs
+
+theorem Holds.side {G : W ⥤q C} {φ : Face W} (h : φ.Holds G) (b c : Bool) :
+    eval G (φ.side b) = eval G (φ.side c) := by
+  cases b <;> cases c
+  · rfl
+  · exact h
+  · exact h.symm
+  · rfl
+
+end Face
 
 end Diagrams
