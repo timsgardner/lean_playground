@@ -107,7 +107,7 @@ end Declare
 private def compTerm (as : Array Ident) : MacroM Term := do
   let mut t : Term := as.back!
   for a in as.pop.reverse do
-    t ← `($a ≫ $t)
+    t ← `(CategoryTheory.CategoryStruct.comp $a $t)
   return t
 
 elab_rules : command
