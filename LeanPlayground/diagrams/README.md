@@ -49,6 +49,7 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | `order.lean` | Choosing the build order (search, mirroring the kernel's check) and canonical faces of a graph; plain data, outside the kernel. |
 | `construct.lean` | Commutative by construction: builds (arrows added in turn, each with the faces it completes), `buildOK`, `commutesOn_of_build`, `commutes_of_order`. |
 | `graph.lean` | Graphs as data: `Shape n E` (vertices `Fin n`, arrows listed by their ends in `E`) with its instances proved once; a diagram of a graph from objects and a list of morphisms (`toPrefunctor`); `evalNE`. |
+| `glue.lean` | Gluing as a function on values: `CommDiagram.glue D₁ D₂ σ …` identifies vertices and arrows of `D₂` with those of `D₁` (`Gluing`), and the result commutes by `Glue.commutes`, proved once for all diagrams from path lifting (`CommutesOn.of_embed`), pasting, and parallel copies. |
 | `widget.lean` | The "Commuting diagram" presenter: draws a diagram value in the infoview, with a layout computed from its faces. |
 | `frontend.lean` | `comm_diagram [h₁, …]` (build a commuting diagram from equations and diagrams, inside a proof), `diagram_eq D` (prove an equation whose sides are paths in `D`), and `diagram_build` (prove `Commutes G` by construction for any finite shape). |
 | `examples/examples.lean` | Worked examples: the five-object undercount, Riehl's rectangle by hand, and diagrams built inside proofs (rectangle, naturality squares, cube, gluing). Diagrams are in `examples/assets/` (SVG, with tikz-cd source). |
@@ -84,6 +85,17 @@ that it commutes. Bind it with `let`, so that its morphisms stay visible; in the
 infoview it displays as `⟪diagram f, h, g, …⟫`. An `hᵢ` may also be a diagram built
 earlier: its morphisms and its commutativity are included, which glues diagrams
 along shared morphisms or extends a diagram with new arrows and equations.
+
+**Gluing.** There are two ways to glue.
+- For concrete diagrams in a proof, `comm_diagram [D₁, D₂, …]` glues along the
+  morphisms the diagrams share, found automatically, and rebuilds the result by
+  construction.
+- As a function on values, `CommDiagram.glue D₁ D₂ σ hobj hinj hends hmor hchain
+  hacyc` (`glue.lean`) glues along the identification `σ` of vertices and arrows. It
+  applies to diagrams known only as variables. The conditions say that identified
+  objects and morphisms agree, identified vertices are distinct, identified arrows
+  have matching ends, and the two pieces paste (`Chain`, `AcyclicOn`). The proof
+  that the result commutes is a theorem, `Glue.commutes`, proved once.
 
 **Drawing.** With `show_panel_widgets [local ProofWidgets.SelectionPanel]` in the
 file, shift-click a diagram in the infoview and choose "Commuting diagram"
@@ -253,6 +265,14 @@ including each face against its equation (2.1 s). `diagram_eq` takes 0.16 s.
   contributes are pruned by a greedy test, which may keep a redundant face.
 - `comm_diagram` takes arrows only from equations: an arrow that appears in no
   equation cannot be added on its own.
+- Gluing concrete diagrams with `CommDiagram.glue`: four of its conditions are
+  decidable, but `decide` rejects them because their statements mention the
+  diagrams, whose values contain the user's morphisms as free variables (kernel
+  evaluation never inspects those). Restating the conditions on the graph data
+  alone, with an elaborator that fills them in, would make it usable on concrete
+  diagrams; until then `comm_diagram [D₁, D₂]` covers that case. Lemmas giving the
+  pasting conditions for common cases (gluing along a common path) would help for
+  abstract diagrams.
 - Faster kernel checks for graphs: the build check and the check that every arrow
   is in the build evaluate the generic arrow list of `Shape n E`; a check stated
   on arrow numbers directly would be cheaper.

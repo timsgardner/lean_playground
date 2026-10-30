@@ -56,6 +56,12 @@ def arr (i j : Fin n) (k : Fin E.length) (h : E[k] = (i.val, j.val)) :
     (vert i : Shape n E) ⟶ vert j :=
   ⟨k, h⟩
 
+/-- Two arrows with equal ends and the same number are equal. -/
+theorem arrow_heq {a b a' b' : Shape n E} (e : a ⟶ b) (e' : a' ⟶ b') (ha : a = a') (hb : b = b')
+    (hk : e.val = e'.val) : HEq e e' := by
+  subst ha hb
+  exact heq_of_eq (Subtype.ext hk)
+
 /-- Two bundled arrows with the same number are equal: an arrow's number determines
 its ends. -/
 theorem total_ext {e e' : Total (Shape n E)} (h : e.hom.val = e'.hom.val) : e = e' := by
