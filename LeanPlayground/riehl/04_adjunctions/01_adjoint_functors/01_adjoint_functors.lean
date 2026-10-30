@@ -9,6 +9,7 @@ import Mathlib.Algebra.Order.Floor.Defs
 import Mathlib.Data.Set.Lattice.Image
 import LeanPlayground.Scratch.category_kindergarten.common_tools
 import LeanPlayground.Scratch.category_kindergarten.diagram_tools
+import LeanPlayground.diagrams.widget
 
 open CategoryTheory Opposite
 open scoped CategoryKindergarten
@@ -365,14 +366,23 @@ theorem nat_right_of_squares {c : 𝒞} {d d' : 𝒟} (f : F.obj c ⟶ d) (k : d
 
 /-
 Exercise 2b. The inverse bijections `(e c d).symm` are natural in `𝒞`. For a
-morphism `h : c' ⟶ c` in `𝒞` and a morphism `g : c ⟶ G.obj d`, the inverse
-transpose of the composite `h ≫ g` is `F.map h` followed by the inverse
-transpose of `g`. This equation is the field `homEquiv_naturality_left_symm` of
+morphism `h : c ⟶ c'` in `𝒞` and a morphism `g' : c' ⟶ G.obj d`, the inverse
+transpose of the composite `h ≫ g'` is `F.map h` followed by the inverse
+transpose of `g'`. This equation is the field `homEquiv_naturality_left_symm` of
 `Adjunction.CoreHomEquiv`.
+
+The names follow `hsq`, as in 2a: the objects are `hsq`'s `c`, `c'` and `d`, with
+`d' := d` and `k := 𝟙 d`, and `h` is `hsq`'s `h`. The morphism `g'` is the
+transposed bottom side `e c' d g`, so `hsq`'s `g` is `(e c' d).symm g'`.
 -/
-theorem nat_left_symm_of_squares {c' c : 𝒞} {d : 𝒟} (h : c' ⟶ c) (g : c ⟶ G.obj d) :
-    (e c' d).symm (h ≫ g) = F.map h ≫ (e c d).symm g := by
-  sorry
+theorem nat_left_symm_of_squares {c c' : 𝒞} {d : 𝒟} (h : c ⟶ c') (g' : c' ⟶ G.obj d) :
+    (e c d).symm (h ≫ g') = F.map h ≫ (e c' d).symm g' := by
+  let φ := hsq (c := c) (c' := c') (d' := d) h (𝟙 d) (f := (e c d).symm (h ≫ g')) (g := (e c' d).symm g')
+  conv at φ => rhs; simp
+  simp at φ
+  obtain ⟨h2⟩ := φ
+  simp at h2
+  exact h2
 
 /-
 Exercise 2c. The functor `F` is left adjoint to `G`, by an adjunction whose
@@ -380,8 +390,17 @@ bijections on hom-sets are the given `e`. Assemble it using
 `Adjunction.mkOfHomEquiv` and a `CoreHomEquiv` whose three fields are `e` and
 the results of 2a and 2b.
 -/
-def adjOfSquares : F ⊣ G :=
-  sorry
+def adjOfSquares : F ⊣ G := by
+  apply Adjunction.mkOfHomEquiv
+  constructor
+  case homEquiv =>
+    exact e
+  case homEquiv_naturality_left_symm =>
+    apply nat_left_symm_of_squares
+    exact hsq
+  case homEquiv_naturality_right =>
+    apply nat_right_of_squares
+    exact hsq
 
 end Squares
 

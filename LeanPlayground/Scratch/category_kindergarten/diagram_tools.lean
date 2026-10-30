@@ -25,9 +25,10 @@ open CategoryTheory ProofWidgets Lean Meta Mathlib.Tactic.Widget
 /-- If `e` is `CommSq top left right bottom`, or a proof of one (such as a
 hypothesis `sq`), return its four sides. -/
 meta def commSqSides? (e : Expr) : MetaM (Option (Expr × Expr × Expr × Expr)) := do
-  let e ← instantiateMVars e
+  -- A goal after `have` or `let` is wrapped in metadata, which the infoview hides.
+  let e := (← instantiateMVars e).consumeMData
   let ty ← if e.isAppOfArity ``CommSq 10 then pure e
-    else instantiateMVars (← inferType e)
+    else pure (← instantiateMVars (← inferType e)).consumeMData
   -- `CommSq {C} [Category C] {W X Y Z} top left right bottom`
   unless ty.isAppOfArity ``CommSq 10 do return none
   let args := ty.getAppArgs

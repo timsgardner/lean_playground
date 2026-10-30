@@ -172,7 +172,8 @@ they are drawn as two curved arrows. -/
 of its vertices, and the morphisms of its arrows. `e` is the equation, or a proof of
 it. -/
 def equationDrawing (e : Expr) : MetaM (String × Array (Option Expr) × Array Expr) := do
-  let e ← instantiateMVars e
+  -- A goal after `have` or `let` is wrapped in metadata, which the infoview hides.
+  let e := (← instantiateMVars e).consumeMData
   let ty ← if e.isAppOfArity ``Eq 3 then pure e else whnfR (← instantiateMVars (← inferType e))
   let some (_, lhs, rhs) := ty.eq? | throwError "Not an equation."
   let some (S, T) := homType? (← whnfR (← inferType lhs))
