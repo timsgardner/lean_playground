@@ -434,23 +434,35 @@ variable {X : Type*} [Preorder X]
 -- (P1) A proof of `x ≤ y` gives a morphism `x ⟶ y`. Use `homOfLE h`, or its
 -- dot-notation form `h.hom`.
 example {x y : X} (h : x ≤ y) : x ⟶ y := by
-  sorry
+  exact h.hom
 
 -- (P2) Conversely, a morphism `x ⟶ y` gives a proof of `x ≤ y`. Use
 -- `leOfHom f`, or its dot-notation form `f.le`.
 example {x y : X} (f : x ⟶ y) : x ≤ y := by
-  sorry
+  exact leOfHom f
 
--- (P3) Any two morphisms `x ⟶ y` in a preorder are equal, because a
--- proposition has at most one proof. The instance behind this is
--- `CategoryTheory.Preorder.subsingleton_hom`, and `Subsingleton.elim` uses it.
+-- (P3) For Riehl, a preorder is a category with at most one morphism between
+-- any two objects. In Lean this is a theorem about the construction above: a
+-- morphism `x ⟶ y` is a proof of `x ≤ y`, wrapped in `ULift` and `PLift`, and
+-- Lean regards any two proofs of the same proposition as equal, so any two
+-- morphisms `x ⟶ y` are equal too. Mathlib records this as the instance
+-- `CategoryTheory.Preorder.subsingleton_hom : Subsingleton (x ⟶ y)`, and
+-- `Subsingleton.elim f g` turns that instance into the equation `f = g`.
 example {x y : X} (f g : x ⟶ y) : f = g := by
-  sorry
+  exact Subsingleton.elim f g
 
--- (P4) The functor `hl.functor` built from a monotone function `l` acts on
--- objects as `l` itself, and this holds by definition.
+-- (P4) A monotone function `l : X → X` determines a functor `hl.functor : X ⥤ X`,
+-- where `hl : Monotone l` is the proof of monotonicity. Mathlib defines it
+-- (`Monotone.functor`) by two fields. On objects it is `l`. On morphisms it
+-- sends `g : x ⟶ y` to `homOfLE (hl g.le) : l x ⟶ l y`: the morphism `g` gives
+-- the proof `g.le : x ≤ y` (P2), monotonicity turns that into a proof of
+-- `l x ≤ l y`, and `homOfLE` turns that back into a morphism (P1). Mathlib
+-- writes no proofs of the functor laws: each law is an equation between two
+-- morphisms with the same domain and codomain, so it holds by P3, and the
+-- default proof `cat_disch` closes it. Since the object map is the field `l`,
+-- the equation below holds by definition, and `rfl` proves it.
 example {l : X → X} (hl : Monotone l) (x : X) : hl.functor.obj x = l x := by
-  sorry
+  rfl
 
 end Preorders
 
@@ -462,11 +474,17 @@ adjoint to the functor `gc.monotone_u.functor : Y ⥤ X` induced by `u`.
 
 Build the adjunction with `Adjunction.mkOfHomEquiv`. You only need to
 supply the field `homEquiv`, a bijection `(l x ⟶ y) ≃ (x ⟶ u y)` for each `x`
-and `y`: its two directions come from `gc.le_u` and `gc.l_le`, and its two
-round-trip conditions hold because all morphisms with the same domain and
-codomain are equal. Leave out both naturality fields. Their default proof
-`cat_disch` closes them on its own, which is the Lean form of the observation
-that every diagram in a preorder commutes, so naturality is automatic.
+and `y`. Its forward map sends a morphism `l x ⟶ y` to a morphism `x ⟶ u y`,
+using `gc.le_u : l x ≤ y → x ≤ u y` together with P1 and P2; its inverse map
+uses `gc.l_le : x ≤ u y → l x ≤ y` in the same way. The two remaining fields of
+the bijection, `left_inv` and `right_inv`, say that composing the two maps in
+either order gives back the morphism you started with; both hold by P3, since
+the result and the original morphism have the same domain and codomain.
+
+Leave out the two naturality fields of `CoreHomEquiv`. Each of them is an
+equation between two morphisms with the same domain and codomain, so it holds
+by P3, and the default proof `cat_disch` closes it without help. This is the
+Lean form of Riehl's remark that every diagram in a preorder commutes.
 
 Mathlib's version is `GaloisConnection.adjunction`.
 -/
@@ -505,11 +523,16 @@ theorem gc_ceil_cast : GaloisConnection Int.ceil ((↑) : ℤ → α) := by
   sorry
 
 /-
-The inclusion appears in both Galois connections, once as a lower adjoint and
-once as an upper adjoint, so it is turned into a functor twice, from two
-different proofs that the cast is monotone. Since any two proofs of a
-proposition are equal by definition, the two functors are equal by `rfl`, and
-the two adjunctions below really do share their middle functor.
+An adjoint triple `⌈−⌉ ⊣ (ℤ ↪ α) ⊣ ⌊−⌋` requires the two adjunctions to share
+the same middle functor. Here the inclusion becomes a functor twice, by
+`Monotone.functor` (see P4), each time from a different proof that the cast is
+monotone: `(gc_cast_floor).monotone_l`, from the connection in which the cast
+is the lower adjoint, and `(gc_ceil_cast).monotone_u`, from the one in which
+it is the upper adjoint. These two functors differ only in which proof they
+were built from. Lean treats any two proofs of the same proposition as
+definitionally equal, so the two functors are definitionally equal, and the
+`example` below proves this by `rfl`. Hence the right adjoint of `ceilCastAdj`
+and the left adjoint of `castFloorAdj` are the same functor.
 -/
 example : (gc_cast_floor (α := α)).monotone_l.functor =
     (gc_ceil_cast (α := α)).monotone_u.functor := rfl
@@ -544,11 +567,16 @@ In Mathlib, `P A` is `Set A`, ordered by `⊆`. The direct image is
 `{b | ∀ ⦃a⦄, f a = b → a ∈ s}`.
 
 Exercise 5. Prove both Galois connections by working with elements, without
-the library lemmas. After `intro` and `constructor`, each direction unfolds to a
-statement about membership; `rintro _ ⟨a, ha, rfl⟩` is a convenient way to
-introduce an element of an image. (The library versions are
-`Set.image_preimage` and `Set.preimage_kernImage`, both in the namespace
-`GaloisConnection`.)
+the library lemmas. A `GaloisConnection` is a statement `∀ s t, _ ↔ _`, so
+begin with `intro s t` and `constructor`, which leaves one goal for each
+direction of the `↔`. Each goal is an inclusion of sets, and an inclusion
+`s ⊆ t` unfolds to `∀ x, x ∈ s → x ∈ t`, so it can be proved by introducing an
+element. When the element belongs to an image `f '' s`, the pattern
+`rintro _ ⟨a, ha, rfl⟩` introduces it in a usable form. An element of
+`f '' s` is some `b` together with an `a`, a proof `ha : a ∈ s`, and a proof
+that `f a = b`. The pattern names `a` and `ha`, and `rfl` replaces `b` by
+`f a` everywhere. The library proofs of the two connections are
+`Set.image_preimage` and `Set.preimage_kernImage`.
 -/
 section Image
 
@@ -573,9 +601,11 @@ every `x`. Universal and existential quantification define functors
 These form an adjoint triple `∃_X ⊣ Δ_X ⊣ ∀_X`.
 
 In Lean, `Ω` is `Prop`, whose order `p ≤ q` is implication `p → q`, and `Ω^X`
-is `X → Prop` with the pointwise order. Both orders unfold by definition, so
-`intro` sees through them: a proof of `p ≤ q` for `p q : X → Prop` can begin
-with `intro x hx`.
+is `X → Prop` with the pointwise order. Both orders are defined so that they
+unfold to the corresponding statements: for `p q : X → Prop`, the statement
+`p ≤ q` is by definition `∀ x, p x → q x`. Because `intro` unfolds definitions
+until it reaches a `∀` or an `→`, a proof of `p ≤ q` can begin with
+`intro x hx`, which gives an element `x : X` and a proof `hx : p x`.
 
 Exercise 6. Prove both Galois connections.
 -/
