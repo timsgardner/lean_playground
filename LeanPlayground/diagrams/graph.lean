@@ -143,4 +143,62 @@ def toPrefunctor (obj : Fin n → C) (mors : List (Σ a b : Fin n, obj a ⟶ obj
 
 end Interpretation
 
+/-! ## Lists of faces that hold -/
+
+section AllHold
+
+variable {W : Type*} [Quiver W] {C : Type u} [Category.{v} C]
+
+/-- Every face of a list holds in `G`, as a conjunction, so that a proof can be
+given face by face. -/
+def AllHold (G : W ⥤q C) : List (Face W) → Prop
+  | [] => True
+  | φ :: l => φ.Holds G ∧ AllHold G l
+
+theorem forall_of_allHold {G : W ⥤q C} : ∀ {l : List (Face W)}, AllHold G l → ∀ φ ∈ l, φ.Holds G
+  | [], _, _, h => absurd h List.not_mem_nil
+  | _ :: _, ⟨h₀, h⟩, _, hφ => by
+    rcases List.mem_cons.1 hφ with rfl | hφ
+    · exact h₀
+    · exact forall_of_allHold h _ hφ
+
+end AllHold
+
+/-! ## Composites without identities
+
+`eval` composes a path starting from an identity, so the composite of a path of one
+arrow is `𝟙 _ ≫ G.map f`, which is equal but not definitionally equal to
+`G.map f`. `evalNE` composes a nonempty path without the identity, associating to
+the left: the composite of `f, g, h` is `(G.map f ≫ G.map g) ≫ G.map h`. An
+equation between such composites can then be checked against the images of the
+arrows by definitional unfolding alone. -/
+
+section EvalNE
+
+variable {W : Type*} [Quiver W] {C : Type u} [Category.{v} C] (G : W ⥤q C)
+
+/-- The composite of a path, without a leading identity, associated to the left. -/
+def evalNE {a : W} : ∀ {b : W}, Path a b → (G.obj a ⟶ G.obj b)
+  | _, .nil => 𝟙 _
+  | _, .cons .nil f => G.map f
+  | _, .cons (.cons p g) f => evalNE (.cons p g) ≫ G.map f
+
+theorem evalNE_eq_eval {a : W} : ∀ {b : W} (p : Path a b), evalNE G p = eval G p
+  | _, .nil => rfl
+  | _, .cons .nil f => by simp [evalNE]
+  | _, .cons (.cons p g) f => by simp only [evalNE, evalNE_eq_eval (.cons p g), eval_cons]
+
+variable {G}
+
+/-- A face holds when its two sides have equal composites without identities. -/
+theorem holds_of_evalNE (φ : Face W) (h : evalNE G φ.lhs = evalNE G φ.rhs) : φ.Holds G := by
+  rw [Face.Holds, ← evalNE_eq_eval, ← evalNE_eq_eval, h]
+
+/-- In a commuting diagram, parallel paths have equal composites without identities. -/
+theorem Commutes.evalNE_eq (hC : Commutes G) {a b : W} (p q : Path a b) :
+    evalNE G p = evalNE G q := by
+  rw [evalNE_eq_eval, evalNE_eq_eval]; exact hC p q
+
+end EvalNE
+
 end Diagrams
