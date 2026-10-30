@@ -245,6 +245,36 @@ end GraphTerm
 
 open GraphTerm
 
+/-- Read a vertex number from a term `Fin.mk n i _` or a numeral. -/
+def finVal (e : Expr) : MetaM ℕ := do
+  match e.getAppFnArgs with
+  | (``Fin.mk, #[_, i, _]) => if let some k := i.rawNatLit? then return k else
+      if let some k := (← (evalNat i).run) then return k
+      else throwError "diagram_eq: unreadable vertex {e}"
+  | _ => do
+    let v ← whnf (← mkAppM ``Fin.val #[e])
+    if let some k := v.rawNatLit? then return k
+    if let some k := (← (evalNat v).run) then return k
+    throwError "diagram_eq: unreadable vertex {e}"
+
+/-- Read a diagram built by `comm_diagram` from its prefunctor `toPrefunctor obj mors _`:
+the number of vertices, the list of ends `E`, and the listed morphisms with the
+numbers of their ends. -/
+def readGraph (G : Expr) : MetaM (Option (ℕ × Expr × Array (Expr × ℕ × ℕ))) := do
+  let (``Diagrams.toPrefunctor, #[_, _, nE, E, _, mors, _]) := G.getAppFnArgs | return none
+  let some n := (← (evalNat nE).run) | return none
+  let mut ms : Array (Expr × ℕ × ℕ) := #[]
+  let mut l := mors
+  repeat
+    match l.getAppFnArgs with
+    | (``List.cons, #[_, x, rest]) =>
+      let (``Sigma.mk, #[_, _, a, inner]) := x.getAppFnArgs | return none
+      let (``Sigma.mk, #[_, _, b, f]) := inner.getAppFnArgs | return none
+      ms := ms.push (f, ← finVal a, ← finVal b)
+      l := rest
+    | _ => break
+  return some (n, E, ms)
+
 /-! ## `comm_diagram`: a commuting diagram from equations -/
 
 /-- The objects and morphisms of a diagram being read from equations: objects and
@@ -304,20 +334,39 @@ def Reading.path (r : Reading) (e : Expr) : MetaM (Reading × Array ℕ × Array
 /-- `comm_diagram [h₁, …, hₖ]` proves that the diagram formed by the morphisms in the
 equations `hᵢ` commutes. Each `hᵢ` is an equation between composites; its morphisms
 are the arrows, their domains and codomains the objects, and the equations are the
-faces. The result is a proof of `Commutes (toPrefunctor obj mors _)`, whose type
+faces. An `hᵢ` may also be a diagram built by `comm_diagram`: its morphisms and its
+commutativity are included, which glues diagrams along the morphisms they share. The result is a proof of `Commutes (toPrefunctor obj mors _)`, whose type
 lists the objects and morphisms; `diagram_eq` reads equations off it. -/
 elab "comm_diagram " "[" hs:term,* "]" : term => do
   let hs := hs.getElems
   let mut r : Reading := {}
   let mut faces : Array (Array ℕ × Array ℕ) := #[]
   let mut evidence : Array (Expr × Array Expr × Array Expr) := #[]
+  -- The equations given, and those of the diagrams given: a diagram contributes its
+  -- canonical faces, each proved from its commutativity.
+  let mut eqs : Array (Syntax × Expr) := #[]
   for h in hs do
     let e ← Term.elabTerm h none
     Term.synthesizeSyntheticMVarsNoPostponing
     let e ← instantiateMVars e
     let ty ← instantiateMVars (← whnfR (← inferType e))
+    if let (``Diagrams.Commutes, #[_, _, _, _, G₀]) := ty.getAppFnArgs then
+      let some (n₀, E₀, ms₀) ← readGraph G₀
+        | throwErrorAt h "comm_diagram: {h} is a commuting diagram not built by comm_diagram"
+      let ends₀ := ms₀.map fun (_, a, b) => (a, b)
+      let d₀ : Data := ⟨n₀, ends₀, E₀⟩
+      let shape₀ : Order.Shape := ⟨n₀, ends₀, (List.range ends₀.size).toArray⟩
+      for (l, rr) in shape₀.inferFaces do
+        let ll ← compLeft (l.map fun k => ms₀[k]!.1)
+        let rl ← compLeft (rr.map fun k => ms₀[k]!.1)
+        let p ← mkAppM ``Diagrams.Commutes.evalNE_eq #[e, ← d₀.path l, ← d₀.path rr]
+        eqs := eqs.push (h, ← mkExpectedTypeHint p (← mkEq ll rl))
+    else
+      eqs := eqs.push (h, e)
+  for (h, e) in eqs do
+    let ty ← instantiateMVars (← whnfR (← inferType e))
     let some (_, lhs, rhs) := ty.eq?
-      | throwErrorAt h "comm_diagram: {h} is not an equation"
+      | throwErrorAt h "comm_diagram: {h} is not an equation or a commuting diagram"
     let (r₁, l, fl) ← r.path lhs
     let (r₂, rr, fr) ← r₁.path rhs
     r := r₂
@@ -406,36 +455,11 @@ elab "comm_diagram " "[" hs:term,* "]" : term => do
 
 /-! ## `diagram_eq` -/
 
-/-- Read a vertex number from a term `Fin.mk n i _` or a numeral. -/
-def finVal (e : Expr) : MetaM ℕ := do
-  match e.getAppFnArgs with
-  | (``Fin.mk, #[_, i, _]) => if let some k := i.rawNatLit? then return k else
-      if let some k := (← (evalNat i).run) then return k
-      else throwError "diagram_eq: unreadable vertex {e}"
-  | _ => do
-    let v ← whnf (← mkAppM ``Fin.val #[e])
-    if let some k := v.rawNatLit? then return k
-    if let some k := (← (evalNat v).run) then return k
-    throwError "diagram_eq: unreadable vertex {e}"
-
 /-- `diagram_eq` for a diagram built by `comm_diagram`: the morphisms are read from
 the diagram's type, and the definitional equalities are left to the kernel. -/
 def diagramEqGraph (hD G : Expr) : TacticM Unit := withMainContext do
-  let (``Diagrams.toPrefunctor, #[_, _, nE, E, _, mors, _]) := G.getAppFnArgs | failure
-  let some n := (← (evalNat nE).run) | failure
-  -- The listed morphisms, with their ends.
-  let mut ms : Array (Expr × ℕ × ℕ) := #[]
-  let endsOf (m : Array (Expr × ℕ × ℕ)) : Array (ℕ × ℕ) := m.map fun (_, a, b) => (a, b)
-  let mut l := mors
-  repeat
-    match l.getAppFnArgs with
-    | (``List.cons, #[_, x, rest]) =>
-      let (``Sigma.mk, #[_, _, a, inner]) := x.getAppFnArgs | failure
-      let (``Sigma.mk, #[_, _, b, f]) := inner.getAppFnArgs | failure
-      ms := ms.push (f, ← finVal a, ← finVal b)
-      l := rest
-    | _ => break
-  let d : Data := ⟨n, endsOf ms, E⟩
+  let some (n, E, ms) ← readGraph G | failure
+  let d : Data := ⟨n, ms.map fun (_, a, b) => (a, b), E⟩
   let goal ← getMainGoal
   let some (α, lhs, rhs) := (← goal.getType').eq?
     | throwError "diagram_eq: the goal is not an equation: {← goal.getType}"
