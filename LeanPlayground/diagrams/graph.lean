@@ -106,6 +106,71 @@ instance [NeZero n] : NumShape (Shape n E) where
 
 end Shape
 
+/-! ## Lookup by position
+
+A list is looked up by position in time proportional to the position, which makes
+checks that look up many entries quadratic. A Braun tree holds a list so that each
+lookup takes time logarithmic in its length: position `0` is at the root, the odd
+positions are in the left subtree and the even ones in the right. -/
+
+/-- A Braun tree, holding a list for lookups by position. -/
+inductive Braun (α : Type*) where
+  | leaf : Braun α
+  | node : Braun α → α → Braun α → Braun α
+
+namespace Braun
+
+variable {α : Type*}
+
+/-- The entry at position `i`, if there is one. -/
+def get? : Braun α → ℕ → Option α
+  | leaf, _ => none
+  | node l x r, i =>
+    if i = 0 then some x else if i % 2 = 1 then l.get? (i / 2) else r.get? (i / 2 - 1)
+
+/-- The tree of `x :: l`, from the tree of `l`. -/
+def cons (x : α) : Braun α → Braun α
+  | leaf => node leaf x leaf
+  | node l y r => node (cons y r) x l
+
+/-- The tree holding a list. -/
+def ofList (l : List α) : Braun α := l.foldr cons leaf
+
+theorem get?_cons_zero (x : α) (t : Braun α) : (cons x t).get? 0 = some x := by
+  cases t <;> simp [cons, get?]
+
+theorem get?_cons_succ (x : α) (t : Braun α) (i : ℕ) : (cons x t).get? (i + 1) = t.get? i := by
+  induction t generalizing x i with
+  | leaf => simp [cons, get?]
+  | node l y r _ ihr =>
+    simp only [cons, get?]
+    obtain ⟨j, rfl | rfl⟩ : ∃ j, i = 2 * j ∨ i = 2 * j + 1 := ⟨i / 2, by omega⟩
+    · rcases j with _ | j
+      · simp [get?_cons_zero]
+      · have h₁ : (2 * (j + 1) + 1) % 2 = 1 := by omega
+        have h₂ : (2 * (j + 1) + 1) / 2 = j + 1 := by omega
+        have h₃ : (2 * (j + 1)) % 2 = 0 := by omega
+        simp [h₁, h₂, h₃, ihr]
+    · have h₁ : (2 * j + 1 + 1) % 2 = 0 := by omega
+      have h₂ : (2 * j + 1 + 1) / 2 - 1 = j := by omega
+      have h₃ : (2 * j + 1) % 2 = 1 := by omega
+      have h₄ : (2 * j + 1) / 2 = j := by omega
+      simp [h₁, h₂, h₃, h₄]
+
+/-- Looking up a position in the tree of a list is looking it up in the list. -/
+theorem get?_ofList : ∀ (l : List α) (i : ℕ), (ofList l).get? i = l[i]?
+  | [], _ => by simp [ofList, get?]
+  | x :: l, 0 => get?_cons_zero x _
+  | x :: l, i + 1 => (get?_cons_succ x _ i).trans (get?_ofList l i)
+
+end Braun
+
+/-- Objects for the vertices `Fin n`, held in a Braun tree, so that looking up a
+vertex takes logarithmic time. `X₀` is returned for a position the tree does not
+hold; the builders put every vertex in the tree. -/
+def objOf {C : Type*} (n : ℕ) (X₀ : C) (t : Braun C) : Fin n → C :=
+  fun i => (t.get? i.val).getD X₀
+
 /-! ## Diagrams of a graph -/
 
 section Interpretation
