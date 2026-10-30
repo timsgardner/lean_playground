@@ -3,7 +3,8 @@
 
 A presenter that draws a commuting diagram built by `comm_diagram` in the infoview,
 in the style of Mathlib's commutative squares and triangles
-(`Mathlib.Tactic.Widget.CommDiag`), which lay diagrams out with Penrose.
+(`Mathlib.Tactic.Widget.CommDiag`), which lay diagrams out with Penrose. Morphism
+labels are set apart from objects: they have no box, and are a little smaller.
 
 To see a diagram, put `show_panel_widgets [local ProofWidgets.SelectionPanel]` near
 the top of a file. With the cursor in a proof after `let D := comm_diagram [...]`,
@@ -19,8 +20,10 @@ Penrose positioning predicate. Other arrows are left for Penrose to place.
 import LeanPlayground.diagrams.frontend
 import Mathlib.Tactic.Widget.CommDiag
 import ProofWidgets.Component.Panel.SelectionPanel
+import ProofWidgets.Component.PenroseDiagram
 
 open Lean Meta ProofWidgets Mathlib.Tactic.Widget
+open scoped ProofWidgets.Jsx
 
 namespace Diagrams.Draw
 
@@ -103,6 +106,22 @@ def substance (n : ℕ) (ends : Array (ℕ × ℕ)) (faces : Array Order.FaceDat
     (predicate pos[a]! pos[b]!).map (s!"{·}(M{k})")
   "\n".intercalate ([s!"Object {objs}"] ++ cells ++ preds ++ ["AutoLabel All"])
 
+/-- Mathlib's Penrose domain program for commutative diagrams. -/
+def dsl : String :=
+  include_str "../../.lake/packages/mathlib/widget/src/penrose/commutative.dsl"
+
+/-- Mathlib's Penrose style program for commutative diagrams, with morphism labels
+set apart from objects: an object keeps its box, while a morphism's label has no
+border and interrupts its arrow, as in tikz-cd. -/
+def sty : String :=
+  (include_str "../../.lake/packages/mathlib/widget/src/penrose/commutative.sty") ++
+  "
+forall Cell f {
+    override f.textBox.strokeWidth = 0
+    override f.textBox.fillColor = theme.background
+}
+"
+
 /-- The diagram `e`, built by `comm_diagram`, as Html. -/
 def diagramHtml (e : Expr) : MetaM ProofWidgets.Html := do
   let some dv ← readDiagram e
@@ -116,12 +135,18 @@ def diagramHtml (e : Expr) : MetaM ProofWidgets.Html := do
     let some (A, B) := homType? (← whnfR (← inferType f)) | continue
     if objs[a]!.isNone then objs := objs.set! a (some A)
     if objs[b]!.isNone then objs := objs.set! b (some B)
-  let mut embeds : ExprEmbeds := #[]
+  -- Objects are drawn as Lean prints them; morphism labels a little smaller and lighter.
+  let mut embeds : Array (String × ProofWidgets.Html) := #[]
   for i in [0:dv.n] do
-    if let some X := objs[i]! then embeds := embeds.push (s!"O{i}", X)
+    if let some X := objs[i]! then
+      embeds := embeds.push (s!"O{i}", jsx%{<InteractiveCode fmt={← Widget.ppExprTagged X} />})
   for k in [0:dv.ms.size] do
-    embeds := embeds.push (s!"M{k}", dv.ms[k]!.1)
-  mkCommDiag (substance dv.n ends faces) embeds
+    let f := dv.ms[k]!.1
+    embeds := embeds.push (s!"M{k}",
+      jsx%{<span style={json% {fontSize: "85%", opacity: 0.8}}>
+        <InteractiveCode fmt={← Widget.ppExprTagged f} />
+      </span>})
+  return jsx%{<PenroseDiagram embeds={embeds} dsl={dsl} sty={sty} sub={substance dv.n ends faces} />}
 
 /-- Draw a commuting diagram built by `comm_diagram`. -/
 @[expr_presenter]

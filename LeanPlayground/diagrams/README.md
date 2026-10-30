@@ -126,7 +126,8 @@ evaluates directly, with one theorem (`GlueOK.of_check`) saying what it proves.
 **Drawing.** With `show_panel_widgets [local ProofWidgets.SelectionPanel]` in the
 file, shift-click a diagram in the infoview and choose "Commuting diagram"
 (`widget.lean`). It is drawn with Mathlib's Penrose style for commutative
-diagrams, laid out from its faces: around each face one side goes right then down
+diagrams, with morphism labels set apart from objects (no box, slightly smaller), laid
+out from its faces: around each face one side goes right then down
 and the other down then right.
 
 **Using.** `diagram_eq D` proves a goal `p₁ = p₂` when `p₁` and `p₂` are paths in
