@@ -6,8 +6,7 @@
   arrows of a graph (`Shape n E`), the equations its faces, and the graph is shown
   to commute by construction: an order of the arrows is found outside the kernel
   (`Order`), and the build is checked by the kernel (`commutes_of_order`). The result
-  is a proof of `Commutes (toPrefunctor obj mors _)`, whose type lists the objects
-  and morphisms.
+  is a value of type `CommDiagram C`, to be bound with `let`.
 * `diagram_eq D` proves a goal `p₁ = p₂` from `D : Commutes G` when both sides are
   paths in the diagram: each side is split at `≫` (ignoring bracketing and
   identities), and each factor is matched to a morphism of the diagram.
@@ -410,8 +409,9 @@ def Reading.path (r : Reading) (e : Expr) : MetaM (Reading × Array ℕ × Array
 equations `hᵢ` commutes. Each `hᵢ` is an equation between composites; its morphisms
 are the arrows, their domains and codomains the objects, and the equations are the
 faces. An `hᵢ` may also be a diagram built by `comm_diagram`: its morphisms and its
-commutativity are included, which glues diagrams along the morphisms they share. The result is a proof of `Commutes (toPrefunctor obj mors _)`, whose type
-lists the objects and morphisms; `diagram_eq` reads equations off it. -/
+commutativity are included, which glues diagrams along the morphisms they share.
+The result is a `CommDiagram C`; bind it with `let`, so that `diagram_eq` and later
+gluing can read its morphisms. -/
 elab "comm_diagram " "[" hs:term,* "]" : term => do
   let hs := hs.getElems
   let mut r : Reading := {}
