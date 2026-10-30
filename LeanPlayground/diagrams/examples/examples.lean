@@ -375,9 +375,10 @@ example {D : Type*} [Category D] {a b c d : D} (f : a ⟶ b) (g : b ⟶ c) (h : 
 
 /-! ### Gluing and extending diagrams
 
-A diagram built by `comm_diagram` can itself be given to `comm_diagram`, together
-with other diagrams and equations. Its morphisms and its commutativity are included,
-so diagrams glue along the morphisms they share. -/
+`glue D₁ D₂` glues two diagrams along the objects and morphisms they share. Neither
+piece is checked again: the result commutes by one theorem, whose conditions on the
+graphs the kernel decides. A diagram can also be given to `comm_diagram`, together
+with other diagrams and equations, which extends it. -/
 
 -- Two squares, built separately, glued along the shared edge `h`.
 example {D : Type*} [Category D] {a b c a' b' c' : D} (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a')
@@ -385,7 +386,18 @@ example {D : Type*} [Category D] {a b c a' b' c' : D} (f : a ⟶ b) (j : b ⟶ c
     (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) : f ≫ j ≫ l = g ≫ k ≫ m := by
   let D₁ := comm_diagram [hL]
   let D₂ := comm_diagram [hR]
-  let D := comm_diagram [D₁, D₂]
+  let D := glue D₁ D₂
+  diagram_eq D
+
+-- Three squares in a row: a glued diagram can be glued again.
+example {D : Type*} [Category D] {a b c d a' b' c' d' : D} (f : a ⟶ b) (j : b ⟶ c)
+    (r : c ⟶ d) (g : a ⟶ a') (h : b ⟶ b') (l : c ⟶ c') (t : d ⟶ d') (k : a' ⟶ b')
+    (m : b' ⟶ c') (s : c' ⟶ d') (h₁ : f ≫ h = g ≫ k) (h₂ : j ≫ l = h ≫ m)
+    (h₃ : r ≫ t = l ≫ s) : f ≫ j ≫ r ≫ t = g ≫ k ≫ m ≫ s := by
+  let D₁ := comm_diagram [h₁]
+  let D₂ := comm_diagram [h₂]
+  let D₃ := comm_diagram [h₃]
+  let D := glue (glue D₁ D₂) D₃
   diagram_eq D
 
 -- A diagram extended by a new arrow `p` and the triangle it closes.
@@ -412,6 +424,19 @@ error: comm_diagram: the equations do not make the diagram commute. These two pa
 -/
 #guard_msgs in
 #check comm_diagram [hL, hO]
+end
+
+-- Two squares that share only two opposite corners do not glue: the route through
+-- each square from `a` to `d` is related to the other by no equation.
+section
+variable {D : Type*} [Category D] {a b c d x y : D} (f : a ⟶ x) (g : x ⟶ d) (f' : a ⟶ y)
+  (g' : y ⟶ d) (p : a ⟶ b) (q : b ⟶ d) (p' : a ⟶ c) (q' : c ⟶ d)
+  (h₁ : f ≫ g = p ≫ q) (h₂ : f' ≫ g' = p' ≫ q')
+/--
+error: glue: the diagrams share the objects a and d, but no route of morphisms common to both joins them, so the glued diagram need not commute. To relate the routes by an equation h, use comm_diagram [D₁, D₂, h].
+-/
+#guard_msgs (error, drop info) in
+#check glue (comm_diagram [h₁]) (comm_diagram [h₂])
 end
 
 -- Both sides of the goal must be paths in the diagram.

@@ -7,6 +7,9 @@
   to commute by construction: an order of the arrows is found outside the kernel
   (`Order`), and the build is checked by the kernel (`commutes_of_order`). The result
   is a value of type `CommDiagram C`, to be bound with `let`.
+* `glue D₁ D₂` glues two diagrams built earlier along the objects and morphisms they
+  share. The result commutes by a theorem proved once (`commutes_of_glue`), whose
+  conditions on the graphs the kernel decides.
 * `diagram_eq D` proves a goal `p₁ = p₂` from `D : Commutes G` when both sides are
   paths in the diagram: each side is split at `≫` (ignoring bracketing and
   identities), and each factor is matched to a morphism of the diagram.
@@ -14,7 +17,7 @@
   shape, from faces that hold in `G`.
 -/
 
-import LeanPlayground.diagrams.graph
+import LeanPlayground.diagrams.glue
 import LeanPlayground.diagrams.order
 import Mathlib.Data.Fin.VecNotation
 
@@ -349,6 +352,41 @@ def evalNEEq (e : Expr) (pk qk : Array ℕ) : MetaM Expr := do
 
 end DiagramValue
 
+/-- The terms for a diagram in `C` with objects `objs` and morphisms `ms` (each with
+the numbers of its ends): the graph, the objects `obj : Fin n → C`, the list of
+morphisms, the proof that its ends are `E`, and the prefunctor. `instQ` and
+`homLvls` are the quiver instance and levels of `Quiver.Hom` in `C`. -/
+def diagramTerms (C : Expr) (inst : Expr) (uC vC : Level) (instQ : Expr) (homLvls : List Level)
+    (objs : Array Expr) (ms : Array (Expr × ℕ × ℕ)) : MetaM (Data × Expr × Expr × Expr × Expr) := do
+  let n := objs.size
+  let ends := ms.map fun (_, a, b) => (a, b)
+  let E ← mkListLit pairT (ends.toList.map fun (a, b) =>
+    mkApp4 (.const ``Prod.mk [0, 0]) (.const ``Nat []) (.const ``Nat []) (lit a) (lit b))
+  let d : Data := ⟨n, ends, E⟩
+  let finT := mkApp (.const ``Fin []) (lit n)
+  let mut obj := mkApp (.const ``Matrix.vecEmpty [uC]) C
+  for i in [0:n] do
+    obj := mkApp4 (.const ``Matrix.vecCons [uC]) C (lit i) objs[n - 1 - i]! obj
+  let hom (A B : Expr) : Expr := mkApp4 (.const ``Quiver.Hom homLvls) C instQ A B
+  let innerFam (a : Expr) : MetaM Expr := withLocalDeclD `b finT fun b =>
+    mkLambdaFVars #[b] (hom (mkApp obj a) (mkApp obj b))
+  let outerFam ← withLocalDeclD `a finT fun a => do
+    mkLambdaFVars #[a] (mkApp2 (.const ``Sigma [0, vC]) finT (← innerFam a))
+  let entryT := mkApp2 (.const ``Sigma [0, vC]) finT outerFam
+  let entries ← ms.toList.mapM fun (f, a, b) => do
+    let inner := mkApp4 (.const ``Sigma.mk [0, vC]) finT (← innerFam (d.fin a)) (d.fin b) f
+    return mkApp4 (.const ``Sigma.mk [0, vC]) finT outerFam (d.fin a) inner
+  let mors ← mkListLit entryT entries
+  let hE := mkApp2 (.const ``Eq.refl [1]) (mkApp (.const ``List [0]) pairT) E
+  let G := mkAppN (.const ``Diagrams.toPrefunctor [vC, uC]) #[C, inst, lit n, E, obj, mors, hE]
+  return (d, obj, mors, hE, G)
+
+/-- The value `CommDiagram.mk …`, with the levels of `CommDiagram` given by name. -/
+def commDiagramMk (uC vC : Level) (args : Array Expr) : MetaM Expr := do
+  let info ← getConstInfo ``Diagrams.CommDiagram.mk
+  let lvls := info.levelParams.map fun nm => if nm == `u then uC else vC
+  return mkAppN (.const ``Diagrams.CommDiagram.mk lvls) args
+
 /-! ## `comm_diagram`: a commuting diagram from equations -/
 
 /-- The objects and morphisms of a diagram being read from equations: objects and
@@ -479,28 +517,9 @@ elab "comm_diagram " "[" hs:term,* "]" : term => do
       | none => throwError "comm_diagram: the equations do not make the diagram commute"
   let uses := shape.faceUses faces order
   -- The graph and its diagram, as terms.
-  let E ← mkListLit pairT (ends.toList.map fun (a, b) =>
-    mkApp4 (.const ``Prod.mk [0, 0]) (.const ``Nat []) (.const ``Nat []) (lit a) (lit b))
-  let d : Data := ⟨n, ends, E⟩
-  let finT := mkApp (.const ``Fin []) (lit n)
-  let objLvl := uC
-  let mut obj := mkApp (.const ``Matrix.vecEmpty [objLvl]) C
-  for i in [0:n] do
-    let X := r.objs[n - 1 - i]!
-    obj := mkApp4 (.const ``Matrix.vecCons [objLvl]) C (lit i) X obj
   let some (instQ, homLvls) := r.hom | throwError "comm_diagram: no morphisms"
-  let hom (A B : Expr) : Expr := mkApp4 (.const ``Quiver.Hom homLvls) C instQ A B
-  let innerFam (a : Expr) : MetaM Expr := withLocalDeclD `b finT fun b =>
-    mkLambdaFVars #[b] (hom (mkApp obj a) (mkApp obj b))
-  let outerFam ← withLocalDeclD `a finT fun a => do
-    mkLambdaFVars #[a] (mkApp2 (.const ``Sigma [0, vC]) finT (← innerFam a))
-  let entryT := mkApp2 (.const ``Sigma [0, vC]) finT outerFam
-  let entries ← r.mors.toList.mapM fun (f, a, b) => do
-    let inner := mkApp4 (.const ``Sigma.mk [0, vC]) finT (← innerFam (d.fin a)) (d.fin b) f
-    return mkApp4 (.const ``Sigma.mk [0, vC]) finT outerFam (d.fin a) inner
-  let mors ← mkListLit entryT entries
-  let hE := mkApp2 (.const ``Eq.refl [1]) (mkApp (.const ``List [0]) pairT) E
-  let G := mkAppN (.const ``Diagrams.toPrefunctor [vC, uC]) #[C, inst, lit n, E, obj, mors, hE]
+  let (d, obj, mors, hE, G) ← diagramTerms C inst uC vC instQ homLvls r.objs r.mors
+  let E := d.E
   -- The faces, and their proofs from the equations.
   let instQW ← instantiateMVars
     (← synthInstance (mkApp (.const ``Quiver [← mkFreshLevelMVar, 0]) d.shape))
@@ -540,9 +559,178 @@ elab "comm_diagram " "[" hs:term,* "]" : term => do
   let proof ← Term.elabTerm term none
   Term.synthesizeSyntheticMVarsNoPostponing
   let proof ← instantiateMVars proof
+  commDiagramMk uC vC #[C, inst, lit n, E, obj, mors, hE, proof]
+
+/-! ## `glue`: two commuting diagrams glued into one -/
+
+/-- The objects of a diagram, read from `obj : Fin n → C` when it is a list of
+objects (`Matrix.vecCons`), and otherwise as `obj i`. -/
+def objectsOf (dv : DiagramValue) : MetaM (Array Expr) := do
+  let mut out := #[]
+  let mut e := dv.obj
+  repeat
+    match e.getAppFnArgs with
+    | (``Matrix.vecCons, #[_, _, X, rest]) => out := out.push X; e := rest
+    | _ => break
+  if out.size == dv.n then return out
+  return (Array.range dv.n).map fun i => mkApp dv.obj (dv.data.fin i)
+
+/-- The constant `nm`, with its universe levels `u` (objects) and `v` (morphisms). -/
+def constUV (nm : Name) (uC vC : Level) : MetaM Expr := do
+  let info ← getConstInfo nm
+  return .const nm (info.levelParams.map fun l => if l == `u then uC else vC)
+
+/-- A proof of `T`, which unfolds to a conjunction of equations whose two sides are
+equal by definitional unfolding. The kernel checks that they are. -/
+def andOfRfl (T : Expr) : MetaM Expr := do
+  let some T' ← unfoldDefinition? T | throwError "glue: cannot unfold {T}"
+  let some (A, B) := (← whnfCore T').and? | throwError "glue: {T} is not a conjunction"
+  let refl (P : Expr) : MetaM Expr := do
+    let some (α, l, _) := P.eq? | throwError "glue: {P} is not an equation"
+    return mkApp2 (.const ``Eq.refl [← getLevel α]) α l
+  return mkApp4 (.const ``And.intro []) A B (← refl A) (← refl B)
+
+/-- `glue D₁ D₂` glues two commuting diagrams built earlier along what they share. An
+object of `D₂` that is also an object of `D₁` becomes one vertex, and a morphism of
+`D₂` that is also a morphism of `D₁` becomes one arrow (both up to definitional
+equality). The result commutes when the two pieces paste: any two objects they
+share are joined by a route of shared morphisms, and the glued diagram has no
+cycle. These are conditions on the graphs alone; they are checked here, and proved
+in the kernel by evaluation (`commutes_of_glue`), without checking either piece
+again. -/
+elab "glue " d₁:term:max d₂:term:max : term => do
+  let read (d : Term) : TermElabM (Expr × DiagramValue) := do
+    let e ← Term.elabTerm d none
+    Term.synthesizeSyntheticMVarsNoPostponing
+    let e ← instantiateMVars e
+    let some dv ← readDiagram e
+      | throwErrorAt d "glue: {d} is not a diagram whose value is visible; build diagrams \
+          with comm_diagram or glue, and bind them with `let`, not `have`"
+    return (e, dv)
+  let (e₁, dv₁) ← read d₁
+  let (e₂, dv₂) ← read d₂
+  unless ← isDefEq dv₁.C dv₂.C do
+    throwError "glue: {d₁} and {d₂} are diagrams in different categories"
   let info ← getConstInfo ``Diagrams.CommDiagram.mk
-  let lvls := info.levelParams.map fun nm => if nm == `u then uC else vC
-  return mkAppN (.const ``Diagrams.CommDiagram.mk lvls) #[C, inst, lit n, E, obj, mors, hE, proof]
+  let lvl (nm : Name) : Level :=
+    ((info.levelParams.zip dv₁.lvls).find? (·.1 == nm)).map (·.2) |>.getD .zero
+  let uC := lvl `u
+  let vC := lvl `v
+  let objs₁ ← objectsOf dv₁
+  let objs₂ ← objectsOf dv₂
+  -- The vertices: those of `D₁`, then those of `D₂` whose objects are new.
+  let mut objs := objs₁
+  let mut vm₂ : Array ℕ := #[]
+  for Y in objs₂ do
+    let mut found : Option ℕ := objs₁.findIdx? (· == Y)
+    if found.isNone then
+      for i in [0:objs₁.size] do
+        if ← isDefEq objs₁[i]! Y then
+          found := some i
+          break
+    match found with
+    | some i =>
+      if vm₂.contains i then
+        throwError "glue: two vertices of {d₂} have the same object {Y}, which is not supported"
+      vm₂ := vm₂.push i
+    | none =>
+      vm₂ := vm₂.push objs.size
+      objs := objs.push Y
+  -- The arrows: those of `D₁`, then those of `D₂` whose morphisms are new.
+  let mut ms := dv₁.ms
+  let mut am₂ : Array ℕ := #[]
+  for (f, a, b) in dv₂.ms do
+    let a' := vm₂[a]!
+    let b' := vm₂[b]!
+    let mut found : Option ℕ := none
+    for k in [0:dv₁.ms.size] do
+      let (g, x, y) := dv₁.ms[k]!
+      if x == a' && y == b' then
+        if g == f then
+          found := some k
+          break
+        if ← isDefEq g f then
+          found := some k
+          break
+    match found with
+    | some k => am₂ := am₂.push k
+    | none =>
+      am₂ := am₂.push ms.size
+      ms := ms.push (f, a', b')
+  -- The pasting conditions, checked here so that a failure can be explained.
+  let n := objs.size
+  let ends := ms.map fun (_, a, b) => (a, b)
+  let m₁ := dv₁.ms.size
+  let inT := (Array.range ms.size).map fun j => am₂.contains j
+  let touched (inPiece : ℕ → Bool) : Array Bool := Id.run do
+    let mut t := Array.replicate n false
+    for j in [0:ms.size] do
+      if inPiece j then
+        t := (t.set! ends[j]!.1 true).set! ends[j]!.2 true
+    return t
+  let t₁ := touched (· < m₁)
+  let t₂ := touched (inT[·]!)
+  let sharedV := (Array.range n).filter fun v => t₁[v]! && t₂[v]!
+  let reachCommon (s : ℕ) : Array Bool := Id.run do
+    let mut seen := (Array.replicate n false).set! s true
+    let mut todo := #[s]
+    while !todo.isEmpty do
+      let v := todo.back!
+      todo := todo.pop
+      for j in [0:ms.size] do
+        if j < m₁ && inT[j]! && ends[j]!.1 == v && !seen[ends[j]!.2]! then
+          seen := seen.set! ends[j]!.2 true
+          todo := todo.push ends[j]!.2
+    return seen
+  for s in sharedV do
+    let rs := reachCommon s
+    for s' in sharedV do
+      if s < s' && !rs[s']! && !(reachCommon s')[s]! then
+        throwError "glue: the diagrams share the objects {objs[s]!} and {objs[s']!}, but no \
+          route of morphisms common to both joins them, so the glued diagram need not \
+          commute. To relate the routes by an equation h, use comm_diagram [D₁, D₂, h]."
+  let shape : Order.Shape := ⟨n, ends, (List.range ends.size).toArray⟩
+  unless shape.acyclic do
+    throwError "glue: the glued diagram contains a cycle, which is not supported"
+  -- A rank that every arrow raises: the length of the longest path to each vertex.
+  let rk : Array ℕ := Id.run do
+    let mut rk := Array.replicate n 0
+    let mut changed := true
+    while changed do
+      changed := false
+      for (a, b) in ends do
+        if rk[b]! ≤ rk[a]! then
+          rk := rk.set! b (rk[a]! + 1)
+          changed := true
+    return rk
+  -- The terms.
+  let some (f₀, _) := ms[0]? | throwError "glue: the diagrams have no morphisms"
+  let ty ← whnfR (← instantiateMVars (← inferType f₀))
+  let (``Quiver.Hom, #[_, instQ, _, _]) := ty.getAppFnArgs
+    | throwError "glue: {f₀} is not a morphism"
+  let C := dv₁.C
+  let inst := dv₁.inst
+  let (d, obj, mors, hE, _) ← diagramTerms C inst uC vC instQ ty.getAppFn.constLevels! objs ms
+  let natList (xs : Array ℕ) : MetaM Expr := mkListLit (.const ``Nat []) (xs.toList.map lit)
+  let vm₁L ← natList (Array.range dv₁.n)
+  let am₁L ← natList (Array.range m₁)
+  let vm₂L ← natList vm₂
+  let am₂L ← natList am₂
+  let rkL ← natList rk
+  let field (nm : Name) (e : Expr) : MetaM Expr := do
+    return mkApp3 (← constUV nm uC vC) C inst e
+  let okT := mkAppN (.const ``Diagrams.GlueOK []) #[← field ``Diagrams.CommDiagram.n e₁,
+    ← field ``Diagrams.CommDiagram.E e₁, ← field ``Diagrams.CommDiagram.n e₂,
+    ← field ``Diagrams.CommDiagram.E e₂, lit n, d.E, vm₁L, am₁L, vm₂L, am₂L, rkL]
+  let okInst ← synthInstance (mkApp (.const ``Decidable []) okT)
+  let ok := mkApp3 (.const ``of_decide_eq_true []) okT okInst
+    (mkApp2 (.const ``Eq.refl [1]) (.const ``Bool []) (.const ``Bool.true []))
+  let hasPiece := mkAppN (← constUV ``Diagrams.HasPiece uC vC) #[C, inst, lit n]
+  let p₁ ← andOfRfl (mkAppN hasPiece #[e₁, obj, mors, vm₁L, am₁L])
+  let p₂ ← andOfRfl (mkAppN hasPiece #[e₂, obj, mors, vm₂L, am₂L])
+  let proof := mkAppN (← constUV ``Diagrams.commutes_of_glue uC vC)
+    #[C, inst, lit n, d.E, obj, mors, hE, e₁, e₂, vm₁L, am₁L, vm₂L, am₂L, rkL, ok, p₁, p₂]
+  commDiagramMk uC vC #[C, inst, lit n, d.E, obj, mors, hE, proof]
 
 /-! ## `diagram_eq` -/
 
