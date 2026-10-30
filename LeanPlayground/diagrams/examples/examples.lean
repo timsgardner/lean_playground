@@ -19,7 +19,7 @@ import LeanPlayground.diagrams.minimal
 import LeanPlayground.diagrams.chase
 import LeanPlayground.diagrams.decide
 import LeanPlayground.diagrams.tactics
-import LeanPlayground.diagrams.frontend
+import LeanPlayground.diagrams.widget
 
 open CategoryTheory Quiver
 
@@ -327,29 +327,33 @@ end RectExample
 /-! ## Diagrams built inside proofs
 
 `comm_diagram [h₁, …]` builds a commuting diagram from equations between composites
-that are already known; `diagram_eq D` then proves any equation whose two sides are
-paths in the diagram `D`. No diagram is declared beforehand. -/
+that are already known, as a value of type `CommDiagram C`; bind it with `let`.
+`diagram_eq D` then proves any equation whose two sides are paths in the diagram
+`D`. No diagram is declared beforehand. In the infoview a diagram displays as
+`⟪diagram f, g, …⟫`; to draw it, shift-click `D` and choose "Commuting diagram". -/
+
+show_panel_widgets [local ProofWidgets.SelectionPanel]
 
 -- The rectangle ([Diagram](assets/rectangle.svg)): two squares make the outer
 -- rectangle commute.
 example {D : Type*} [Category D] {a b c a' b' c' : D} (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a')
     (h : b ⟶ b') (l : c ⟶ c') (k : a' ⟶ b') (m : b' ⟶ c')
     (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) : f ≫ j ≫ l = g ≫ k ≫ m := by
-  have D := comm_diagram [hL, hR]
+  let D := comm_diagram [hL, hR]
   diagram_eq D
 
 -- The bracketing and identities of the goal do not matter.
 example {D : Type*} [Category D] {a b c a' b' c' : D} (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a')
     (h : b ⟶ b') (l : c ⟶ c') (k : a' ⟶ b') (m : b' ⟶ c')
     (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) : (f ≫ j) ≫ l = g ≫ (k ≫ 𝟙 _) ≫ m := by
-  have D := comm_diagram [hL, hR]
+  let D := comm_diagram [hL, hR]
   diagram_eq D
 
 -- Naturality squares: the composite of two natural transformations is natural.
 example {C D : Type*} [Category C] [Category D] {F G H : C ⥤ D} (α : F ⟶ G) (β : G ⟶ H)
     {X Y : C} (f : X ⟶ Y) :
     F.map f ≫ α.app Y ≫ β.app Y = (α.app X ≫ β.app X) ≫ H.map f := by
-  have D := comm_diagram [α.naturality f, β.naturality f]
+  let D := comm_diagram [α.naturality f, β.naturality f]
   diagram_eq D
 
 -- Riehl's commutative cube ([Diagram](assets/cube.svg)): its six faces make it
@@ -360,13 +364,13 @@ example {D : Type*} [Category D] {o X Y Z XY XZ YZ T : D}
     (hBot : x₁ ≫ y₂ = y₁ ≫ x₂) (hFr : x₁ ≫ z₂ = z₁ ≫ x₃) (hLt : y₁ ≫ z₃ = z₁ ≫ y₃)
     (hTop : x₃ ≫ y₄ = y₃ ≫ x₄) (hBk : x₂ ≫ z₄ = z₃ ≫ x₄) (hRt : y₂ ≫ z₄ = z₂ ≫ y₄) :
     x₁ ≫ y₂ ≫ z₄ = z₁ ≫ y₃ ≫ x₄ := by
-  have D := comm_diagram [hBot, hFr, hLt, hTop, hBk, hRt]
+  let D := comm_diagram [hBot, hFr, hLt, hTop, hBk, hRt]
   diagram_eq D
 
 -- A square with a diagonal: two triangles make the square commute.
 example {D : Type*} [Category D] {a b c d : D} (f : a ⟶ b) (g : b ⟶ c) (h : a ⟶ d)
     (k : d ⟶ c) (e : a ⟶ c) (h₁ : f ≫ g = e) (h₂ : h ≫ k = e) : f ≫ g = h ≫ k := by
-  have D := comm_diagram [h₁, h₂]
+  let D := comm_diagram [h₁, h₂]
   diagram_eq D
 
 /-! ### Gluing and extending diagrams
@@ -379,9 +383,9 @@ so diagrams glue along the morphisms they share. -/
 example {D : Type*} [Category D] {a b c a' b' c' : D} (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a')
     (h : b ⟶ b') (l : c ⟶ c') (k : a' ⟶ b') (m : b' ⟶ c')
     (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) : f ≫ j ≫ l = g ≫ k ≫ m := by
-  have D₁ := comm_diagram [hL]
-  have D₂ := comm_diagram [hR]
-  have D := comm_diagram [D₁, D₂]
+  let D₁ := comm_diagram [hL]
+  let D₂ := comm_diagram [hR]
+  let D := comm_diagram [D₁, D₂]
   diagram_eq D
 
 -- A diagram extended by a new arrow `p` and the triangle it closes.
@@ -389,8 +393,8 @@ example {D : Type*} [Category D] {a b c a' b' c' e : D} (f : a ⟶ b) (j : b ⟶
     (h : b ⟶ b') (l : c ⟶ c') (k : a' ⟶ b') (m : b' ⟶ c') (n : c' ⟶ e) (p : b' ⟶ e)
     (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) (hT : m ≫ n = p) :
     f ≫ j ≫ l ≫ n = g ≫ k ≫ p := by
-  have D₁ := comm_diagram [hL, hR]
-  have D := comm_diagram [D₁, hT]
+  let D₁ := comm_diagram [hL, hR]
+  let D := comm_diagram [D₁, hT]
   diagram_eq D
 
 /-! ### When building or reading fails -/
@@ -418,7 +422,7 @@ error: diagram_eq: the right side is not a path in the diagram: n is not one of 
 example {D : Type*} [Category D] {a b c a' b' c' : D} (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a')
     (h : b ⟶ b') (l : c ⟶ c') (k : a' ⟶ b') (m : b' ⟶ c') (n : a ⟶ c')
     (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) : f ≫ j ≫ l = n := by
-  have D := comm_diagram [hL, hR]
+  let D := comm_diagram [hL, hR]
   diagram_eq D
 
 end Diagrams

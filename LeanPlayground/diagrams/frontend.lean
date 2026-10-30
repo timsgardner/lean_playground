@@ -276,6 +276,80 @@ def readGraph (G : Expr) : MetaM (Option (ℕ × Expr × Array (Expr × ℕ × �
     | _ => break
   return some (n, E, ms)
 
+/-- A commuting diagram built by `comm_diagram`, read from its value. -/
+structure DiagramValue where
+  /-- The category. -/
+  C : Expr
+  /-- Its category instance. -/
+  inst : Expr
+  /-- The universe levels of `CommDiagram`. -/
+  lvls : List Level
+  /-- The number of vertices. -/
+  n : ℕ
+  /-- The list of ends. -/
+  E : Expr
+  /-- The objects. -/
+  obj : Expr
+  /-- The listed morphisms, as a term. -/
+  mors : Expr
+  /-- The proof that the listed ends are `E`. -/
+  ends : Expr
+  /-- The listed morphisms, with the numbers of their ends. -/
+  ms : Array (Expr × ℕ × ℕ)
+
+/-- Follow `let` bindings from `e` to the value `CommDiagram.mk …` of a commuting
+diagram. Returns `none` when the value is not visible. -/
+partial def diagramValueExpr (e : Expr) : MetaM (Option Expr) := do
+  let e ← instantiateMVars e
+  if e.isAppOfArity ``Diagrams.CommDiagram.mk 8 then return some e
+  if e.isFVar then
+    match ← e.fvarId!.getValue? with
+    | some v => return ← diagramValueExpr v
+    | none => return none
+  let e' ← whnfCore e
+  if e' == e then return none
+  diagramValueExpr e'
+
+/-- Read a commuting diagram built by `comm_diagram` from (a term that unfolds to)
+its value. -/
+def readDiagram (e : Expr) : MetaM (Option DiagramValue) := do
+  let some v ← diagramValueExpr e | return none
+  let #[C, inst, nE, E, obj, mors, ends, _] := v.getAppArgs | return none
+  let some (_, _, ms) ← readGraph
+      (mkAppN (.const ``Diagrams.toPrefunctor v.getAppFn.constLevels!) #[C, inst, nE, E, obj, mors, ends])
+    | return none
+  let some n := (← (evalNat nE).run) | return none
+  return some ⟨C, inst, v.getAppFn.constLevels!, n, E, obj, mors, ends, ms⟩
+
+namespace DiagramValue
+
+variable (dv : DiagramValue)
+
+/-- The diagram as a prefunctor. -/
+def prefunctor : Expr :=
+  mkAppN (.const ``Diagrams.toPrefunctor dv.lvls) #[dv.C, dv.inst, lit dv.n, dv.E, dv.obj, dv.mors, dv.ends]
+
+/-- The data of the graph. -/
+def data : Data := ⟨dv.n, dv.ms.map fun (_, a, b) => (a, b), dv.E⟩
+
+/-- The proof that the diagram `e` (whose value is `dv`) commutes. -/
+def commutesOf (e : Expr) : Expr :=
+  mkApp3 (.const ``Diagrams.CommDiagram.commutes dv.lvls) dv.C dv.inst e
+
+/-- `evalNE G p = evalNE G q` for the paths through the arrows `pk` and `qk`, from the
+diagram `e` commuting. Built without checking that the type of `e.commutes` unfolds
+to commutativity of `dv.prefunctor`; the kernel checks it. -/
+def evalNEEq (e : Expr) (pk qk : Array ℕ) : MetaM Expr := do
+  let d := dv.data
+  let instQW ← instantiateMVars
+    (← synthInstance (mkApp (.const ``Quiver [← mkFreshLevelMVar, 0]) d.shape))
+  let f ← mkAppOptM ``Diagrams.Commutes.evalNE_eq #[d.shape, instQW, dv.C, dv.inst, dv.prefunctor]
+  let a := d.vert d.ends[pk[0]!]!.1
+  let b := d.vert d.ends[pk.back!]!.2
+  return mkAppN f #[dv.commutesOf e, a, b, ← d.path pk, ← d.path qk]
+
+end DiagramValue
+
 /-! ## `comm_diagram`: a commuting diagram from equations -/
 
 /-- The objects and morphisms of a diagram being read from equations: objects and
@@ -351,7 +425,18 @@ elab "comm_diagram " "[" hs:term,* "]" : term => do
     Term.synthesizeSyntheticMVarsNoPostponing
     let e ← instantiateMVars e
     let ty ← instantiateMVars (← whnfR (← inferType e))
-    if let (``Diagrams.Commutes, #[_, _, _, _, G₀]) := ty.getAppFnArgs then
+    if ty.isAppOf ``Diagrams.CommDiagram then
+      let some dv ← readDiagram e
+        | throwErrorAt h "comm_diagram: the value of {h} is not visible; bind diagrams with \
+            `let`, not `have`"
+      let d₀ := dv.data
+      let shape₀ : Order.Shape := ⟨dv.n, d₀.ends, (List.range d₀.ends.size).toArray⟩
+      for (l, rr) in shape₀.inferFaces do
+        let ll ← compLeft (l.map fun k => dv.ms[k]!.1)
+        let rl ← compLeft (rr.map fun k => dv.ms[k]!.1)
+        let p ← dv.evalNEEq e l rr
+        eqs := eqs.push (h, ← mkExpectedTypeHint p (← mkEq ll rl))
+    else if let (``Diagrams.Commutes, #[_, _, _, _, G₀]) := ty.getAppFnArgs then
       let some (n₀, E₀, ms₀) ← readGraph G₀
         | throwErrorAt h "comm_diagram: {h} is a commuting diagram not built by comm_diagram"
       let ends₀ := ms₀.map fun (_, a, b) => (a, b)
@@ -452,15 +537,19 @@ elab "comm_diagram " "[" hs:term,* "]" : term => do
   let term ← `(Diagrams.commutes_of_order (G := $(← Term.exprToSyntax G))
       (faces := $(← Term.exprToSyntax facesE)) $(← Term.exprToSyntax hF) $orderS $usesS
       (by decide +kernel) (by decide +kernel))
-  Term.elabTerm term none
+  let proof ← Term.elabTerm term none
+  Term.synthesizeSyntheticMVarsNoPostponing
+  let proof ← instantiateMVars proof
+  let info ← getConstInfo ``Diagrams.CommDiagram.mk
+  let lvls := info.levelParams.map fun nm => if nm == `u then uC else vC
+  return mkAppN (.const ``Diagrams.CommDiagram.mk lvls) #[C, inst, lit n, E, obj, mors, hE, proof]
 
 /-! ## `diagram_eq` -/
 
 /-- `diagram_eq` for a diagram built by `comm_diagram`: the morphisms are read from
 the diagram's type, and the definitional equalities are left to the kernel. -/
-def diagramEqGraph (hD G : Expr) : TacticM Unit := withMainContext do
-  let some (n, E, ms) ← readGraph G | failure
-  let d : Data := ⟨n, ms.map fun (_, a, b) => (a, b), E⟩
+def diagramEqGraph (ms : Array (Expr × ℕ × ℕ)) (evalNEEq : Array ℕ → Array ℕ → MetaM Expr) :
+    TacticM Unit := withMainContext do
   let goal ← getMainGoal
   let some (α, lhs, rhs) := (← goal.getType').eq?
     | throwError "diagram_eq: the goal is not an equation: {← goal.getType}"
@@ -487,7 +576,7 @@ def diagramEqGraph (hD G : Expr) : TacticM Unit := withMainContext do
   let rl ← compLeft qf
   let pl ← liftM <| reassoc lhs ll
   let pr ← liftM <| reassoc rhs rl
-  let mid ← mkAppM ``Diagrams.Commutes.evalNE_eq #[hD, ← d.path pk, ← d.path qk]
+  let mid ← evalNEEq pk qk
   let u ← getLevel α
   -- `lhs = ll = rl = rhs`; the middle step is `mid`, whose type is `ll = rl` by
   -- unfolding, which the kernel checks.
@@ -496,17 +585,53 @@ def diagramEqGraph (hD G : Expr) : TacticM Unit := withMainContext do
   goal.assign proof
   replaceMainGoal []
 
-/-- Prove an equation between composites of the morphisms of a commuting diagram,
-given `h : Commutes G`: both sides must be paths in the diagram. -/
+/-- Prove an equation between composites of the morphisms of a commuting diagram `D`
+(built by `comm_diagram` and bound with `let`), or of a diagram `G` given
+`h : Commutes G`: both sides must be paths in the diagram. -/
 elab "diagram_eq " h:term : tactic => withMainContext do
   let hE ← Term.elabTerm h none
   let hTy ← whnfR (← instantiateMVars (← inferType hE))
+  if hTy.isAppOf ``Diagrams.CommDiagram then
+    let some dv ← readDiagram hE
+      | throwError "diagram_eq: the value of {h} is not visible; bind diagrams with `let`, \
+          not `have`"
+    return ← diagramEqGraph dv.ms (dv.evalNEEq hE)
   let some (W, G) := (match hTy.getAppFnArgs with
     | (``Commutes, #[W, _, _, _, G]) => some (W, G)
-    | _ => none) | throwError "diagram_eq: the hypothesis is not `Commutes G`"
-  if G.isAppOf ``Diagrams.toPrefunctor then
-    diagramEqGraph hE G
+    | _ => none) | throwError "diagram_eq: {h} is neither a commuting diagram nor `Commutes G`"
+  if let some (n, E, ms) ← readGraph G then
+    let d : Data := ⟨n, ms.map fun (_, a, b) => (a, b), E⟩
+    diagramEqGraph ms fun pk qk => do
+      mkAppM ``Diagrams.Commutes.evalNE_eq #[hE, ← d.path pk, ← d.path qk]
   else
     diagramEqGeneric h W G
+
+/-! ## Display -/
+
+/-- How a commuting diagram built by `comm_diagram` is displayed: its morphisms. This
+is notation for display only; build diagrams with `comm_diagram`. -/
+syntax "⟪diagram " term,* "⟫" : term
+
+open PrettyPrinter.Delaborator SubExpr in
+/-- Delaborate the morphisms of a list of entries `⟨a, b, f⟩`, at the current position. -/
+partial def delabMorList (acc : Array Term) : DelabM (Array Term) := do
+  let l ← getExpr
+  if l.isAppOfArity ``List.cons 3 then
+    let t ← withNaryArg 1 <| withNaryArg 3 <| withNaryArg 3 delab
+    withNaryArg 2 (delabMorList (acc.push t))
+  else
+    return acc
+
+open PrettyPrinter.Delaborator SubExpr in
+/-- Display a commuting diagram value as `⟪diagram f, g, …⟫`, listing its morphisms
+and hiding the graph data and the proof. -/
+@[delab app.Diagrams.CommDiagram.mk]
+def delabCommDiagram : Delab := do
+  let e ← getExpr
+  guard (e.getAppNumArgs == 8)
+  -- Descend into the list of morphisms (argument 5), and into each entry's morphism,
+  -- so that the displayed morphisms stay interactive.
+  let ms ← withNaryArg 5 (delabMorList #[])
+  `(⟪diagram $ms,*⟫)
 
 end Diagrams

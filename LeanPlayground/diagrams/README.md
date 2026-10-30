@@ -49,6 +49,7 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | `order.lean` | Choosing the build order (search, mirroring the kernel's check) and canonical faces of a graph; plain data, outside the kernel. |
 | `construct.lean` | Commutative by construction: builds (arrows added in turn, each with the faces it completes), `buildOK`, `commutesOn_of_build`, `commutes_of_order`. |
 | `graph.lean` | Graphs as data: `Shape n E` (vertices `Fin n`, arrows listed by their ends in `E`) with its instances proved once; a diagram of a graph from objects and a list of morphisms (`toPrefunctor`); `evalNE`. |
+| `widget.lean` | The "Commuting diagram" presenter: draws a diagram value in the infoview, with a layout computed from its faces. |
 | `frontend.lean` | `comm_diagram [h₁, …]` (build a commuting diagram from equations and diagrams, inside a proof), `diagram_eq D` (prove an equation whose sides are paths in `D`), and `diagram_build` (prove `Commutes G` by construction for any finite shape). |
 | `examples/examples.lean` | Worked examples: the five-object undercount, Riehl's rectangle by hand, and diagrams built inside proofs (rectangle, naturality squares, cube, gluing). Diagrams are in `examples/assets/` (SVG, with tikz-cd source). |
 
@@ -56,8 +57,9 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 import only `core`; `chase_growth` imports `extend`, `paste` and `chase`, and
 `decide` imports `finite`, `extend` and `paste`; `minimal` imports `extend`;
 `search` imports `chase` and `finite`; `tactics` imports `decide` and `search`;
-`construct` imports `decide`; `graph` imports `construct`; and `frontend`
-imports `graph` and `order`. The front end does not depend on the chase layer.
+`construct` imports `decide`; `graph` imports `construct`; `frontend`
+imports `graph` and `order`; and `widget` imports `frontend` and Mathlib's diagram
+widgets. The front end does not depend on the chase layer.
 
 ## Workflow
 
@@ -66,8 +68,8 @@ known, and then used to prove equations:
 
 ```lean
 example (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) : f ≫ j ≫ l = g ≫ k ≫ m := by
-  have D := comm_diagram [hL, hR]   -- build: the two squares make the rectangle commute
-  diagram_eq D                      -- use: both sides are paths in D
+  let D := comm_diagram [hL, hR]   -- build: the two squares make the rectangle commute
+  diagram_eq D                     -- use: both sides are paths in D
 ```
 
 **Building.** `comm_diagram [h₁, …]` reads each equation `hᵢ` between composites.
@@ -76,11 +78,18 @@ vertices, and the equations its faces. It then proves that the graph commutes, b
 construction: the arrows are added one at a time, in an order it chooses
 (`order.lean`), and each arrow's new cells must be covered by the faces it
 completes. The kernel checks this. If the equations leave two parallel routes
-unrelated, building fails and names them. The result `D` is a proof that the
-diagram commutes; its type lists the objects and morphisms, so it survives
-`have`. An `hᵢ` may also be a diagram built earlier: its morphisms and its
-commutativity are included, which glues diagrams along shared morphisms or extends
-a diagram with new arrows and equations.
+unrelated, building fails and names them. The result is a value of type
+`CommDiagram C` (`graph.lean`): the graph, its objects and morphisms, and the proof
+that it commutes. Bind it with `let`, so that its morphisms stay visible; in the
+infoview it displays as `⟪diagram f, h, g, …⟫`. An `hᵢ` may also be a diagram built
+earlier: its morphisms and its commutativity are included, which glues diagrams
+along shared morphisms or extends a diagram with new arrows and equations.
+
+**Drawing.** With `show_panel_widgets [local ProofWidgets.SelectionPanel]` in the
+file, shift-click a diagram in the infoview and choose "Commuting diagram"
+(`widget.lean`). It is drawn with Mathlib's Penrose style for commutative
+diagrams, laid out from its faces: around each face one side goes right then down
+and the other down then right.
 
 **Using.** `diagram_eq D` proves a goal `p₁ = p₂` when `p₁` and `p₂` are paths in
 `D`: each side is split at `≫` (ignoring bracketing and identities), and each

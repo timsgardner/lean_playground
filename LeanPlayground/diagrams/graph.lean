@@ -201,4 +201,25 @@ theorem Commutes.evalNE_eq (hC : Commutes G) {a b : W} (p q : Path a b) :
 
 end EvalNE
 
+/-! ## Commuting diagrams as values -/
+
+/-- A commuting diagram in `C`, as a value: a graph (`n` vertices, arrows listed by
+their ends in `E`), objects for its vertices, a morphism for each arrow, and a
+proof that the diagram commutes. `comm_diagram` builds one from equations; bind
+it with `let`, so that its morphisms stay visible to `diagram_eq` and to further
+gluing. -/
+structure CommDiagram (C : Type u) [Category.{v} C] where
+  /-- The number of vertices. -/
+  n : ℕ
+  /-- The ends of the arrows. -/
+  E : List (ℕ × ℕ)
+  /-- The object at each vertex. -/
+  obj : Fin n → C
+  /-- The morphism of each arrow, with the vertices of its ends. -/
+  mors : List (Σ a b : Fin n, obj a ⟶ obj b)
+  /-- The listed ends are `E`. -/
+  ends : endsOf mors = E
+  /-- The diagram commutes. -/
+  commutes : Commutes (toPrefunctor obj mors ends)
+
 end Diagrams
