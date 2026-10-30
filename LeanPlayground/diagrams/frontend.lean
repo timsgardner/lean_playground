@@ -1,17 +1,18 @@
 /-
 # Front end: building diagrams and reading off equations
 
-Two tactics connect the framework to goals stated in a diagram's own morphisms.
-
-* `diagram_build faces using hF` proves `Commutes G` by construction. It searches
-  for an order of the arrows in which the faces cover every cell (`Order`); for
-  each arrow it uses the faces that arrow completes (those whose other arrows came
-  earlier). The resulting build is checked by the kernel (`commutes_of_order`).
-  `hF` says the faces hold in `G`.
-* `diagram_eq h` proves an equation between composites of the diagram's
-  morphisms, such as `f ≫ j ≫ ℓ = g ≫ k ≫ m`, from `h : Commutes G`. It matches
-  each factor to an arrow of the shape whose image under `G` is that morphism,
-  which turns each side into a path, and applies `h`.
+* `comm_diagram [h₁, …]` builds a commuting diagram inside a proof. Each `hᵢ` is an
+  equation between composites, or a diagram built earlier. The morphisms become the
+  arrows of a graph (`Shape n E`), the equations its faces, and the graph is shown
+  to commute by construction: an order of the arrows is found outside the kernel
+  (`Order`), and the build is checked by the kernel (`commutes_of_order`). The result
+  is a proof of `Commutes (toPrefunctor obj mors _)`, whose type lists the objects
+  and morphisms.
+* `diagram_eq D` proves a goal `p₁ = p₂` from `D : Commutes G` when both sides are
+  paths in the diagram: each side is split at `≫` (ignoring bracketing and
+  identities), and each factor is matched to a morphism of the diagram.
+* `diagram_build faces using hF` proves `Commutes G` by construction for any finite
+  shape, from faces that hold in `G`.
 -/
 
 import LeanPlayground.diagrams.graph

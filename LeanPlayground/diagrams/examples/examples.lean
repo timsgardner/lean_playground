@@ -9,16 +9,17 @@ Worked examples for the diagrams framework.
   enough. The shape conditions are all proved by `decide`.
 * `RectExample`: Riehl's rectangle (1.6.10), built by hand on each layer: a
   recorded chase, the chase search, and commutativity by construction.
-* `Rect` and `Cube`: the rectangle and Riehl's commutative cube (§1.6), declared
-  with `diagram_shape`. Their equations follow in one line from the generated
-  `commutes` theorems.
+* Diagrams built inside proofs with `comm_diagram`, from equations already known,
+  and equations read off them with `diagram_eq`: the rectangle, naturality squares,
+  Riehl's commutative cube, a square with a diagonal, gluing and extending diagrams,
+  and the error messages when building or reading fails.
 -/
 
 import LeanPlayground.diagrams.minimal
 import LeanPlayground.diagrams.chase
 import LeanPlayground.diagrams.decide
 import LeanPlayground.diagrams.tactics
-import LeanPlayground.diagrams.command
+import LeanPlayground.diagrams.frontend
 
 open CategoryTheory Quiver
 
@@ -323,118 +324,101 @@ example (f : A ⟶ B) (j : B ⟶ E) (g : A ⟶ A') (h : B ⟶ B') (l : E ⟶ E')
 
 end RectExample
 
-/-! ## Declared diagrams
+/-! ## Diagrams built inside proofs
 
-The rectangle ([Diagram](assets/rectangle.svg)) and the cube
-([Diagram](assets/cube.svg)). -/
+`comm_diagram [h₁, …]` builds a commuting diagram from equations between composites
+that are already known; `diagram_eq D` then proves any equation whose two sides are
+paths in the diagram `D`. No diagram is declared beforehand. -/
 
-diagram_shape Rect where
-  arrows (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a') (h : b ⟶ b') (l : c ⟶ c')
-    (k : a' ⟶ b') (m : b' ⟶ c')
-  faces (L : f h = g k) (R : j l = h m)
-
+-- The rectangle ([Diagram](assets/rectangle.svg)): two squares make the outer
+-- rectangle commute.
 example {D : Type*} [Category D] {a b c a' b' c' : D} (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a')
     (h : b ⟶ b') (l : c ⟶ c') (k : a' ⟶ b') (m : b' ⟶ c')
     (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) : f ≫ j ≫ l = g ≫ k ≫ m := by
-  diagram_eq (Rect.commutes f j g h l k m hL hR)
+  have D := comm_diagram [hL, hR]
+  diagram_eq D
 
--- Riehl's commutative cube: its six faces make it commute.
-diagram_shape Cube where
-  arrows (x₁ : o ⟶ X) (y₁ : o ⟶ Y) (z₁ : o ⟶ Z)
-    (y₂ : X ⟶ XY) (z₂ : X ⟶ XZ) (x₂ : Y ⟶ XY) (z₃ : Y ⟶ YZ) (x₃ : Z ⟶ XZ) (y₃ : Z ⟶ YZ)
-    (z₄ : XY ⟶ T) (y₄ : XZ ⟶ T) (x₄ : YZ ⟶ T)
-  faces (Bot : x₁ y₂ = y₁ x₂) (Fr : x₁ z₂ = z₁ x₃) (Lt : y₁ z₃ = z₁ y₃)
-    (Top : x₃ y₄ = y₃ x₄) (Bk : x₂ z₄ = z₃ x₄) (Rt : y₂ z₄ = z₂ y₄)
+-- The bracketing and identities of the goal do not matter.
+example {D : Type*} [Category D] {a b c a' b' c' : D} (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a')
+    (h : b ⟶ b') (l : c ⟶ c') (k : a' ⟶ b') (m : b' ⟶ c')
+    (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) : (f ≫ j) ≫ l = g ≫ (k ≫ 𝟙 _) ≫ m := by
+  have D := comm_diagram [hL, hR]
+  diagram_eq D
 
+-- Naturality squares: the composite of two natural transformations is natural.
+example {C D : Type*} [Category C] [Category D] {F G H : C ⥤ D} (α : F ⟶ G) (β : G ⟶ H)
+    {X Y : C} (f : X ⟶ Y) :
+    F.map f ≫ α.app Y ≫ β.app Y = (α.app X ≫ β.app X) ≫ H.map f := by
+  have D := comm_diagram [α.naturality f, β.naturality f]
+  diagram_eq D
+
+-- Riehl's commutative cube ([Diagram](assets/cube.svg)): its six faces make it
+-- commute, so the paths through opposite corners agree.
 example {D : Type*} [Category D] {o X Y Z XY XZ YZ T : D}
     (x₁ : o ⟶ X) (y₁ : o ⟶ Y) (z₁ : o ⟶ Z) (y₂ : X ⟶ XY) (z₂ : X ⟶ XZ) (x₂ : Y ⟶ XY)
     (z₃ : Y ⟶ YZ) (x₃ : Z ⟶ XZ) (y₃ : Z ⟶ YZ) (z₄ : XY ⟶ T) (y₄ : XZ ⟶ T) (x₄ : YZ ⟶ T)
     (hBot : x₁ ≫ y₂ = y₁ ≫ x₂) (hFr : x₁ ≫ z₂ = z₁ ≫ x₃) (hLt : y₁ ≫ z₃ = z₁ ≫ y₃)
     (hTop : x₃ ≫ y₄ = y₃ ≫ x₄) (hBk : x₂ ≫ z₄ = z₃ ≫ x₄) (hRt : y₂ ≫ z₄ = z₂ ≫ y₄) :
     x₁ ≫ y₂ ≫ z₄ = z₁ ≫ y₃ ≫ x₄ := by
-  diagram_eq (Cube.commutes x₁ y₁ z₁ y₂ z₂ x₂ z₃ x₃ y₃ z₄ y₄ x₄ hBot hFr hLt hTop hBk hRt)
+  have D := comm_diagram [hBot, hFr, hLt, hTop, hBk, hRt]
+  diagram_eq D
 
-/-! ### Inferred faces
+-- A square with a diagonal: two triangles make the square commute.
+example {D : Type*} [Category D] {a b c d : D} (f : a ⟶ b) (g : b ⟶ c) (h : a ⟶ d)
+    (k : d ⟶ c) (e : a ⟶ c) (h₁ : f ≫ g = e) (h₂ : h ≫ k = e) : f ≫ g = h ≫ k := by
+  have D := comm_diagram [h₁, h₂]
+  diagram_eq D
 
-Without a `faces` block, `diagram_shape` infers the faces. They depend only on
-the shape and the names of the arrows, never on the order of declaration: the
-smallest cells are closed first, and faces implied by the others are dropped. -/
+/-! ### Gluing and extending diagrams
 
--- The rectangle again: the inferred faces are its two squares.
+A diagram built by `comm_diagram` can itself be given to `comm_diagram`, together
+with other diagrams and equations. Its morphisms and its commutativity are included,
+so diagrams glue along the morphisms they share. -/
+
+-- Two squares, built separately, glued along the shared edge `h`.
+example {D : Type*} [Category D] {a b c a' b' c' : D} (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a')
+    (h : b ⟶ b') (l : c ⟶ c') (k : a' ⟶ b') (m : b' ⟶ c')
+    (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) : f ≫ j ≫ l = g ≫ k ≫ m := by
+  have D₁ := comm_diagram [hL]
+  have D₂ := comm_diagram [hR]
+  have D := comm_diagram [D₁, D₂]
+  diagram_eq D
+
+-- A diagram extended by a new arrow `p` and the triangle it closes.
+example {D : Type*} [Category D] {a b c a' b' c' e : D} (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a')
+    (h : b ⟶ b') (l : c ⟶ c') (k : a' ⟶ b') (m : b' ⟶ c') (n : c' ⟶ e) (p : b' ⟶ e)
+    (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) (hT : m ≫ n = p) :
+    f ≫ j ≫ l ≫ n = g ≫ k ≫ p := by
+  have D₁ := comm_diagram [hL, hR]
+  have D := comm_diagram [D₁, hT]
+  diagram_eq D
+
+/-! ### When building or reading fails -/
+
+-- The equations must make the whole diagram commute. Here the outer rectangle and
+-- the left square are given, but nothing relates the two routes from `b` to `c'`.
+section
+variable {D : Type*} [Category D] {a b c a' b' c' : D} (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a')
+  (h : b ⟶ b') (l : c ⟶ c') (k : a' ⟶ b') (m : b' ⟶ c')
+  (hL : f ≫ h = g ≫ k) (hO : f ≫ j ≫ l = g ≫ k ≫ m)
 /--
-info: diagram_shape: inferred faces
-h1 : g ≫ k = f ≫ h
-h2 : h ≫ m = j ≫ l
+error: comm_diagram: the equations do not make the diagram commute. These two parallel routes are related by no equation:
+  h ≫ m
+  j ≫ l
 -/
 #guard_msgs in
-diagram_shape RectInferred where
-  arrows (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a') (h : b ⟶ b') (l : c ⟶ c')
-    (k : a' ⟶ b') (m : b' ⟶ c')
+#check comm_diagram [hL, hO]
+end
 
--- A square `s ⇉ t` through `a` and `b`, with a vertex `m` inside mapping to both.
--- The cell `s → a ← m → b ← s` is a zigzag: its boundary is not two parallel paths,
--- so it asserts nothing. The faces are the cell `m ⇉ t` and the outer square, which
--- the inner cell does not imply. [Diagram](assets/zigzag.svg)
+-- Both sides of the goal must be paths in the diagram.
 /--
-info: diagram_shape: inferred faces
-h1 : q ≫ y = p ≫ x
-h2 : w ≫ y = u ≫ x
+error: diagram_eq: the right side is not a path in the diagram: n is not one of its morphisms
 -/
 #guard_msgs in
-diagram_shape Zigzag where
-  arrows (p : s ⟶ a) (q : s ⟶ b) (u : m ⟶ a) (w : m ⟶ b) (x : a ⟶ t) (y : b ⟶ t)
-
--- The rectangle declared in another order gives the same faces.
-/--
-info: diagram_shape: inferred faces
-h1 : g ≫ k = f ≫ h
-h2 : h ≫ m = j ≫ l
--/
-#guard_msgs in
-diagram_shape RectReordered where
-  arrows (m : b' ⟶ c') (k : a' ⟶ b') (l : c ⟶ c') (j : b ⟶ c) (h : b ⟶ b')
-    (g : a ⟶ a') (f : a ⟶ b)
-
--- A square with a diagonal: the faces are its two triangles. (The square
--- `f g = h k` would do instead of either, but it is not the smallest cell.)
-/--
-info: diagram_shape: inferred faces
-h1 : f ≫ g = e
-h2 : h ≫ k = e
--/
-#guard_msgs in
-diagram_shape Diagonal where
-  arrows (e : a ⟶ c) (f : a ⟶ b) (g : b ⟶ c) (h : a ⟶ d) (k : d ⟶ c)
-
-/-! ### Declared faces in any order
-
-The order in which a build adds the arrows is chosen internally, so declared
-faces work whatever the order of the arrows. Here `m` is declared before `h`;
-added in that order, `m` would close the whole outer rectangle, which neither
-square gives until `h` is present ([Diagram](assets/rectangle_bad_order.svg)).
-The build adds `h` first. -/
-
-diagram_shape RectAnyOrder where
-  arrows (f : a ⟶ b) (j : b ⟶ c) (l : c ⟶ c') (g : a ⟶ a') (k : a' ⟶ b') (m : b' ⟶ c')
-    (h : b ⟶ b')
-  faces (L : f h = g k) (R : j l = h m)
-
--- Faces that leave a cell uncovered in every order are rejected, with a cell they miss.
-/--
-error: diagram_shape: the faces do not cover every cell, in any order of the arrows. For example, adding m closes the cell
-  h ≫ m = j ≫ l
-which no face covers.
--/
-#guard_msgs in
-diagram_shape RectMissingFace where
-  arrows (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a') (h : b ⟶ b') (l : c ⟶ c')
-    (k : a' ⟶ b') (m : b' ⟶ c')
-  faces (L : f h = g k)
-
--- The cube, with faces inferred.
-diagram_shape CubeInferred where
-  arrows (x₁ : o ⟶ X) (y₁ : o ⟶ Y) (z₁ : o ⟶ Z)
-    (y₂ : X ⟶ XY) (z₂ : X ⟶ XZ) (x₂ : Y ⟶ XY) (z₃ : Y ⟶ YZ) (x₃ : Z ⟶ XZ) (y₃ : Z ⟶ YZ)
-    (z₄ : XY ⟶ T) (y₄ : XZ ⟶ T) (x₄ : YZ ⟶ T)
+example {D : Type*} [Category D] {a b c a' b' c' : D} (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a')
+    (h : b ⟶ b') (l : c ⟶ c') (k : a' ⟶ b') (m : b' ⟶ c') (n : a ⟶ c')
+    (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) : f ≫ j ≫ l = n := by
+  have D := comm_diagram [hL, hR]
+  diagram_eq D
 
 end Diagrams

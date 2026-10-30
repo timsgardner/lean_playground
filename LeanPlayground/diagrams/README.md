@@ -46,73 +46,56 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | `decide.lean` | Decision procedures: `ReachIn`, `AcyclicOn`, cells and minimality, `Shared`, `Chain`; rank and closed-set certificates. |
 | `search.lean` | Chase scripts on edge lists, `replay` with its soundness theorem, and a breadth-first chase search checked by replay. |
 | `tactics.lean` | Certificate checks (`rankCheck`, `fenceCheck`, `replayCheck`) and the tactics that find certificates with compiled code: `diagram_acyclic`, `diagram_unreachable`, `find_chase`. |
-| `order.lean` | Choosing the build order (search, mirroring the kernel's check) and canonical inferred faces; plain data, outside the kernel. |
-| `construct.lean` | Commutative by construction: builds (arrows added in turn, each with the faces it completes), `buildOK`, `commutesOn_of_build`. |
-| `frontend.lean` | The tactics `diagram_build` (prove `Commutes G` by construction) and `diagram_eq` (read off an equation in the diagram's own morphisms). |
-| `command.lean` | The `diagram_shape` command: declare a shape, its faces, its diagrams, and their commutativity theorem. |
-| `examples/examples.lean` | Worked examples: the five-object undercount, Riehl's rectangle and cube, inferred faces. Diagrams are in `examples/assets/` (SVG, with tikz-cd source). |
+| `order.lean` | Choosing the build order (search, mirroring the kernel's check) and canonical faces of a graph; plain data, outside the kernel. |
+| `construct.lean` | Commutative by construction: builds (arrows added in turn, each with the faces it completes), `buildOK`, `commutesOn_of_build`, `commutes_of_order`. |
+| `graph.lean` | Graphs as data: `Shape n E` (vertices `Fin n`, arrows listed by their ends in `E`) with its instances proved once; a diagram of a graph from objects and a list of morphisms (`toPrefunctor`); `evalNE`. |
+| `frontend.lean` | `comm_diagram [h₁, …]` (build a commuting diagram from equations and diagrams, inside a proof), `diagram_eq D` (prove an equation whose sides are paths in `D`), and `diagram_build` (prove `Commutes G` by construction for any finite shape). |
+| `examples/examples.lean` | Worked examples: the five-object undercount, Riehl's rectangle by hand, and diagrams built inside proofs (rectangle, naturality squares, cube, gluing). Diagrams are in `examples/assets/` (SVG, with tikz-cd source). |
 
 `core` is imported by everything. `extend`, `paste`, `chase` and `finite` each
 import only `core`; `chase_growth` imports `extend`, `paste` and `chase`, and
-`decide` imports `finite`, `extend` and `paste`; `search` imports `chase` and
-`finite`; `tactics` imports `decide` and `search`; `construct` imports `decide`
-and `search`; `frontend` imports `construct` and `tactics`; and `command` imports
-`frontend`.
+`decide` imports `finite`, `extend` and `paste`; `minimal` imports `extend`;
+`search` imports `chase` and `finite`; `tactics` imports `decide` and `search`;
+`construct` imports `decide`; `graph` imports `construct`; and `frontend`
+imports `graph` and `order`. The front end does not depend on the chase layer.
 
 ## Workflow
 
-Declare a diagram with `diagram_shape`, giving its arrows and its faces:
+A commutative diagram is built inside a proof, from equations that are already
+known, and then used to prove equations:
 
 ```lean
-diagram_shape Rect where
-  arrows (f : a ⟶ b) (j : b ⟶ c) (g : a ⟶ a') (h : b ⟶ b') (l : c ⟶ c')
-    (k : a' ⟶ b') (m : b' ⟶ c')
-  faces (L : f h = g k) (R : j l = h m)
+example (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) : f ≫ j ≫ l = g ≫ k ≫ m := by
+  have D := comm_diagram [hL, hR]   -- build: the two squares make the rectangle commute
+  diagram_eq D                      -- use: both sides are paths in D
 ```
 
-This generates the shape and its instances, `Rect.diagram f j g h l k m` (the
-diagram with those morphisms, in any category), and
+**Building.** `comm_diagram [h₁, …]` reads each equation `hᵢ` between composites.
+Its morphisms become the arrows of a graph, their domains and codomains the
+vertices, and the equations its faces. It then proves that the graph commutes, by
+construction: the arrows are added one at a time, in an order it chooses
+(`order.lean`), and each arrow's new cells must be covered by the faces it
+completes. The kernel checks this. If the equations leave two parallel routes
+unrelated, building fails and names them. The result `D` is a proof that the
+diagram commutes; its type lists the objects and morphisms, so it survives
+`have`. An `hᵢ` may also be a diagram built earlier: its morphisms and its
+commutativity are included, which glues diagrams along shared morphisms or extends
+a diagram with new arrows and equations.
 
-```lean
-Rect.commutes f j g h l k m (hL : f ≫ h = g ≫ k) (hR : j ≫ l = h ≫ m) :
-  Commutes (Rect.diagram f j g h l k m)
-```
+**Using.** `diagram_eq D` proves a goal `p₁ = p₂` when `p₁` and `p₂` are paths in
+`D`: each side is split at `≫` (ignoring bracketing and identities), and each
+factor must be one of `D`'s morphisms, up to definitional equality. Parallelism
+is automatic, since the two sides of an equation have the same type.
 
-Any equation between parallel composites then follows in one line:
+The graph is plain data (`Shape n E` in `graph.lean`): its instances are proved
+once for all graphs, and nothing is declared per diagram. The builders write the
+terms directly and leave the definitional checks (that a listed morphism has the
+type its ends require, that a face holds once its equation is bracketed to the
+left) to the kernel.
 
-```lean
-example … : f ≫ j ≫ l = g ≫ k ≫ m := by diagram_eq (Rect.commutes f j g h l k m hL hR)
-```
-
-The diagram commutes *by construction*. Its arrows are added one at a time, in
-an order the command chooses (`order.lean`): the order of declaration never
-matters. When an arrow `e` is added, a face with `e` on one side,
-`α ≫ e ≫ β = γ`, and its other arrows already present, is exactly a cell
-that `e` closes (`cellHolds_of_face`). `Rect.commutes` is valid when the cells
-given by faces cover every cell each arrow closes; the kernel checks that by
-deciding questions about the shape. No chase search is involved. `diagram_eq`
-matches each factor of a composite to an arrow whose image is that morphism,
-turning each side into a path. `examples/examples.lean` declares Riehl's commutative cube
-the same way.
-
-A face is an equation assumed between two parallel composites, not a region of a
-drawing. A region whose boundary zigzags (more than one source and sink around
-it) contains no pair of parallel paths and so asserts nothing; `Zigzag` in
-`examples/examples.lean` is such a diagram. Face names are optional: `(f h = g k)` becomes
-`face1`, with hypothesis `h1`.
-
-The `faces` block itself is optional. Without it, the faces are inferred, and the
-command reports them. They depend only on the shape and the arrow names: the
-arrows are added in a canonical order that always closes the smallest available
-cell next, the minimal cells closed become the faces (each needed at its step,
-by `closesMin_necessary`), and any face that the others imply is dropped. For
-the rectangle and the cube the inferred faces are the squares; for a square with
-a diagonal, the two triangles. A commutative diagram has no unique irredundant
-set of faces in general (the square with a diagonal has three), so ties are
-broken by the smallest cell and then by name.
-
-When the declared faces leave some cell uncovered in every order of the arrows,
-the command names an arrow and a cell it closes that no face covers.
+A face is an equation between two parallel composites, not a region of a drawing.
+A region whose boundary zigzags (more than one source and sink around it)
+contains no pair of parallel paths and asserts nothing.
 
 ## Main results
 
@@ -235,23 +218,20 @@ which need only local chases, one per cell.
 
 The commutativity-by-construction check (`buildOK`) involves no search. It
 carries a reachability bitmask per vertex through the build, so each arrow costs
-bitwise operations on one mask per vertex. A grid of squares declared with
-`diagram_shape`, timing the command alone (Lean's startup excluded; measured with
-`Elab.async false` and `trace.profiler`):
+bitwise operations on one mask per vertex. A grid of squares, built with
+`comm_diagram` from one equation per square and then used by `diagram_eq` to prove
+the corner-to-corner equation, timing the whole proof (Lean's startup excluded;
+measured with `Elab.async false` and `trace.profiler`):
 
-| Grid | Arrows | Faces | Command, faces declared | Command, faces inferred |
+| Grid | Morphisms | Equations | Whole proof | Kernel checks |
 |---|---|---|---|---|
-| 4 × 4 vertices | 24 | 9 | — | 2.1 s |
-| 6 × 6 vertices | 60 | 25 | 8.3 s | 11.2 s |
-| 8 × 8 vertices | 112 | 49 | 22.7 s | — |
+| 4 × 4 objects | 24 | 9 | 0.6 s | 0.4 s |
+| 6 × 6 objects | 60 | 25 | 3.0 s | 2.6 s |
+| 8 × 8 objects | 112 | 49 | 10.2 s | 9.3 s |
 
-With faces declared at 8 × 8, about half the time is the generated instances and
-definitions, and the `commutes` theorem takes about 10 s.
-
-The `commutes` theorem is the kernel check of the build (3.8 s at 8 × 8) and one
-`simp` proof per face hypothesis (3.8 s). The instances are dominated by their
-`decide` proofs over the vertex and arrow lists (`FinShape`, `NumArrows`,
-`OutArrows`).
+Almost all the time is the kernel: the build check (5.5 s at 8 × 8), the check
+that every arrow is in the build (1.7 s), and the final check of the proof term,
+including each face against its equation (2.1 s). `diagram_eq` takes 0.16 s.
 
 ## Not yet done
 
@@ -260,8 +240,13 @@ The `commutes` theorem is the kernel check of the build (3.8 s at 8 × 8) and on
 - Proving that the order search is complete: whether faces that make a diagram
   commute always admit an order in which each cell is covered by a single face.
   (The search is exhaustive over orders, but a cell might in principle need
-  several faces at once.) Likewise, pruning of inferred faces uses a greedy
-  test, which may keep a redundant face.
+  several faces at once.) Likewise, the canonical faces a glued diagram
+  contributes are pruned by a greedy test, which may keep a redundant face.
+- `comm_diagram` takes arrows only from equations: an arrow that appears in no
+  equation cannot be added on its own.
+- Faster kernel checks for graphs: the build check and the check that every arrow
+  is in the build evaluate the generic arrow list of `Shape n E`; a check stated
+  on arrow numbers directly would be cheaper.
 - Local chase search through the growth theorems, and faster global search
   (bidirectional, or native compilation of the search code).
 - Drawing a recorded chase in the infoview, one step at a time.
