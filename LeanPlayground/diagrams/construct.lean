@@ -389,4 +389,34 @@ theorem commutes_of_commutesOn_ofList {A : List (Total W)} (h : CommutesOn G (of
 
 end Check
 
+/-! ## Builds from an order of arrows -/
+
+section Order
+
+variable [FinShape W] [OutArrows W] [NumShape W] [Fintype W] [DecidableEq W]
+  [DecidableEq (Total W)]
+
+/-- The build that adds the arrows at the positions `order` of `FinShape.arrows`, in
+turn, each with its list of face uses. The build lists the last arrow first. -/
+def stepsOf (order : List ℕ) (uses : List (List FaceUse)) : List (Total W × List FaceUse) :=
+  ((order.zip uses).filterMap fun (k, us) =>
+    ((FinShape.arrows : List (Total W))[k]?).map (·, us)).reverse
+
+/-- The data a build search needs, as numbers: the source and target indices of
+each arrow, and each face's sides as lists of arrow positions. -/
+def buildData (faces : List (Face W)) : List (ℕ × ℕ) × List (List ℕ × List ℕ) :=
+  ((FinShape.arrows : List (Total W)).map fun e => (NumShape.index e.left, NumShape.index e.right),
+    faces.map fun φ => (φ.lhs.edges.map arrowIdx, φ.rhs.edges.map arrowIdx))
+
+omit [OutArrows W] [Fintype W] [DecidableEq W] in
+/-- **Commutative by construction, from an order.** -/
+theorem commutes_of_order {faces : List (Face W)} (hF : ∀ φ ∈ faces, φ.Holds G)
+    (order : List ℕ) (uses : List (List FaceUse))
+    (h : buildOK faces (stepsOf order uses) = true)
+    (hall : ∀ e ∈ (FinShape.arrows : List (Total W)), e ∈ (stepsOf order uses).map (·.1)) :
+    Commutes G :=
+  commutes_of_commutesOn_ofList (commutesOn_of_build hF _ h) hall
+
+end Order
+
 end Diagrams
