@@ -49,7 +49,7 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | `order.lean` | Choosing the build order (search, mirroring the kernel's check) and canonical faces of a graph; plain data, outside the kernel. |
 | `construct.lean` | Commutative by construction: builds (arrows added in turn, each with the faces it completes), `buildOK`, `commutesOn_of_build`, `commutes_of_order`. |
 | `graph.lean` | Graphs as data: `Shape n E` (vertices `Fin n`, arrows listed by their ends in `E`) with its instances proved once; a diagram of a graph from objects and a list of morphisms (`toPrefunctor`); `evalNE`. Objects are held in a Braun tree (`Braun`, `objOf`), so that the kernel looks a vertex up in logarithmic time. |
-| `glue.lean` | Why a glued diagram commutes, proved once (`commutes_of_glue`): each piece commutes inside it, by path lifting (`CommutesOn.of_embed`), and the pieces paste. The hypotheses are conditions on numbers (`GlueOK`, decided by evaluation; the chain condition is certified by one path through the shared vertices, `chainCert`) and that the glued diagram has each piece's objects and morphisms (`HasPiece`, by `rfl`). |
+| `glue.lean` | Why a glued diagram commutes, proved once (`commutes_of_glue`): each piece commutes inside it, by path lifting (`CommutesOn.of_embed`), and the pieces paste. The hypotheses are conditions on numbers (`GlueOK`, proved by evaluating `glueCheck`; the chain condition is certified by one path through the shared vertices, `chainCert`) and that the glued diagram has each piece's objects and morphisms (`HasPiece`, by `rfl`). |
 | `widget.lean` | The "Commuting diagram" presenter: draws a diagram value in the infoview, with a layout computed from its faces. |
 | `frontend.lean` | `comm_diagram [h₁, …]` (build a commuting diagram from equations and diagrams, inside a proof), `glue D₁ D₂` (glue two diagrams along what they share), `diagram_eq D` (prove an equation whose sides are paths in `D`), and `diagram_build` (prove `Commutes G` by construction for any finite shape). |
 | `examples/examples.lean` | Worked examples: the five-object undercount, Riehl's rectangle by hand, and diagrams built inside proofs (rectangle, naturality squares, cube, gluing). Diagrams are in `examples/assets/` (SVG, with tikz-cd source). |
@@ -107,19 +107,21 @@ of squares that share a column:
 
 | k | `glue D₁ D₂` | `comm_diagram [D₁, D₂]` |
 |---|---|---|
-| 2 | 0.13 s | 0.37 s |
-| 3 | 0.33 s | 1.5 s |
-| 4 | 0.75 s | 3.9 s |
-| 5 | 0.96 s | 8.9 s |
+| 2 | 0.07 s | 0.37 s |
+| 3 | 0.19 s | 1.5 s |
+| 4 | 0.50 s | 3.9 s |
+| 5 | 0.64 s | 8.9 s |
 
-The cost of gluing grows with the size of the pieces, roughly in proportion. Three
+The cost of gluing grows with the size of the pieces, roughly in proportion. Four
 choices keep it there. Lookups by position go through Braun trees, which take
 logarithmic time, instead of lists. Every comparison is between one side and a list
 written out by the elaborator, never between two diagrams' lookups; the kernel
 would otherwise compare the two diagrams' containers entry by entry before
 evaluating either lookup. The chain condition is checked on a certificate, one path
 of shared arrows through all the shared vertices, instead of by a reachability
-search for each pair.
+search for each pair. And the conditions on numbers are one Boolean function,
+`glueCheck`, written with the primitive operations on numbers that the kernel
+evaluates directly, with one theorem (`GlueOK.of_check`) saying what it proves.
 
 **Drawing.** With `show_panel_widgets [local ProofWidgets.SelectionPanel]` in the
 file, shift-click a diagram in the infoview and choose "Commuting diagram"
@@ -289,11 +291,6 @@ including each face against its equation (2.1 s). `diagram_eq` takes 0.16 s.
   contributes are pruned by a greedy test, which may keep a redundant face.
 - `comm_diagram` takes arrows only from equations: an arrow that appears in no
   equation cannot be added on its own.
-- Cheaper conditions on numbers for gluing. At k = 4 they take about 0.3 s of the
-  0.75 s above, mostly in the overhead of each evaluation step (type class
-  instances for `%`, `/` and `=` on numbers, and `Decidable` instances). A single
-  Boolean check written with the primitive operations on numbers, with one
-  soundness theorem, would reduce that.
 - Faster kernel checks for graphs: the build check and the check that every arrow
   is in the build evaluate the generic arrow list of `Shape n E`; a check stated
   on arrow numbers directly would be cheaper.

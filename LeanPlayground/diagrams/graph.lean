@@ -122,11 +122,12 @@ namespace Braun
 
 variable {α : Type*}
 
-/-- The entry at position `i`, if there is one. -/
+/-- The entry at position `i`, if there is one. Written with the primitive operations
+on numbers (`Nat.beq`, `Nat.mod`, `Nat.div`), which the kernel evaluates directly. -/
 def get? : Braun α → ℕ → Option α
   | leaf, _ => none
-  | node l x r, i =>
-    if i = 0 then some x else if i % 2 = 1 then l.get? (i / 2) else r.get? (i / 2 - 1)
+  | node _ x _, 0 => some x
+  | node l _ r, i + 1 => cond (Nat.beq (Nat.mod i 2) 0) (l.get? (Nat.div i 2)) (r.get? (Nat.div i 2))
 
 /-- The tree of `x :: l`, from the tree of `l`. -/
 def cons (x : α) : Braun α → Braun α
@@ -137,25 +138,29 @@ def cons (x : α) : Braun α → Braun α
 def ofList (l : List α) : Braun α := l.foldr cons leaf
 
 theorem get?_cons_zero (x : α) (t : Braun α) : (cons x t).get? 0 = some x := by
-  cases t <;> simp [cons, get?]
+  cases t <;> rfl
 
 theorem get?_cons_succ (x : α) (t : Braun α) (i : ℕ) : (cons x t).get? (i + 1) = t.get? i := by
   induction t generalizing x i with
-  | leaf => simp [cons, get?]
+  | leaf => cases h : Nat.beq (Nat.mod i 2) 0 <;> simp [cons, get?, h]
   | node l y r _ ihr =>
-    simp only [cons, get?]
+    rcases i with _ | i
+    · exact get?_cons_zero y r
     obtain ⟨j, rfl | rfl⟩ : ∃ j, i = 2 * j ∨ i = 2 * j + 1 := ⟨i / 2, by omega⟩
-    · rcases j with _ | j
-      · simp [get?_cons_zero]
-      · have h₁ : (2 * (j + 1) + 1) % 2 = 1 := by omega
-        have h₂ : (2 * (j + 1) + 1) / 2 = j + 1 := by omega
-        have h₃ : (2 * (j + 1)) % 2 = 0 := by omega
-        simp [h₁, h₂, h₃, ihr]
-    · have h₁ : (2 * j + 1 + 1) % 2 = 0 := by omega
-      have h₂ : (2 * j + 1 + 1) / 2 - 1 = j := by omega
-      have h₃ : (2 * j + 1) % 2 = 1 := by omega
-      have h₄ : (2 * j + 1) / 2 = j := by omega
-      simp [h₁, h₂, h₃, h₄]
+    · have h₁ : Nat.beq (Nat.mod (2 * j + 1) 2) 0 = false := by
+        rw [Bool.eq_false_iff, ne_eq, Nat.beq_eq]; show ¬ (2 * j + 1) % 2 = 0; omega
+      have h₂ : Nat.beq (Nat.mod (2 * j) 2) 0 = true := by
+        rw [Nat.beq_eq]; show (2 * j) % 2 = 0; omega
+      have h₃ : Nat.div (2 * j + 1) 2 = j := by show (2 * j + 1) / 2 = j; omega
+      have h₄ : Nat.div (2 * j) 2 = j := by show (2 * j) / 2 = j; omega
+      simp only [cons, get?, h₁, h₂, h₃, h₄, Bool.cond_false, Bool.cond_true]
+    · have h₁ : Nat.beq (Nat.mod (2 * j + 1 + 1) 2) 0 = true := by
+        rw [Nat.beq_eq]; show (2 * j + 1 + 1) % 2 = 0; omega
+      have h₂ : Nat.beq (Nat.mod (2 * j + 1) 2) 0 = false := by
+        rw [Bool.eq_false_iff, ne_eq, Nat.beq_eq]; show ¬ (2 * j + 1) % 2 = 0; omega
+      have h₃ : Nat.div (2 * j + 1 + 1) 2 = j + 1 := by show (2 * j + 1 + 1) / 2 = j + 1; omega
+      have h₄ : Nat.div (2 * j + 1) 2 = j := by show (2 * j + 1) / 2 = j; omega
+      simp only [cons, get?, h₁, h₂, h₃, h₄, Bool.cond_false, Bool.cond_true, ihr]
 
 /-- Looking up a position in the tree of a list is looking it up in the list. -/
 theorem get?_ofList : ∀ (l : List α) (i : ℕ), (ofList l).get? i = l[i]?

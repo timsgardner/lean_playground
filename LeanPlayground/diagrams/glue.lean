@@ -120,31 +120,47 @@ variable {C : Type u} [Category.{v} C] {n : ℕ} {E : List (ℕ × ℕ)}
 /-- The arrows whose numbers are listed in `am`. -/
 def arrowsIn (am : List ℕ) : Subshape (Shape n E) := fun _ _ => {e | e.val.val ∈ am}
 
-/-- Membership is decided by one bit test in the bitmask of `am`. -/
-instance (am : List ℕ) {a b : Shape n E} (e : a ⟶ b) : Decidable (e ∈ arrowsIn am a b) :=
-  decidable_of_iff ((setBits 0 am).testBit e.val.val = true) (by
-    rw [testBit_setBits]; simp [arrowsIn])
+/-! ### Primitive operations
 
-theorem getD_of_lt {α : Type*} {l : List α} {k : ℕ} (d : α) (h : k < l.length) :
-    l.getD k d = l[k] :=
-  (List.getElem_eq_getD d).symm
+The conditions below are checked by evaluation in the kernel. They are written with
+the primitive operations on numbers (`Nat.beq`, `Nat.blt`, `Nat.mod`, `Nat.lor`,
+`Nat.shiftLeft`, `Nat.shiftRight`), which the kernel evaluates directly, rather than
+through the `Decidable` and arithmetic type class instances, which cost several
+unfolding steps each. Each check comes with a theorem stating what it proves. -/
+
+/-- Bit `i` of `m`. -/
+def bit (m i : ℕ) : Bool := Nat.beq (Nat.mod (Nat.shiftRight m i) 2) 1
+
+theorem bit_eq (m i : ℕ) : bit m i = m.testBit i := by
+  rw [Nat.testBit_eq_decide_div_mod_eq, Bool.eq_iff_iff, decide_eq_true_eq]
+  simp only [bit, Nat.beq_eq]
+  rw [← Nat.shiftRight_eq_div_pow]
+  rfl
+
+/-- The bitmask with the bits listed in `l`. -/
+def maskOf (l : List ℕ) : ℕ := l.foldl (fun m j => Nat.lor m (Nat.shiftLeft 1 j)) 0
+
+theorem maskOf_eq (l : List ℕ) : maskOf l = setBits 0 l := rfl
+
+theorem bit_maskOf {l : List ℕ} {j : ℕ} : bit (maskOf l) j = true ↔ j ∈ l := by
+  rw [bit_eq, maskOf_eq, testBit_setBits]; simp
 
 /-- No number occurs twice in `l`, and none is in the bitmask `m`. One pass, with a
 bit test per entry. -/
 def nodupBits : List ℕ → ℕ → Bool
   | [], _ => true
-  | x :: l, m => !m.testBit x && nodupBits l (setBits m [x])
+  | x :: l, m => !bit m x && nodupBits l (Nat.lor m (Nat.shiftLeft 1 x))
 
 theorem nodup_of_nodupBits : ∀ (l : List ℕ) (m : ℕ), nodupBits l m = true →
     l.Nodup ∧ ∀ x ∈ l, m.testBit x = false
   | [], _, _ => ⟨List.nodup_nil, by simp⟩
   | x :: l, m, h => by
-    simp only [nodupBits, Bool.and_eq_true, Bool.not_eq_true'] at h
+    simp only [nodupBits, Bool.and_eq_true, Bool.not_eq_true', bit_eq] at h
     obtain ⟨hx, hl⟩ := h
     obtain ⟨hnd, hm⟩ := nodup_of_nodupBits l _ hl
     have hm' : ∀ y ∈ l, m.testBit y = false ∧ y ≠ x := fun y hy => by
       have h2 : ¬ (m.testBit y = true ∨ y ∈ [x]) := by
-        rw [← testBit_setBits]; simp [hm y hy]
+        rw [← testBit_setBits]; simpa [setBits] using hm y hy
       simp only [List.mem_singleton, not_or, Bool.not_eq_true] at h2
       exact h2
     refine ⟨List.nodup_cons.2 ⟨fun hxl => (hm' x hxl).2 rfl, hnd⟩, fun y hy => ?_⟩
@@ -157,15 +173,51 @@ ends `E`: vertex `i` is vertex `vm[i]`, distinct vertices stay distinct, and arr
 is arrow `am[k]`, which runs between the corresponding vertices. -/
 def GraphEmbeds (n₀ : ℕ) (E₀ : List (ℕ × ℕ)) (n : ℕ) (E : List (ℕ × ℕ)) (vm am : List ℕ) :
     Prop :=
-  vm.length = n₀ ∧ (∀ i ∈ vm, i < n) ∧ nodupBits vm 0 = true ∧ am.length = E₀.length ∧
+  vm.length = n₀ ∧ (∀ i ∈ vm, i < n) ∧ vm.Nodup ∧ am.length = E₀.length ∧
     (∀ j ∈ am, j < E.length) ∧
-    am.map (Braun.ofList E).get? =
-      E₀.map fun p => ((Braun.ofList vm).get? p.1).bind fun a =>
-        ((Braun.ofList vm).get? p.2).map fun b => (a, b)
+    am.map (E[·]?) = E₀.map fun p => vm[p.1]?.bind fun a => vm[p.2]?.map fun b => (a, b)
 
-instance {n₀ : ℕ} {E₀ : List (ℕ × ℕ)} {vm am : List ℕ} :
-    Decidable (GraphEmbeds n₀ E₀ n E vm am) :=
-  inferInstanceAs (Decidable (_ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _))
+/-- Arrow `am[k]` has, by `fE`, the ends that `fV` gives the ends `E₀[k]`, for every `k`. -/
+def endsCheck (fE : ℕ → Option (ℕ × ℕ)) (fV : ℕ → Option ℕ) : List ℕ → List (ℕ × ℕ) → Bool
+  | [], [] => true
+  | j :: am, p :: E₀ =>
+    match fE j, fV p.1, fV p.2 with
+    | some q, some a, some b => Nat.beq q.1 a && Nat.beq q.2 b && endsCheck fE fV am E₀
+    | _, _, _ => false
+  | _, _ => false
+
+theorem map_eq_of_endsCheck (fE : ℕ → Option (ℕ × ℕ)) (fV : ℕ → Option ℕ) :
+    ∀ (am : List ℕ) (E₀ : List (ℕ × ℕ)), endsCheck fE fV am E₀ = true →
+      am.map fE = E₀.map fun p => (fV p.1).bind fun a => (fV p.2).map fun b => (a, b)
+  | [], [], _ => rfl
+  | [], _ :: _, h => absurd h (by simp [endsCheck])
+  | _ :: _, [], h => absurd h (by simp [endsCheck])
+  | j :: am, p :: E₀, h => by
+    simp only [endsCheck] at h
+    split at h
+    · rename_i q a b hq ha hb
+      simp only [Bool.and_eq_true] at h
+      obtain ⟨⟨h₁, h₂⟩, h₃⟩ := h
+      have hq' : q = (a, b) := Prod.ext (Nat.eq_of_beq_eq_true h₁) (Nat.eq_of_beq_eq_true h₂)
+      simp only [List.map_cons, hq, ha, hb, hq', Option.bind_some, Option.map_some,
+        map_eq_of_endsCheck fE fV am E₀ h₃]
+    · exact absurd h (by simp)
+
+/-- `GraphEmbeds`, checked by evaluation. -/
+def embedCheck (n₀ : ℕ) (E₀ : List (ℕ × ℕ)) (n : ℕ) (E : List (ℕ × ℕ)) (vm am : List ℕ) : Bool :=
+  Nat.beq vm.length n₀ && vm.all (fun i => Nat.blt i n) && nodupBits vm 0 &&
+    Nat.beq am.length E₀.length && am.all (fun j => Nat.blt j E.length) &&
+    endsCheck (Braun.ofList E).get? (Braun.ofList vm).get? am E₀
+
+theorem graphEmbeds_of_check {n₀ : ℕ} {E₀ : List (ℕ × ℕ)} {vm am : List ℕ}
+    (h : embedCheck n₀ E₀ n E vm am = true) : GraphEmbeds n₀ E₀ n E vm am := by
+  simp only [embedCheck, Bool.and_eq_true, List.all_eq_true, Nat.blt_eq] at h
+  obtain ⟨⟨⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩, h₅⟩, h₆⟩ := h
+  have hE : (Braun.ofList E).get? = (E[·]?) := funext (Braun.get?_ofList E)
+  have hV : (Braun.ofList vm).get? = (vm[·]?) := funext (Braun.get?_ofList vm)
+  rw [hE, hV] at h₆
+  exact ⟨Nat.eq_of_beq_eq_true h₁, h₂, (nodup_of_nodupBits vm 0 h₃).1,
+    Nat.eq_of_beq_eq_true h₄, h₅, map_eq_of_endsCheck _ _ am E₀ h₆⟩
 
 /-! ### A certificate for the chain condition
 
@@ -180,27 +232,27 @@ def walkVerts (E : List (ℕ × ℕ)) : ℕ → List ℕ → Option (List ℕ)
   | s, [] => some [s]
   | s, j :: cp =>
     match E[j]? with
-    | some p => if p.1 = s then (walkVerts E p.2 cp).map (s :: ·) else none
+    | some p => cond (Nat.beq p.1 s) ((walkVerts E p.2 cp).map (s :: ·)) none
     | none => none
 
 /-- The ends of the arrows of `E` whose numbers, counted from `j`, are in the bitmask
 `m`. -/
 def touchList (m : ℕ) : List (ℕ × ℕ) → ℕ → List ℕ
   | [], _ => []
-  | p :: E, j => if m.testBit j then p.1 :: p.2 :: touchList m E (j + 1) else touchList m E (j + 1)
+  | p :: E, j => cond (bit m j) (p.1 :: p.2 :: touchList m E (j + 1)) (touchList m E (j + 1))
 
 /-- The walk from `s₀` along `cp` uses arrows of both pieces, and passes through every
 vertex that both pieces touch. -/
 def chainCert (E : List (ℕ × ℕ)) (am₁ am₂ : List ℕ) (s₀ : ℕ) (cp : List ℕ) : Bool :=
   match walkVerts E s₀ cp with
   | some vs =>
-    cp.all (fun j => (setBits 0 am₁).testBit j && (setBits 0 am₂).testBit j) &&
-      (touchList (setBits 0 am₁) E 0).all fun v =>
-        !(setBits 0 (touchList (setBits 0 am₂) E 0)).testBit v || (setBits 0 vs).testBit v
+    cp.all (fun j => bit (maskOf am₁) j && bit (maskOf am₂) j) &&
+      (touchList (maskOf am₁) E 0).all fun v =>
+        !bit (maskOf (touchList (maskOf am₂) E 0)) v || bit (maskOf vs) v
   | none => false
 
 theorem mem_touchList {m : ℕ} : ∀ (E : List (ℕ × ℕ)) (j k : ℕ) (hk : k < E.length),
-    m.testBit (j + k) = true → E[k].1 ∈ touchList m E j ∧ E[k].2 ∈ touchList m E j
+    bit m (j + k) = true → E[k].1 ∈ touchList m E j ∧ E[k].2 ∈ touchList m E j
   | [], _, _, hk, _ => absurd hk (by simp)
   | p :: E, j, 0, _, h => by
     simp only [Nat.add_zero] at h
@@ -208,18 +260,25 @@ theorem mem_touchList {m : ℕ} : ∀ (E : List (ℕ × ℕ)) (j k : ℕ) (hk : 
   | p :: E, j, k + 1, hk, h => by
     have ih := mem_touchList E (j + 1) k (by simpa using hk) (by rw [← h]; congr 1; omega)
     simp only [touchList, List.getElem_cons_succ]
-    split_ifs <;> simp [ih]
+    cases bit m j <;> simp [ih]
+
+theorem walkVerts_cons {E : List (ℕ × ℕ)} {s j : ℕ} {cp vs : List ℕ}
+    (h : walkVerts E s (j :: cp) = some vs) :
+    ∃ p vs', E[j]? = some p ∧ p.1 = s ∧ walkVerts E p.2 cp = some vs' ∧ vs = s :: vs' := by
+  simp only [walkVerts] at h
+  split at h
+  · rename_i p hp
+    cases hb : Nat.beq p.1 s <;> simp only [hb, Bool.cond_false, Bool.cond_true, reduceCtorEq] at h
+    obtain ⟨vs', hvs', rfl⟩ := Option.map_eq_some_iff.1 h
+    exact ⟨p, vs', hp, Nat.eq_of_beq_eq_true hb, hvs', rfl⟩
+  · exact absurd h (by simp)
 
 theorem walkVerts_head {E : List (ℕ × ℕ)} : ∀ {s : ℕ} {cp vs : List ℕ},
     walkVerts E s cp = some vs → ∃ vs', vs = s :: vs'
   | s, [], vs, h => by simp only [walkVerts, Option.some.injEq] at h; exact ⟨[], h.symm⟩
   | s, j :: cp, vs, h => by
-    simp only [walkVerts] at h
-    split at h
-    · split_ifs at h
-      obtain ⟨vs', _, rfl⟩ := Option.map_eq_some_iff.1 h
-      exact ⟨vs', rfl⟩
-    · exact absurd h (by simp)
+    obtain ⟨_, vs', _, _, _, rfl⟩ := walkVerts_cons h
+    exact ⟨vs', rfl⟩
 
 theorem reach_of_walk (hEn : ∀ p ∈ E, p.1 < n ∧ p.2 < n) {am₁ am₂ : List ℕ} :
     ∀ (cp : List ℕ) (s : ℕ) (vs : List ℕ), walkVerts E s cp = some vs →
@@ -234,36 +293,31 @@ theorem reach_of_walk (hEn : ∀ p ∈ E, p.1 < n ∧ p.2 < n) {am₁ am₂ : Li
     obtain rfl : i = 0 := by omega
     exact ⟨.nil, .nil⟩
   | j :: cp, s, vs, h, hcp, i, k, hik, hk, ha, hb => by
-    simp only [walkVerts] at h
-    split at h
-    · rename_i p hp
-      split_ifs at h with hps
-      obtain ⟨vs', hvs', rfl⟩ := Option.map_eq_some_iff.1 h
-      have ih := reach_of_walk hEn cp p.2 vs' hvs' (fun j' hj' => hcp j' (List.mem_cons_of_mem _ hj'))
-      obtain ⟨hj, hjp⟩ := List.getElem?_eq_some_iff.1 hp
-      obtain ⟨hp₁, hp₂⟩ := hEn p (hjp ▸ List.getElem_mem hj)
-      obtain ⟨vs'', rfl⟩ := walkVerts_head hvs'
-      rcases i with _ | i
-      · rcases k with _ | k
-        · exact ⟨.nil, .nil⟩
-        · -- One arrow from `s` to `p.2`, then the rest of the walk.
-          let e : (Shape.vert ⟨s, by simpa using ha⟩ : Shape n E) ⟶ Shape.vert ⟨p.2, hp₂⟩ :=
-            ⟨⟨j, hj⟩, by simp only [Fin.getElem_fin]; rw [hjp]; exact Prod.ext hps rfl⟩
-          have he : e ∈ (arrowsIn am₁ ⊓ arrowsIn am₂) _ _ :=
-            ⟨(hcp j List.mem_cons_self).1, (hcp j List.mem_cons_self).2⟩
-          exact (show ReachIn _ _ _ from ⟨e.toPath, Within.toPath he⟩).trans
-            (ih 0 k (Nat.zero_le _) (by simpa using hk) hp₂ hb)
-      · rcases k with _ | k
-        · omega
-        · exact ih i k (by omega) (by simpa using hk) ha hb
-    · exact absurd h (by simp)
+    obtain ⟨p, vs', hp, hps, hvs', rfl⟩ := walkVerts_cons h
+    have ih := reach_of_walk hEn cp p.2 vs' hvs' (fun j' hj' => hcp j' (List.mem_cons_of_mem _ hj'))
+    obtain ⟨hj, hjp⟩ := List.getElem?_eq_some_iff.1 hp
+    obtain ⟨hp₁, hp₂⟩ := hEn p (hjp ▸ List.getElem_mem hj)
+    obtain ⟨vs'', rfl⟩ := walkVerts_head hvs'
+    rcases i with _ | i
+    · rcases k with _ | k
+      · exact ⟨.nil, .nil⟩
+      · -- One arrow from `s` to `p.2`, then the rest of the walk.
+        let e : (Shape.vert ⟨s, by simpa using ha⟩ : Shape n E) ⟶ Shape.vert ⟨p.2, hp₂⟩ :=
+          ⟨⟨j, hj⟩, by simp only [Fin.getElem_fin]; rw [hjp]; exact Prod.ext hps rfl⟩
+        have he : e ∈ (arrowsIn am₁ ⊓ arrowsIn am₂) _ _ :=
+          ⟨(hcp j List.mem_cons_self).1, (hcp j List.mem_cons_self).2⟩
+        exact (show ReachIn _ _ _ from ⟨e.toPath, Within.toPath he⟩).trans
+          (ih 0 k (Nat.zero_le _) (by simpa using hk) hp₂ hb)
+    · rcases k with _ | k
+      · omega
+      · exact ih i k (by omega) (by simpa using hk) ha hb
 
 /-- An arrow of `arrowsIn am` touches only vertices listed by `touchList`. -/
 theorem touches_mem {am : List ℕ} {v : Shape n E} (h : Touches (arrowsIn am) v) :
-    (Shape.num v).val ∈ touchList (setBits 0 am) E 0 := by
+    (Shape.num v).val ∈ touchList (maskOf am) E 0 := by
   obtain ⟨a, b, e, he, hv⟩ := h
-  have hbit : (setBits 0 am).testBit (0 + e.val.val) = true := by
-    rw [Nat.zero_add, testBit_setBits]; exact Or.inr he
+  have hbit : bit (maskOf am) (0 + e.val.val) = true := by
+    rw [Nat.zero_add, bit_maskOf]; exact he
   have hmem := mem_touchList E 0 e.val.val e.val.isLt hbit
   rw [show E[e.val.val] = _ from e.property] at hmem
   rcases hv with rfl | rfl
@@ -276,21 +330,16 @@ theorem chain_of_chainCert (hEn : ∀ p ∈ E, p.1 < n ∧ p.2 < n) {am₁ am₂
   unfold chainCert at h
   split at h
   · rename_i vs hvs
-    simp only [Bool.and_eq_true, List.all_eq_true] at h
+    simp only [Bool.and_eq_true, List.all_eq_true, bit_maskOf] at h
     obtain ⟨hcp, htouch⟩ := h
-    have hcp' : ∀ j ∈ cp, j ∈ am₁ ∧ j ∈ am₂ := fun j hj => by
-      have := hcp j hj
-      simp only [testBit_setBits, Nat.zero_testBit, Bool.false_eq_true, false_or] at this
-      exact this
     have hon : ∀ v : Shape n E, Shared (arrowsIn am₁) (arrowsIn am₂) v →
         (Shape.num v).val ∈ vs := by
       rintro v ⟨h₁, h₂⟩
       have := htouch _ (touches_mem h₁)
-      have h₂' := touches_mem h₂
-      simp only [Bool.or_eq_true, Bool.not_eq_true', testBit_setBits, Nat.zero_testBit,
-        Bool.false_eq_true, false_or] at this
+      simp only [Bool.or_eq_true, Bool.not_eq_true', bit_maskOf] at this
       rcases this with h | h
-      · exact absurd ((testBit_setBits _ 0).2 (Or.inr h₂')) (by rw [h]; simp)
+      · rw [← Bool.not_eq_true, bit_maskOf] at h
+        exact absurd (touches_mem h₂) h
       · exact h
     rw [chain_iff]
     intro s s' hs hs'
@@ -303,27 +352,49 @@ theorem chain_of_chainCert (hEn : ∀ p ∈ E, p.1 < n ∧ p.2 < n) {am₁ am₂
     rcases le_total i k with hik | hki
     · left
       rw [← es, ← es']
-      exact reach_of_walk hEn cp s₀ vs hvs hcp' i k hik hk ha hb
+      exact reach_of_walk hEn cp s₀ vs hvs hcp i k hik hk ha hb
     · right
       rw [← es, ← es']
-      exact reach_of_walk hEn cp s₀ vs hvs hcp' k i hki hi hb ha
+      exact reach_of_walk hEn cp s₀ vs hvs hcp k i hki hi hb ha
   · exact absurd h (by simp)
 
+/-! ### The conditions on numbers -/
+
 /-- The conditions on numbers for gluing two graphs into the graph with `n` vertices
-and ends `E`: each sits in it, every arrow comes from one of them (tested on
-bitmasks), the walk from `s₀` along `cp` certifies the chain condition, and every arrow
-raises the rank `rk`, so that the graph is acyclic. -/
+and ends `E`: each sits in it, every arrow comes from one of them, the walk from `s₀`
+along `cp` certifies the chain condition, and every arrow raises the rank `rk`, so
+that the graph is acyclic. -/
 def GlueOK (n₁ : ℕ) (E₁ : List (ℕ × ℕ)) (n₂ : ℕ) (E₂ : List (ℕ × ℕ)) (n : ℕ)
     (E : List (ℕ × ℕ)) (vm₁ am₁ vm₂ am₂ rk : List ℕ) (s₀ : ℕ) (cp : List ℕ) : Prop :=
   GraphEmbeds n₁ E₁ n E vm₁ am₁ ∧ GraphEmbeds n₂ E₂ n E vm₂ am₂ ∧
-    (∀ j < E.length, ((setBits 0 am₁).testBit j || (setBits 0 am₂).testBit j) = true) ∧
-    chainCert E am₁ am₂ s₀ cp = true ∧
-    E.all (fun p => ((Braun.ofList rk).get? p.1).getD 0 < ((Braun.ofList rk).get? p.2).getD 0) =
-      true
+    (∀ j < E.length, j ∈ am₁ ∨ j ∈ am₂) ∧ chainCert E am₁ am₂ s₀ cp = true ∧
+    ∀ p ∈ E, rk[p.1]?.getD 0 < rk[p.2]?.getD 0
 
-instance {n₁ n₂ : ℕ} {E₁ E₂ : List (ℕ × ℕ)} {vm₁ am₁ vm₂ am₂ rk : List ℕ} {s₀ : ℕ}
-    {cp : List ℕ} : Decidable (GlueOK n₁ E₁ n₂ E₂ n E vm₁ am₁ vm₂ am₂ rk s₀ cp) :=
-  inferInstanceAs (Decidable (_ ∧ _ ∧ _ ∧ _ ∧ _))
+/-- `GlueOK`, checked by evaluation. That every arrow comes from a piece is one
+comparison of bitmasks: the low `E.length` bits of the union are all set. -/
+def glueCheck (n₁ : ℕ) (E₁ : List (ℕ × ℕ)) (n₂ : ℕ) (E₂ : List (ℕ × ℕ)) (n : ℕ)
+    (E : List (ℕ × ℕ)) (vm₁ am₁ vm₂ am₂ rk : List ℕ) (s₀ : ℕ) (cp : List ℕ) : Bool :=
+  embedCheck n₁ E₁ n E vm₁ am₁ && embedCheck n₂ E₂ n E vm₂ am₂ &&
+    Nat.beq (Nat.mod (Nat.lor (maskOf am₁) (maskOf am₂)) (Nat.pow 2 E.length))
+      (Nat.sub (Nat.pow 2 E.length) 1) &&
+    chainCert E am₁ am₂ s₀ cp &&
+    E.all fun p =>
+      Nat.blt (((Braun.ofList rk).get? p.1).getD 0) (((Braun.ofList rk).get? p.2).getD 0)
+
+theorem GlueOK.of_check {n₁ n₂ : ℕ} {E₁ E₂ : List (ℕ × ℕ)} {vm₁ am₁ vm₂ am₂ rk : List ℕ}
+    {s₀ : ℕ} {cp : List ℕ} (h : glueCheck n₁ E₁ n₂ E₂ n E vm₁ am₁ vm₂ am₂ rk s₀ cp = true) :
+    GlueOK n₁ E₁ n₂ E₂ n E vm₁ am₁ vm₂ am₂ rk s₀ cp := by
+  simp only [glueCheck, Bool.and_eq_true, List.all_eq_true, Nat.blt_eq,
+    Braun.get?_ofList] at h
+  obtain ⟨⟨⟨⟨h₁, h₂⟩, hcov⟩, hcert⟩, hrank⟩ := h
+  refine ⟨graphEmbeds_of_check h₁, graphEmbeds_of_check h₂, fun j hj => ?_, hcert, hrank⟩
+  have hc : (maskOf am₁ ||| maskOf am₂) % 2 ^ E.length = 2 ^ E.length - 1 :=
+    Nat.eq_of_beq_eq_true hcov
+  have := congrArg (·.testBit j) hc
+  simp only [Nat.testBit_mod_two_pow, Nat.testBit_two_pow_sub_one, Nat.testBit_or, hj,
+    decide_true, Bool.true_and] at this
+  rw [Bool.or_eq_true, ← bit_eq, ← bit_eq, bit_maskOf, bit_maskOf] at this
+  exact this
 
 /-- The object at vertex number `i`, if there is one. -/
 def objAt (obj : Fin n → C) (i : ℕ) : Option C :=
@@ -386,7 +457,7 @@ theorem ends_arrNum (k : Fin D.E.length) (a b : Fin D.n) (h : D.E[k] = (a.val, b
   have := congrArg (·[k.val]?) hg.2.2.2.2.2
   simp only [Fin.getElem_fin] at h
   simp only [List.getElem?_map, List.getElem?_eq_getElem (am_lt hg k),
-    List.getElem?_eq_getElem k.isLt, Option.map_some, h, Braun.get?_ofList,
+    List.getElem?_eq_getElem k.isLt, Option.map_some, h,
     List.getElem?_eq_getElem (vm_lt hg a), List.getElem?_eq_getElem (vm_lt hg b),
     Option.bind_some] at this
   rw [List.getElem?_eq_getElem (by exact (arrNum hg k).isLt)] at this
@@ -401,7 +472,7 @@ theorem φ_injective : Function.Injective (φ hg).obj := by
   intro a a' h
   have h' : vm[(Shape.num a).val]'(vm_lt hg _) = vm[(Shape.num a').val]'(vm_lt hg _) :=
     congrArg Fin.val h
-  exact Fin.ext (((nodup_of_nodupBits vm 0 hg.2.2.1).1.getElem_inj_iff).1 h')
+  exact Fin.ext ((hg.2.2.1.getElem_inj_iff).1 h')
 
 theorem covers : Covers (φ hg) (arrowsIn am) := by
   intro x y e he
@@ -479,15 +550,12 @@ theorem commutes_of_glue {obj : Fin n → C} {mors : List (Σ a b : Fin n, obj a
   have hchain := chain_of_chainCert hEn hcert
   have hacyc : AcyclicOn (arrowsIn (n := n) (E := E) am₁ ⊔ arrowsIn am₂) := by
     refine acyclicOn_of_rank (fun a => rk[(Shape.num a).val]?.getD 0) fun a b e _ => ?_
-    have h := List.all_eq_true.1 hrank _ (List.getElem_mem e.val.isLt)
+    have h := hrank _ (List.getElem_mem e.val.isLt)
     rw [show E[e.val.val] = _ from e.property] at h
-    simp only [Braun.get?_ofList, decide_eq_true_eq] at h
     exact h
   have hS := (commutesOn_piece hE g₁ hU h₁).paste (commutesOn_piece hE g₂ hU h₂) hchain hacyc
-  have htop : (⊤ : Subshape (Shape n E)) ≤ arrowsIn am₁ ⊔ arrowsIn am₂ := fun a b e _ => by
-    have h := hall e.val.val e.val.isLt
-    rw [Bool.or_eq_true, testBit_setBits, testBit_setBits] at h
-    simpa [mem_sup, arrowsIn] using h
+  have htop : (⊤ : Subshape (Shape n E)) ≤ arrowsIn am₁ ⊔ arrowsIn am₂ := fun a b e _ =>
+    mem_sup.2 (hall e.val.val e.val.isLt)
   exact commutesOn_top_iff.1 fun a b p q hp hq => hS p q (hp.mono htop) (hq.mono htop)
 
 end Pieces

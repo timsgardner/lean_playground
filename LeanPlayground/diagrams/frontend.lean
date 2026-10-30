@@ -765,11 +765,11 @@ elab "glue " d₁:term:max d₂:term:max : term => do
   let cpL ← natList cp
   -- The conditions on numbers, stated on the numbers themselves, so that the kernel
   -- evaluates closed terms.
-  let okT := mkAppN (.const ``Diagrams.GlueOK []) #[lit dv₁.n, dv₁.E, lit dv₂.n, dv₂.E, lit n,
-    d.E, vm₁L, am₁L, vm₂L, am₂L, rkL, lit s₀, cpL]
-  let okInst ← synthInstance (mkApp (.const ``Decidable []) okT)
-  let ok := mkApp3 (.const ``of_decide_eq_true []) okT okInst
-    (mkApp2 (.const ``Eq.refl [1]) (.const ``Bool []) (.const ``Bool.true []))
+  -- `GlueOK.of_check` takes `n`, `E`, then the numbers of the pieces, and the proof
+  -- that `glueCheck` evaluates to `true`.
+  let ok := mkAppN (.const ``Diagrams.GlueOK.of_check []) #[lit n, d.E, lit dv₁.n, lit dv₂.n,
+    dv₁.E, dv₂.E, vm₁L, am₁L, vm₂L, am₂L, rkL, lit s₀, cpL,
+    mkApp2 (.const ``Eq.refl [1]) (.const ``Bool []) (.const ``Bool.true [])]
   -- The objects and morphisms, written out (each morphism with its objects). Each
   -- piece, and the glued diagram, is compared with these lists rather than with each
   -- other: comparing two diagrams' lookups directly makes the kernel compare their
