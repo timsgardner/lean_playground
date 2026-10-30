@@ -122,6 +122,22 @@ forall Cell f {
 }
 "
 
+/-- A Penrose diagram from a substance program whose objects `O0, O1, …` are labelled
+by `objs` and whose arrows `M0, M1, …` by `mors`. Objects are drawn as Lean prints
+them; morphism labels a little smaller and lighter. -/
+def penroseHtml (sub : String) (objs : Array (Option Expr)) (mors : Array Expr) :
+    MetaM ProofWidgets.Html := do
+  let mut embeds : Array (String × ProofWidgets.Html) := #[]
+  for i in [0:objs.size] do
+    if let some X := objs[i]! then
+      embeds := embeds.push (s!"O{i}", jsx%{<InteractiveCode fmt={← Widget.ppExprTagged X} />})
+  for k in [0:mors.size] do
+    embeds := embeds.push (s!"M{k}",
+      jsx%{<span style={json% {fontSize: "85%", opacity: 0.8}}>
+        <InteractiveCode fmt={← Widget.ppExprTagged mors[k]!} />
+      </span>})
+  return jsx%{<PenroseDiagram embeds={embeds} dsl={dsl} sty={sty} sub={sub} />}
+
 /-- The diagram `e`, built by `comm_diagram`, as Html. -/
 def diagramHtml (e : Expr) : MetaM ProofWidgets.Html := do
   let some dv ← readDiagram e
@@ -135,18 +151,7 @@ def diagramHtml (e : Expr) : MetaM ProofWidgets.Html := do
     let some (A, B) := homType? (← whnfR (← inferType f)) | continue
     if objs[a]!.isNone then objs := objs.set! a (some A)
     if objs[b]!.isNone then objs := objs.set! b (some B)
-  -- Objects are drawn as Lean prints them; morphism labels a little smaller and lighter.
-  let mut embeds : Array (String × ProofWidgets.Html) := #[]
-  for i in [0:dv.n] do
-    if let some X := objs[i]! then
-      embeds := embeds.push (s!"O{i}", jsx%{<InteractiveCode fmt={← Widget.ppExprTagged X} />})
-  for k in [0:dv.ms.size] do
-    let f := dv.ms[k]!.1
-    embeds := embeds.push (s!"M{k}",
-      jsx%{<span style={json% {fontSize: "85%", opacity: 0.8}}>
-        <InteractiveCode fmt={← Widget.ppExprTagged f} />
-      </span>})
-  return jsx%{<PenroseDiagram embeds={embeds} dsl={dsl} sty={sty} sub={substance dv.n ends faces} />}
+  penroseHtml (substance dv.n ends faces) objs (dv.ms.map (·.1))
 
 /-- Draw a commuting diagram built by `comm_diagram`. -/
 @[expr_presenter]
@@ -154,5 +159,71 @@ def commDiagramPresenter : ExprPresenter where
   userName := "Commuting diagram"
   layoutKind := .block
   present e := diagramHtml e
+
+/-! ## Path equations
+
+An equation `p₁ = p₂` between composites is drawn as two paths from a common source
+to a common target, one arrow per factor (bracketing and identities are ignored):
+`p₁` goes right along the top row and then down, and `p₂` goes down and then right
+along the bottom row, as a square is drawn. When both sides are single morphisms
+they are drawn as two curved arrows. -/
+
+/-- The drawing of an equation between composites: a substance program, the objects
+of its vertices, and the morphisms of its arrows. `e` is the equation, or a proof of
+it. -/
+def equationDrawing (e : Expr) : MetaM (String × Array (Option Expr) × Array Expr) := do
+  let e ← instantiateMVars e
+  let ty ← if e.isAppOfArity ``Eq 3 then pure e else whnfR (← instantiateMVars (← inferType e))
+  let some (_, lhs, rhs) := ty.eq? | throwError "Not an equation."
+  let some (S, T) := homType? (← whnfR (← inferType lhs))
+    | throwError "Not an equation between morphisms."
+  let fl := (← factors lhs).toArray
+  let fr := (← factors rhs).toArray
+  if fl.isEmpty || fr.isEmpty then throwError "A side of the equation is an identity."
+  let m := fl.size
+  let n := fr.size
+  -- Vertices: 0 is the source, `1, …, m-1` lie on the left side, `m, …, m+n-2` on the
+  -- right side, and `m+n-1` is the target.
+  let tgt := m + n - 1
+  let lv (i : ℕ) : ℕ := if i == m then tgt else i
+  let rv (j : ℕ) : ℕ := if j == 0 then 0 else if j == n then tgt else m - 1 + j
+  let mut pos : Array Dir := Array.replicate (tgt + 1) (0, 0)
+  for i in [1:m] do pos := pos.set! i (i, 0)
+  for j in [1:n] do pos := pos.set! (m - 1 + j) ((j : Int) - 1, 1)
+  pos := pos.set! tgt <| if m == 1 && n == 1 then (1, 0)
+    else if n ≥ 2 then ((n : Int) - 1, 1) else ((m : Int) - 1, 1)
+  -- Objects: the source, then the codomain of each factor.
+  let mut objs : Array (Option Expr) := Array.replicate (tgt + 1) none
+  objs := (objs.set! 0 (some S)).set! tgt (some T)
+  for i in [0:m - 1] do
+    if let some (_, B) := homType? (← whnfR (← inferType fl[i]!)) then
+      objs := objs.set! (lv (i + 1)) (some B)
+  for j in [0:n - 1] do
+    if let some (_, B) := homType? (← whnfR (← inferType fr[j]!)) then
+      objs := objs.set! (rv (j + 1)) (some B)
+  let ends := (Array.range m).map (fun i => (lv i, lv (i + 1))) ++
+    (Array.range n).map (fun j => (rv j, rv (j + 1)))
+  let cells := (List.range ends.size).map fun k =>
+    let (a, b) := ends[k]!
+    s!"Cell M{k} := MakeCell(O{a}, O{b})"
+  let preds := (List.range ends.size).filterMap fun k =>
+    let (a, b) := ends[k]!
+    (predicate pos[a]! pos[b]!).map (s!"{·}(M{k})")
+  let curves := if m == 1 && n == 1 then ["IsCurvedLeft(M0)", "IsCurvedRight(M1)"] else []
+  let objNames := ", ".intercalate ((List.range (tgt + 1)).map (s!"O{·}"))
+  let sub := "\n".intercalate ([s!"Object {objNames}"] ++ cells ++ preds ++ curves ++ ["AutoLabel All"])
+  return (sub, objs, fl ++ fr)
+
+/-- An equation between composites, as Html. -/
+def equationHtml (e : Expr) : MetaM ProofWidgets.Html := do
+  let (sub, objs, mors) ← equationDrawing e
+  penroseHtml sub objs mors
+
+/-- Draw an equation between composites as two paths. -/
+@[expr_presenter]
+def pathEquationPresenter : ExprPresenter where
+  userName := "Path equation"
+  layoutKind := .block
+  present e := equationHtml e
 
 end Diagrams.Draw

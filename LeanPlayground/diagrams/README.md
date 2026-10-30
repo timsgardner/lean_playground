@@ -50,7 +50,7 @@ whiskered, and replayed as a proof of the equation between their endpoints.
 | `construct.lean` | Commutative by construction: builds (arrows added in turn, each with the faces it completes), `buildOK`, `commutesOn_of_build`, `commutes_of_order`. |
 | `graph.lean` | Graphs as data: `Shape n E` (vertices `Fin n`, arrows listed by their ends in `E`) with its instances proved once; a diagram of a graph from objects and a list of morphisms (`toPrefunctor`); `evalNE`. Objects are held in a Braun tree (`Braun`, `objOf`), so that the kernel looks a vertex up in logarithmic time. |
 | `glue.lean` | Why a glued diagram commutes, proved once (`commutes_of_glue`): each piece commutes inside it, by path lifting (`CommutesOn.of_embed`), and the pieces paste. The hypotheses are conditions on numbers (`GlueOK`, proved by evaluating `glueCheck`; the chain condition is certified by one path through the shared vertices, `chainCert`) and that the glued diagram has each piece's objects and morphisms (`HasPiece`, by `rfl`). |
-| `widget.lean` | The "Commuting diagram" presenter: draws a diagram value in the infoview, with a layout computed from its faces. |
+| `widget.lean` | The "Commuting diagram" presenter, which draws a diagram value in the infoview with a layout computed from its faces, and the "Path equation" presenter, which draws an equation between composites as two paths. |
 | `frontend.lean` | `comm_diagram [h₁, …]` (build a commuting diagram from equations and diagrams, inside a proof), `glue D₁ D₂` (glue two diagrams along what they share), `diagram_eq D` (prove an equation whose sides are paths in `D`), and `diagram_build` (prove `Commutes G` by construction for any finite shape). |
 | `examples/examples.lean` | Worked examples: the five-object undercount, Riehl's rectangle by hand, and diagrams built inside proofs (rectangle, naturality squares, cube, gluing). Diagrams are in `examples/assets/` (SVG, with tikz-cd source). |
 
@@ -129,6 +129,13 @@ file, shift-click a diagram in the infoview and choose "Commuting diagram"
 diagrams, with morphism labels set apart from objects (no box, slightly smaller), laid
 out from its faces: around each face one side goes right then down
 and the other down then right.
+
+**Drawing an equation.** Selecting an equation between composites in the infoview
+(a goal, or a hypothesis's type) offers "Path equation": the two sides are drawn as
+paths from a common source to a common target, one arrow per factor, ignoring
+bracketing and identities. Mathlib's "Commutative square" and "Commutative
+triangle" presenters split only the outermost `≫`, so they draw longer composites as
+single arrows.
 
 **Using.** `diagram_eq D` proves a goal `p₁ = p₂` when `p₁` and `p₂` are paths in
 `D`: each side is split at `≫` (ignoring bracketing and identities), and each
