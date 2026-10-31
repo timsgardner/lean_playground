@@ -700,10 +700,28 @@ variable (X : Type*)
 
 theorem gc_exists_const :
     GaloisConnection (fun p : X → Prop => ∃ x, p x) (fun q _ => q) := by
-  sorry
+  intro p b
+  constructor
+  · intro h
+    simp at h
+    simp
+    intro x' qua
+    exact h x' qua
+  · simp
+    intro h x' hx
+    simp [LE.le] at h
+    exact h x' hx
 
 theorem gc_const_forall :
     GaloisConnection (fun (q : Prop) (_ : X) => q) (fun p => ∀ x, p x) := by
-  sorry
+  intro p b
+  constructor
+  · simp [LE.le]
+    intro h1 pp x
+    exact h1 x pp
+  · simp [LE.le]
+    intro h1 x pp
+    apply h1
+    exact pp
 
 end Quantifiers
