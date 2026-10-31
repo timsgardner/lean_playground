@@ -724,4 +724,8 @@ theorem gc_const_forall :
     apply h1
     exact pp
 
+-- you can compose them:
+#check (gc_exists_const X).compose (gc_const_forall X)
+
+
 end Quantifiers
