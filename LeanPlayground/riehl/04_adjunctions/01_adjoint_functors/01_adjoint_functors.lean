@@ -490,8 +490,44 @@ Mathlib's version is `GaloisConnection.adjunction`.
 -/
 example {X Y : Type*} [Preorder X] [Preorder Y] {l : X → Y} {u : Y → X}
     (gc : GaloisConnection l u) :
-    gc.monotone_l.functor ⊣ gc.monotone_u.functor :=
-  sorry
+    gc.monotone_l.functor ⊣ gc.monotone_u.functor := by
+  apply Adjunction.mkOfHomEquiv
+  constructor
+  case homEquiv =>
+    intro x y
+    constructor
+    case toFun =>
+      intro f
+      exact (gc.le_u f.le).hom
+    case invFun =>
+      -- this is (almost) the same as above,
+      -- but constructed with more apply
+      intro g
+      apply LE.le.hom
+      apply gc.l_le
+      exact g.le
+      -- Equivalently, we could have just said
+      -- exact (fun m => (gc.l_le m.le).hom)
+    case left_inv =>
+      simp [autoParam]
+      intro bla
+      simp
+      -- The infoview doesn't do a great job showing it unless
+      -- you look carefully, but the lhs of the goal `⋯.hom = bla` here
+      -- has the structure `(<horrible stuff> : l x ≤ y).hom`. So it's a
+      -- hom in a preorder category (which would also follow from the goal
+      -- equation being even type correct, since we're comparing it to the
+      -- known hom-in-a-preorder-category `bla`). Hom sets in preorder categories
+      -- are Subsingletons -- they contain at most one element. So if we can
+      -- even write the equation `<whatever> = bla`, it's automatically true
+      -- by Subsingleton.elim.
+      apply Subsingleton.elim
+    case right_inv =>
+      -- Exact same idea
+      intro _
+      apply Subsingleton.elim
+  · cat_disch
+  · cat_disch
 
 
 -- Example 4.1.7: Floor and ceiling
@@ -517,10 +553,10 @@ section Floor
 variable {α : Type*} [Ring α] [LinearOrder α] [FloorRing α]
 
 theorem gc_cast_floor : GaloisConnection ((↑) : ℤ → α) Int.floor := by
-  sorry
+  exact Int.gc_coe_floor
 
 theorem gc_ceil_cast : GaloisConnection Int.ceil ((↑) : ℤ → α) := by
-  sorry
+  exact Int.gc_ceil_coe
 
 /-
 An adjoint triple `⌈−⌉ ⊣ (ℤ ↪ α) ⊣ ⌊−⌋` requires the two adjunctions to share
@@ -580,13 +616,62 @@ that `f a = b`. The pattern names `a` and `ha`, and `rfl` replaces `b` by
 -/
 section Image
 
+-- first I want to nail down this f_! / Set.kernImage f, without
+-- weird notation or an existing def.
+abbrev f_scream {A B : Type*} (f : A → B) (A' : Set A): Set B :=
+  { b : B | ∀ a : A, f a = b → a ∈ A'}
+-- That is, it's the set of stuff in B only pointed to from A'.
+
+-- So let f be the constant function from the terminal type * to the Nats (say),
+-- sending *.unit to 0. The kernel image of f on * itself would be all the Nats.
+-- The kernel image of its subset {} would be all the Nats except 0.
+-- If f is the inclusion Fin 2 → Nat, f's kernel image on Fin 2 is all the nats.
+-- f's kernel image on {0} is all the nats except 1.
+-- f's kernel image on {} is all the nats except 1 and 0.
+
 variable {A B : Type*} (f : A → B)
 
 theorem gc_image_preimage : GaloisConnection (Set.image f) (Set.preimage f) := by
-  sorry
+  intro sA sB
+  constructor
+  case mp =>
+    intro h a ha
+    simp at h
+    simp
+    exact h ha
+  case mpr =>
+    intro h1 b hb
+    simp at hb
+    obtain ⟨a, ha⟩ := hb
+    have h2 := h1 ha.1
+    simp at h2
+    rw [← ha.2]
+    exact h2
 
 theorem gc_preimage_kernImage : GaloisConnection (Set.preimage f) (Set.kernImage f) := by
-  sorry
+  intro sB sA
+  constructor
+  case mp =>
+    intro h1
+    unfold Set.kernImage
+    unfold Set.preimage at h1
+    intro b hb
+    simp
+    intro a ha
+    apply h1
+    simp
+    rw [ha]
+    exact hb
+  case mpr =>
+    intro h1
+    unfold Set.kernImage at h1
+    unfold Set.preimage
+    intro a ha
+    simp at ha
+    have h2 := h1 ha
+    simp at h2
+    apply h2
+    rfl
 
 end Image
 
