@@ -166,7 +166,26 @@ An equation `p₁ = p₂` between composites is drawn as two paths from a common
 to a common target, one arrow per factor (bracketing and identities are ignored):
 `p₁` goes right along the top row and then down, and `p₂` goes down and then right
 along the bottom row, as a square is drawn. When both sides are single morphisms
-they are drawn as two curved arrows. -/
+they are drawn as two curved arrows.
+
+An equation `F₁ = F₂` between composites of functors, split at `⋙` with identity
+functors `𝟭` ignored, is drawn the same way, with categories as vertices and
+functors as arrows. -/
+
+/-- Given a functor type `C ⥤ D`, return `(C, D)`. Otherwise `none`. -/
+def functorType? (e : Expr) : Option (Expr × Expr) := do
+  let some (C, _, D, _) := e.app4? ``CategoryTheory.Functor | none
+  return (C, D)
+
+/-- The factors of a composite of functors `F ⋙ G ⋙ …`, in order, with identity
+functors dropped. -/
+partial def functorFactors (e : Expr) : MetaM (List Expr) := do
+  let e ← instantiateMVars e
+  match e.getAppFnArgs with
+  | (``CategoryTheory.Functor.comp, #[_, _, _, _, _, _, F, G]) =>
+    return (← functorFactors F) ++ (← functorFactors G)
+  | (``CategoryTheory.Functor.id, _) => return []
+  | _ => return [e]
 
 /-- The drawing of an equation between composites: a substance program, the objects
 of its vertices, and the morphisms of its arrows. `e` is the equation, or a proof of
@@ -176,10 +195,16 @@ def equationDrawing (e : Expr) : MetaM (String × Array (Option Expr) × Array E
   let e := (← instantiateMVars e).consumeMData
   let ty ← if e.isAppOfArity ``Eq 3 then pure e else whnfR (← instantiateMVars (← inferType e))
   let some (_, lhs, rhs) := ty.eq? | throwError "Not an equation."
-  let some (S, T) := homType? (← whnfR (← inferType lhs))
-    | throwError "Not an equation between morphisms."
-  let fl := (← factors lhs).toArray
-  let fr := (← factors rhs).toArray
+  -- Either an equation between morphisms, split at `≫`, or between functors, split
+  -- at `⋙`. `ends?` reads the source and target off the type of a factor.
+  let lty ← whnfR (← inferType lhs)
+  let (ends?, split) ← match homType? lty, functorType? lty with
+    | some _, _ => pure (homType?, factors)
+    | none, some _ => pure (functorType?, functorFactors)
+    | none, none => throwError "Not an equation between morphisms or functors."
+  let some (S, T) := ends? lty | throwError "Not an equation between morphisms or functors."
+  let fl := (← split lhs).toArray
+  let fr := (← split rhs).toArray
   if fl.isEmpty || fr.isEmpty then throwError "A side of the equation is an identity."
   let m := fl.size
   let n := fr.size
@@ -197,10 +222,10 @@ def equationDrawing (e : Expr) : MetaM (String × Array (Option Expr) × Array E
   let mut objs : Array (Option Expr) := Array.replicate (tgt + 1) none
   objs := (objs.set! 0 (some S)).set! tgt (some T)
   for i in [0:m - 1] do
-    if let some (_, B) := homType? (← whnfR (← inferType fl[i]!)) then
+    if let some (_, B) := ends? (← whnfR (← inferType fl[i]!)) then
       objs := objs.set! (lv (i + 1)) (some B)
   for j in [0:n - 1] do
-    if let some (_, B) := homType? (← whnfR (← inferType fr[j]!)) then
+    if let some (_, B) := ends? (← whnfR (← inferType fr[j]!)) then
       objs := objs.set! (rv (j + 1)) (some B)
   let ends := (Array.range m).map (fun i => (lv i, lv (i + 1))) ++
     (Array.range n).map (fun j => (rv j, rv (j + 1)))
@@ -220,7 +245,7 @@ def equationHtml (e : Expr) : MetaM ProofWidgets.Html := do
   let (sub, objs, mors) ← equationDrawing e
   penroseHtml sub objs mors
 
-/-- Draw an equation between composites as two paths. -/
+/-- Draw an equation between composites of morphisms or of functors as two paths. -/
 @[expr_presenter]
 def pathEquationPresenter : ExprPresenter where
   userName := "Path equation"
