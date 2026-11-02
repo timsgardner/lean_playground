@@ -739,7 +739,7 @@ end Quantifiers
 -- This isn't an exercise, but I want to prove adjunctions are transitive on
 -- the basis of what we have so far, without resorting to .compose.
 
-theorem adj_trans
+def adj_trans
     {F : 𝒞 ⥤ 𝒟}
     {G : 𝒟 ⥤ 𝒞}
     {H : 𝒟 ⥤ ℰ}
@@ -747,8 +747,43 @@ theorem adj_trans
     (adjFG : F ⊣ G)
     (adjHK : H ⊣ K)
     : F ⋙ H ⊣ K ⋙ G := by
+  -- Fix c ∈ 𝒞 and e ∈ ℰ and construct a bijection:
+  -- ℰ((F ⋙ H) c, e) ≃ 𝒞(c, (K ⋙ G) e)
+  let to_bij (c: 𝒞) (e: ℰ) : ((F ⋙ H).obj c ⟶ e) ≃ (c ⟶ (K ⋙ G).obj e) := by
+    let φ := adjFG.homEquiv c (K.obj e)
+    let ψ := adjHK.homEquiv (F.obj c) e
+    convert! ψ.trans φ
+  apply Adjunction.mkOfHomEquiv
+  constructor
+  case homEquiv =>
+    exact to_bij
+  -- The remaining naturality proofs are just noodling around
+  -- with functoriality. Kind of boring.
+  -- Still, notable that we don't need to appeal to the naturality
+  -- of `adjFG` or of `adjHK`.
+  case homEquiv_naturality_left_symm =>
+    intro c c' e f g
+    conv =>
+      lhs
+      unfold to_bij
+      simp
+    conv =>
+      rhs
+      unfold to_bij
+      simp
+      lhs
+      change (F ⋙ H).map f
+    -- you don't really need all this here, `convert!` closes
+    simp only [Adjunction.homEquiv, Equiv.symm, Equiv.coe_fn_mk]
+    simp only [Functor.comp_map, Functor.comp_obj]
+    rw [Functor.map_comp]
+    conv => rhs; rw [Functor.map_comp]; simp
+    conv => lhs; simp
+  case homEquiv_naturality_right =>
+    intro c e e' f g
+    unfold to_bij
+    simp [Adjunction.homEquiv]
 
-  sorry
 
 -- Exercises.
 
