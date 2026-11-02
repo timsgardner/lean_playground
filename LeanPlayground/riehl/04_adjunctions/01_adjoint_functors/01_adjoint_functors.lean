@@ -4,6 +4,9 @@
 
 import Mathlib.CategoryTheory.Adjunction.Basic
 import Mathlib.CategoryTheory.Category.GaloisConnection
+import Mathlib.CategoryTheory.Category.Cat.Adjunction
+import Mathlib.CategoryTheory.Category.Quiv
+import Mathlib.CategoryTheory.CodiscreteCategory
 import Mathlib.CategoryTheory.Types.Basic
 import Mathlib.Algebra.Order.Floor.Defs
 import Mathlib.Data.Set.Lattice.Image
@@ -23,10 +26,11 @@ set_option linter.unusedTactic false
 -- see `diagram_tools` for the available presenters.
 show_panel_widgets [local ProofWidgets.SelectionPanel]
 
-universe v₁ v₂ u₁ u₂
+universe v₁ v₂ v₃ u₁ u₂ u₃
 
 variable {𝒞 : Type u₁} [Category.{v₁} 𝒞]
 variable {𝒟 : Type u₂} [Category.{v₂} 𝒟]
+variable {ℰ : Type u₃} [Category.{v₃} ℰ]
 
 /-
 Notation for transposes. `f ♭[adj]` is `adj.homEquiv _ _ f` and `g ♯[adj]` is
@@ -727,5 +731,350 @@ theorem gc_const_forall :
 -- you can compose them:
 #check (gc_exists_const X).compose (gc_const_forall X)
 
-
 end Quantifiers
+
+
+-- Sidequest.
+
+-- This isn't an exercise, but I want to prove adjunctions are transitive on
+-- the basis of what we have so far, without resorting to .compose.
+
+theorem adj_trans
+    {F : 𝒞 ⥤ 𝒟}
+    {G : 𝒟 ⥤ 𝒞}
+    {H : 𝒟 ⥤ ℰ}
+    {K : ℰ ⥤ 𝒟}
+    (adjFG : F ⊣ G)
+    (adjHK : H ⊣ K)
+    : F ⋙ H ⊣ K ⋙ G := by
+
+  sorry
+
+-- Exercises.
+
+/-
+## Exercise 4.1.ii
+
+Riehl: define left and right adjoints to
+  (i) `ob : Cat → Set` and
+  (ii) `V : Quiver → Set`.
+Does `V : Graph → Set` have a left or right adjoint?
+
+### Part (i): `ob : Cat → Set`
+
+The left adjoint of `ob` sends a set `X` to the discrete category on `X`, whose
+only morphisms are identities, and the right adjoint sends `X` to the
+codiscrete (or indiscrete) category on `X`, which has exactly one morphism
+from any object to any other. A functor out of a discrete category is
+determined by its action on objects, and so is a functor into a codiscrete
+category. In both adjunctions, therefore, the functors in question correspond
+exactly to functions between sets of objects.
+
+In Mathlib, `ob` is the functor `Cat.objects`. The discrete category functor
+is `typeToCat`, which sends `X` to the category `Discrete X`, and the
+codiscrete category functor is `Codiscrete.functorToCat`, which sends `X` to
+the category `Codiscrete X`. The exercises below take these three functors as
+given. They ask for the bijections (4.1.2) and for proofs that the bijections
+are natural, and these pieces are then assembled into adjunctions with
+`Adjunction.mkOfHomEquiv`, as in Exercise 2c.
+
+The two adjunctions are stated at different universe levels. For
+`X : Type u`, the morphisms of `Discrete X` belong to `Type u`, so `typeToCat`
+lands in `Cat.{u, u}`, while the morphisms of `Codiscrete X` belong to
+`Type 0`, so
+`Codiscrete.functorToCat` lands in `Cat.{0, u}`. Consequently, Riehl's adjoint
+triple `discrete ⊣ ob ⊣ codiscrete` is stated here as two separate adjunctions,
+with `ob` at a different universe level in each.
+
+Two wrapper structures appear in what follows, and the first warm-ups
+practise using them. A morphism `F : C ⟶ D` in `Cat` is not literally a
+functor. It is a structure `Cat.Hom` whose single field is a functor
+`F.toFunctor : C ⥤ D`. In the other direction, a functor `G : C ⥤ D` becomes a
+morphism `G.toCatHom : Cat.of C ⟶ Cat.of D`. Two morphisms in `Cat` are equal
+as soon as their underlying functors are equal, and the tactic `ext1` reduces
+an equation between morphisms in `Cat` to an equation between their
+underlying functors. Similarly, a morphism `X ⟶ Y` in `Type u` wraps a
+function `X → Y`. A function `f : X → Y` becomes the morphism `↾f`, and a
+morphism `X ⟶ Y` can be applied to an element `x : X` as though it were a
+function.
+-/
+section Exercise_4_1_ii
+
+universe u v
+
+-- Warm-ups on morphisms in `Cat` and in `Type`.
+
+example {C D : Cat.{v, u}} (F : C ⟶ D) : C ⥤ D := by
+  sorry
+
+example {C D : Type u} [Category.{v} C] [Category.{v} D] (G : C ⥤ D) :
+    Cat.of C ⟶ Cat.of D := by
+  sorry
+
+example {C D : Cat.{v, u}} (F G : C ⟶ D) (h : F.toFunctor = G.toFunctor) : F = G := by
+  sorry
+
+-- The function `ob F` sends an object `c` to `F c`.
+example {C D : Cat.{v, u}} (F : C ⟶ D) (c : C) :
+    Cat.objects.map F c = F.toFunctor.obj c := by
+  sorry
+
+example {X Y : Type u} (f : X → Y) (x : X) : (↾f) x = f x := by
+  sorry
+
+-- Two morphisms in `Type u` are equal if they agree on every element.
+example {X Y : Type u} (f g : X ⟶ Y) (h : ∀ x, f x = g x) : f = g := by
+  sorry
+
+/-
+Warm-ups on discrete categories. An object of `Discrete X` is a structure
+`⟨x⟩` that wraps an element `x : X`, which the projection `.as` recovers. A
+function `f : X → C` from `X` to the objects of a category `C` extends to a
+functor `Discrete.functor f : Discrete X ⥤ C`, which sends `⟨x⟩` to `f x`. By
+the lemma `Discrete.functor_ext`, two functors out of `Discrete X` are equal if
+they agree on every object. Finally, for a function `f : X ⟶ Y`, the functor
+`typeToCat.map f` sends `⟨x⟩` to `⟨f x⟩`.
+-/
+
+example {X : Type u} {C : Type*} [Category C] (f : X → C) (x : X) :
+    (Discrete.functor f).obj ⟨x⟩ = f x := by
+  sorry
+
+example {X : Type u} {C : Type*} [Category C] (F G : Discrete X ⥤ C)
+    (h : ∀ x, F.obj ⟨x⟩ = G.obj ⟨x⟩) : F = G := by
+  sorry
+
+example {X Y : Type u} (f : X ⟶ Y) (x : X) :
+    (typeToCat.map f).toFunctor.obj ⟨x⟩ = ⟨f x⟩ := by
+  sorry
+
+/-
+Warm-ups on codiscrete categories. As with `Discrete X`, an object of
+`Codiscrete X` is a structure `⟨x⟩` that wraps an element `x : X`, which the
+projection `.as` recovers. A function `f : C → X` from the objects of a
+category `C` to `X` extends to a functor
+`Codiscrete.functor f : C ⥤ Codiscrete X`, which sends `c` to `⟨f c⟩`.
+
+Two functors into `Codiscrete X` that agree on every object are equal. Mathlib
+has no lemma stating this fact, so the second warm-up below,
+`codiscrete_functor_ext`, proves it. Start the proof with
+`fapply CategoryTheory.Functor.ext`. (The bare name `Functor.ext` refers to an
+unrelated lemma about the `Functor` type class.) This tactic leaves two goals.
+The first asks that `F` and `G` agree on objects. The second asks that they
+agree on morphisms, up to the `eqToHom` isomorphisms built from the equations
+of the first goal. The second goal is wrapped in an `autoParam`, which
+`intros` does not see through, so introduce its variables with
+`intro c c' φ`. Then consider how many morphisms there are from one object of
+`Codiscrete X` to another.
+-/
+
+example {C : Type*} [Category C] {X : Type*} (f : C → X) (c : C) :
+    (Codiscrete.functor f).obj c = ⟨f c⟩ := by
+  sorry
+
+theorem codiscrete_functor_ext {C : Type*} [Category C] {X : Type*}
+    (F G : C ⥤ Codiscrete X) (h : ∀ c, F.obj c = G.obj c) : F = G := by
+  sorry
+
+/-
+Exercise 4.1.ii(i), left adjoint. The discrete category functor `typeToCat` is
+left adjoint to `Cat.objects`. In the notation of Definition 4.1.1, the
+bijection (4.1.2) is
+
+  `Cat(Discrete X, C) ≅ Set(X, ob C)`.
+
+Its two directions are named after Riehl's transposes, following the notation
+introduced at the top of this file. The function `discFlat` sends a functor
+`f` to its transpose `f♭`, which is the action of `f` on objects. The function
+`discSharp` sends a function `g` to its transpose `g♯`, which is the functor
+that `g` determines. The four theorems after these two definitions state that
+`discFlat` and `discSharp` are inverse to each other and that they satisfy the
+two naturality equations of `Adjunction.CoreHomEquiv`. The variables in the
+naturality equations are named as in Exercises 2a and 2b.
+-/
+
+section DiscreteObjects
+
+variable (X X' : Type u) (C C' : Cat.{u, u})
+
+def discFlat (f : typeToCat.obj X ⟶ C) : X ⟶ Cat.objects.obj C :=
+  sorry
+
+def discSharp (g : X ⟶ Cat.objects.obj C) : typeToCat.obj X ⟶ C :=
+  sorry
+
+theorem discSharp_discFlat (f : typeToCat.obj X ⟶ C) :
+    discSharp X C (discFlat X C f) = f := by
+  sorry
+
+theorem discFlat_discSharp (g : X ⟶ Cat.objects.obj C) :
+    discFlat X C (discSharp X C g) = g := by
+  sorry
+
+variable {X X' C C'}
+
+-- Naturality in the set `X`, the analogue of Exercise 2b.
+theorem discSharp_comp (h : X ⟶ X') (g' : X' ⟶ Cat.objects.obj C) :
+    discSharp X C (h ≫ g') = typeToCat.map h ≫ discSharp X' C g' := by
+  sorry
+
+-- Naturality in the category `C`, the analogue of Exercise 2a.
+theorem discFlat_comp (f : typeToCat.obj X ⟶ C) (k : C ⟶ C') :
+    discFlat X C' (f ≫ k) = discFlat X C f ≫ Cat.objects.map k := by
+  sorry
+
+def discreteObjectsAdj : typeToCat.{u} ⊣ Cat.objects.{u, u} :=
+  Adjunction.mkOfHomEquiv
+    { homEquiv X C :=
+        { toFun := discFlat X C
+          invFun := discSharp X C
+          left_inv := discSharp_discFlat X C
+          right_inv := discFlat_discSharp X C }
+      homEquiv_naturality_left_symm := discSharp_comp
+      homEquiv_naturality_right := discFlat_comp }
+
+-- Mathlib's version of this adjunction.
+#check Cat.typeToCatObjectsAdj
+
+end DiscreteObjects
+
+/-
+Exercise 4.1.ii(i), right adjoint. The functor `Cat.objects` is left adjoint to
+the codiscrete category functor `Codiscrete.functorToCat`. Here the bijection
+(4.1.2) is
+
+  `Set(ob C, X) ≅ Cat(C, Codiscrete X)`.
+
+The function `codiscFlat` sends a function `f` from the objects of `C` to `X`
+to the functor that `f` determines. The function `codiscSharp` sends a functor
+`g` to the action of `g` on objects. In this adjunction `Cat.objects` is the
+left adjoint, so in the naturality equation `codiscSharp_comp` the functor
+applied to the morphism `h` is `Cat.objects`.
+-/
+
+section ObjectsCodiscrete
+
+variable (C C' : Cat.{0, u}) (X X' : Type u)
+
+def codiscFlat (f : Cat.objects.obj C ⟶ X) : C ⟶ Codiscrete.functorToCat.obj X :=
+  sorry
+
+def codiscSharp (g : C ⟶ Codiscrete.functorToCat.obj X) : Cat.objects.obj C ⟶ X :=
+  sorry
+
+theorem codiscSharp_codiscFlat (f : Cat.objects.obj C ⟶ X) :
+    codiscSharp C X (codiscFlat C X f) = f := by
+  sorry
+
+theorem codiscFlat_codiscSharp (g : C ⟶ Codiscrete.functorToCat.obj X) :
+    codiscFlat C X (codiscSharp C X g) = g := by
+  sorry
+
+variable {C C' X X'}
+
+-- Naturality in the category `C`, the analogue of Exercise 2b.
+theorem codiscSharp_comp (h : C ⟶ C') (g' : C' ⟶ Codiscrete.functorToCat.obj X) :
+    codiscSharp C X (h ≫ g') = Cat.objects.map h ≫ codiscSharp C' X g' := by
+  sorry
+
+-- Naturality in the set `X`, the analogue of Exercise 2a.
+theorem codiscFlat_comp (f : Cat.objects.obj C ⟶ X) (k : X ⟶ X') :
+    codiscFlat C X' (f ≫ k) = codiscFlat C X f ≫ Codiscrete.functorToCat.map k := by
+  sorry
+
+def objectsCodiscreteAdj : Cat.objects.{0, u} ⊣ Codiscrete.functorToCat.{u} :=
+  Adjunction.mkOfHomEquiv
+    { homEquiv C X :=
+        { toFun := codiscFlat C X
+          invFun := codiscSharp C X
+          left_inv := codiscSharp_codiscFlat C X
+          right_inv := codiscFlat_codiscSharp C X }
+      homEquiv_naturality_left_symm := codiscSharp_comp
+      homEquiv_naturality_right := codiscFlat_comp }
+
+-- Mathlib's version of this adjunction.
+#check Codiscrete.adj
+
+end ObjectsCodiscrete
+
+/-
+### Part (ii): `V : Quiver → Set`
+
+Riehl: a quiver consists of a set of vertices and a set of arrows, each arrow
+having a source vertex and a target vertex, and a quiver homomorphism is a
+function on vertices together with a function on arrows that preserves sources
+and targets. The functor `V` sends a quiver to its set of vertices.
+
+In Mathlib, a quiver structure on a type `Q` of vertices is an instance
+`Quiver Q`, which supplies a type `a ⟶ b` of arrows for each pair of vertices
+`a` and `b`. The category of quivers is `Quiv`. Unlike a morphism in `Cat`, a
+morphism `F : Q ⟶ R` in `Quiv` is not wrapped in a structure: it is literally
+a prefunctor `Q ⥤q R`. A prefunctor `F` consists of a function `F.obj` on
+vertices and a function `F.map` on arrows, which sends an arrow `e : a ⟶ b` to
+an arrow `F.map e : F.obj a ⟶ F.obj b`. A prefunctor `P : Q ⥤q R` between
+types with quiver instances becomes a morphism
+`P.toQuivHom : Quiv.of Q ⟶ Quiv.of R`. By the lemma `Prefunctor.ext`, two
+prefunctors are equal if they agree on vertices and on arrows. After
+`apply Prefunctor.ext`, the goal about arrows comes first and the goal about
+vertices second. Mathlib does not define the functor `V`, so this file defines
+it below as `quivVertices`.
+
+The left adjoint of `V` should send a set `X` to the quiver whose vertices are
+the elements of `X` and which has no arrows. Mathlib provides this quiver as
+`Quiver.Empty X`, in which every type of arrows is `PEmpty`. The right adjoint
+of `V` should also send `X` to a quiver whose vertices are the elements of
+`X`. The type synonym `CodiscreteQuiver X` below carries that quiver, and
+choosing its arrows is part of the exercise.
+
+Unlike in part (i), the functors themselves are left to you, including their
+`map_id` and `map_comp` fields. An arrow `e` in `Quiver.Empty X` has type
+`PEmpty`, so the term `PEmpty.elim e` can be given any type, and in particular
+it proves any goal.
+-/
+
+def quivVertices : Quiv.{v, u} ⥤ Type u where
+  obj Q := Q
+  map F := ↾F.obj
+
+-- Warm-ups on quivers.
+
+example {Q R : Quiv.{v, u}} (F : Q ⟶ R) (a : Q) : quivVertices.map F a = F.obj a := by
+  sorry
+
+example {X : Type u} {Q : Quiv.{u, u}} (F G : Quiv.of (Quiver.Empty X) ⟶ Q)
+    (h : ∀ x, F.obj x = G.obj x) : F = G := by
+  sorry
+
+def CodiscreteQuiver (X : Type u) : Type u := X
+
+instance (X : Type u) : Quiver.{v} (CodiscreteQuiver X) where
+  Hom _ _ := sorry
+
+def discreteQuiv : Type u ⥤ Quiv.{u, u} :=
+  sorry
+
+def codiscreteQuiv : Type u ⥤ Quiv.{v, u} :=
+  sorry
+
+def discreteQuivAdj : discreteQuiv.{u} ⊣ quivVertices.{u, u} :=
+  sorry
+
+def quivVerticesCodiscreteAdj : quivVertices.{u, v} ⊣ codiscreteQuiv.{u, v} :=
+  sorry
+
+/-
+### The question about `Graph`
+
+Riehl's `Graph` is the category of simple graphs. Its objects are sets of
+vertices equipped with a symmetric adjacency relation under which no vertex is
+adjacent to itself. Its morphisms are graph homomorphisms, which are functions
+on vertices that carry adjacent vertices to adjacent vertices. Mathlib defines
+the structure `SimpleGraph` but not this category, so answer the question in a
+comment. Does `V : Graph → Set` have a left adjoint? Does it have a right
+adjoint? For the right adjoint, suppose that `R X` is a candidate graph on a
+set `X`. Ask which functions `V G → X` would then have to be graph
+homomorphisms `G ⟶ R X`, and whether any graph `R X` can make all of them
+homomorphisms.
+-/
+
+end Exercise_4_1_ii
