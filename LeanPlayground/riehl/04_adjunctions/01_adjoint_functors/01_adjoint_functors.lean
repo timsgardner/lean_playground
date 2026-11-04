@@ -1250,8 +1250,8 @@ def commaSqHom
     {d d' : 𝒟}
     {f : F.obj c ⟶ G.obj d}
     {g : F.obj c' ⟶ G.obj d'}
-    (h : c ⟶ c')
-    (k : d ⟶ d')
+    {h : c ⟶ c'}
+    {k : d ⟶ d'}
     (sq : CommSq f (F.map h) (G.map k) g)
     : (⟨c, d, f⟩ : Comma F G) ⟶ ⟨c', d', g⟩ := by
   exact ⟨h, k, sq.flip.w⟩
@@ -1339,22 +1339,13 @@ the results of Exercise 4.1.v(a). The fields `map_id` and `map_comp` can be omit
 since their default tactic proves them.
 -/
 
-def commaTranspose (adj : F ⊣ G) : Comma F (𝟭 𝒟) ⥤ Comma (𝟭 𝒞) G := by
-  constructor
-  case obj =>
-    intro cFG
-    exact ⟨cFG.left, cFG.right, cFG.hom♭[adj]⟩
-  case map =>
-    intro X Y m
-    apply commaSqHom
-    · exact (transposed_comma_square adj m)
-  case map_comp =>
-    cat_disch
-  case map_id =>
-    cat_disch
+def commaTranspose (adj : F ⊣ G) : Comma F (𝟭 𝒟) ⥤ Comma (𝟭 𝒞) G  where
+  obj cF1 := ⟨cF1.left, cF1.right, cF1.hom♭[adj]⟩
+  map Φ := commaSqHom (transposed_comma_square adj Φ)
 
-def commaTransposeInv (adj : F ⊣ G) : Comma (𝟭 𝒞) G ⥤ Comma F (𝟭 𝒟) :=
-  sorry
+def commaTransposeInv (adj : F ⊣ G) : Comma (𝟭 𝒞) G ⥤ Comma F (𝟭 𝒟) where
+  obj c1G := ⟨c1G.left, c1G.right, c1G.hom♯[adj]⟩
+  map Φ := commaSqHom (untransposed_comma_square adj Φ)
 
 /-
 Exercise 4.1.v(c). The two functors are inverse to each other. Start each proof
@@ -1366,12 +1357,19 @@ The goal about objects follows from `Equiv.symm_apply_apply` or
 
 The goal about morphisms needs more care, and the order of the steps matters.
 Introduce the variables with `intro X Y φ`, and use `ext` to reduce to one goal for
-each component. Then call `simp` without unfolding anything, so that the lemmas
-`Comma.eqToHom_left` and `Comma.eqToHom_right` can fire. These lemmas match
-syntactically, and they stop matching if `commaTranspose` is unfolded first, since
-the objects in the goal then no longer have the form the lemmas expect. Next, unfold
-the definitions with `simp [commaTranspose, commaTransposeInv, leftCommaHom,
-rightCommaHom]`. The goal that remains has the form `φ.left = eqToHom _ ≫ φ.left`
+each component.
+
+Each of these goals needs two calls to `simp`, and they must come in this order.
+First call plain `simp`, with no arguments and without unfolding anything. You do not
+need to name any lemma here, since `simp` already knows the ones it needs. Among
+them are `Comma.eqToHom_left` and `Comma.eqToHom_right`, which turn each
+`(eqToHom _).left` or `(eqToHom _).right` into an `eqToHom` in `𝒞` or `𝒟`. Then
+unfold the definitions with `simp [commaTranspose, commaTransposeInv, commaSqHom]`,
+adding `leftCommaHom` or `rightCommaHom` if your functors are defined with them. If
+you unfold first, the plain `simp` lemmas above no longer fire, and the goal is stuck
+with terms of the form `(eqToHom _).left`.
+
+The goal that remains has the form `φ.left = eqToHom _ ≫ φ.left`
 or the same with `right`. Here the two sides of the equation inside `eqToHom`
 are definitionally equal but not syntactically so, which is the situation of the
 second `eqToHom` warm-up: `simp` cannot remove it, but
@@ -1380,11 +1378,38 @@ second `eqToHom` warm-up: `simp` cannot remove it, but
 
 theorem commaTranspose_comp_inv (adj : F ⊣ G) :
     commaTranspose adj ⋙ commaTransposeInv adj = 𝟭 _ := by
-  sorry
+  fapply CategoryTheory.Functor.ext
+  case h_obj =>
+    intro X
+    simp [commaTranspose, commaTransposeInv]
+  case h_map =>
+    intro X Y φ
+    ext
+    · simp [commaTranspose, commaTransposeInv]
+      unfold eqToHom
+      simp
+      rfl
+    · simp [commaTranspose, commaTransposeInv]
+      unfold eqToHom
+      simp
+      rfl
 
 theorem commaTransposeInv_comp (adj : F ⊣ G) :
     commaTransposeInv adj ⋙ commaTranspose adj = 𝟭 _ := by
-  sorry
+  fapply CategoryTheory.Functor.ext
+  case h_obj =>
+    simp [commaTranspose, commaTransposeInv]
+  case h_map =>
+    intro X Y φ
+    ext
+    · simp [commaTranspose, commaTransposeInv]
+      unfold eqToHom
+      simp
+      rfl
+    · simp [commaTranspose, commaTransposeInv]
+      unfold eqToHom
+      simp
+      rfl
 
 /-
 Exercise 4.1.v(d). The isomorphism commutes with the forgetful functors to
