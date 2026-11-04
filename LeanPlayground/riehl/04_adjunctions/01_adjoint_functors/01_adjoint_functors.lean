@@ -7,9 +7,13 @@ import Mathlib.CategoryTheory.Category.GaloisConnection
 import Mathlib.CategoryTheory.Category.Cat.Adjunction
 import Mathlib.CategoryTheory.Category.Quiv
 import Mathlib.CategoryTheory.CodiscreteCategory
+import Mathlib.CategoryTheory.Comma.Basic
+import Mathlib.CategoryTheory.LiftingProperties.Adjunction
+import Mathlib.CategoryTheory.Products.Basic
 import Mathlib.CategoryTheory.Types.Basic
 import Mathlib.Algebra.Order.Floor.Defs
 import Mathlib.Data.Set.Lattice.Image
+import LeanPlayground.Scratch.category_kindergarten.check_diagrams
 import LeanPlayground.Scratch.category_kindergarten.common_tools
 import LeanPlayground.Scratch.category_kindergarten.diagram_tools
 import LeanPlayground.diagrams.widget
@@ -23,7 +27,8 @@ set_option pp.deepTerms true       -- don't elide deeply nested subterms
 set_option linter.unusedTactic false
 
 -- Shift-click a hypothesis or goal in the infoview to draw it as a diagram;
--- see `diagram_tools` for the available presenters.
+-- see `diagram_tools` for the available presenters. The output of `#check` cannot be
+-- selected, so `check_diagrams` draws it instead: put the cursor on the `#check`.
 show_panel_widgets [local ProofWidgets.SelectionPanel]
 
 universe v₁ v₂ v₃ u₁ u₂ u₃
@@ -300,10 +305,11 @@ in `𝒞`. After `refine ⟨?_⟩`, rewrite the composites `f♭ ≫ G.map k` an
 `h ≫ g♭` as transposes of composites in `𝒟`, using the two naturality lemmas
 from right to left.
 
-Mathlib's version is `CommSq.right_adjoint`, stated for an adjunction `G ⊣ F`
-with the letters exchanged.
+Mathlib's version is `CommSq.right_adjoint`, in the module
+`Mathlib.CategoryTheory.LiftingProperties.Adjunction`, stated for an adjunction
+`G ⊣ F` with the letters exchanged.
 -/
-example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d d' : 𝒟}
+theorem transposed_square_of_square {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d d' : 𝒟}
     (h : c ⟶ c') (k : d ⟶ d') (f : F.obj c ⟶ d) (g : F.obj c' ⟶ d')
     (sq : CommSq f (F.map h) k g) :
     CommSq (f ♭[adj]) h (G.map k) (g ♭[adj]) := by
@@ -318,7 +324,7 @@ the square in `𝒟`. After `refine ⟨?_⟩`, both sides of the goal are morphi
 `F.obj c ⟶ d'`, so it suffices to show that their transposes agree. Continue
 with `apply (adj.homEquiv c d').injective`.
 -/
-example {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d d' : 𝒟}
+theorem square_of_transposed_square {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c c' : 𝒞} {d d' : 𝒟}
     (h : c ⟶ c') (k : d ⟶ d') (f : F.obj c ⟶ d) (g : F.obj c' ⟶ d')
     (sq : CommSq (f ♭[adj]) h (G.map k) (g ♭[adj])) :
     CommSq f (F.map h) k g := by
@@ -1113,3 +1119,297 @@ homomorphisms.
 -/
 
 end Exercise_4_1_ii
+
+/-
+## Exercise 4.1.v
+
+Riehl: use Lemma 4.1.3 to show that if `F : 𝒞 ⇄ 𝒟 : G` are adjoint functors,
+with `F ⊣ G`, then the comma categories `F ↓ 𝒟` and `𝒞 ↓ G`, formed using `F`
+and `G` and the identity functors on `𝒞` and `𝒟`, are isomorphic, via an
+isomorphism that commutes with the forgetful functors to `𝒞 × 𝒟` defined in
+Exercise 1.3.vi.
+
+Riehl's Exercise 1.3.vi defines the comma category of a pair of functors with a
+common codomain. Its objects are triples consisting of an object of each domain
+and a morphism between their images, and a morphism from one triple to another
+is a pair of morphisms making a square commute. Specialised to the two comma
+categories of this exercise, the definition reads as follows.
+
+- An object of `F ↓ 𝒟` is a triple `(c, d, f)` with `c : 𝒞`, `d : 𝒟` and
+  `f : F.obj c ⟶ d`. A morphism from `(c, d, f)` to `(c', d', g)` is a pair
+  `h : c ⟶ c'` and `k : d ⟶ d'` such that the square
+  `CommSq f (F.map h) k g` commutes in `𝒟`.
+- An object of `𝒞 ↓ G` is a triple `(c, d, f')` with `c : 𝒞`, `d : 𝒟` and
+  `f' : c ⟶ G.obj d`. A morphism from `(c, d, f')` to `(c', d', g')` is a pair
+  `h : c ⟶ c'` and `k : d ⟶ d'` such that the square
+  `CommSq f' h (G.map k) g'` commutes in `𝒞`.
+
+These are the two squares of the diagram (4.1.4), so the mathematical content of
+the exercise is already in hand. The bijections (4.1.2) match the objects of the
+two categories, and Lemma 4.1.3 says that a pair `(h, k)` is a morphism in one
+category exactly when it is a morphism between the transposed objects in the
+other.
+
+[Diagram](assets/transposed_squares.svg)
+
+Exercises 1a and 1b proved the two directions of Lemma 4.1.3 for an adjunction,
+under the names `transposed_square_of_square` and
+`square_of_transposed_square`.
+
+In Mathlib, the comma category of `L : A ⥤ T` and `R : B ⥤ T` is `Comma L R`, so
+`F ↓ 𝒟` is `Comma F (𝟭 𝒟)` and `𝒞 ↓ G` is `Comma (𝟭 𝒞) G`. An object `X` of
+`Comma L R` is a structure with fields `X.left : A`, `X.right : B` and
+`X.hom : L.obj X.left ⟶ R.obj X.right`, and it can be written `⟨c, d, f⟩`. A
+morphism `φ : X ⟶ Y` is a structure with fields `φ.left`, `φ.right` and `φ.w`,
+where `φ.w` is the equation `L.map φ.left ≫ Y.hom = X.hom ≫ R.map φ.right`.
+
+Two small mismatches with the squares above need attention. First, the equation
+`φ.w` runs in the opposite direction to the field `w` of a `CommSq`, which is
+`top ≫ right = left ≫ bottom`. Passing between them therefore takes a `.symm`.
+Second, the identity functors do not disappear by themselves: the type of `X.hom`
+in `Comma F (𝟭 𝒟)` is literally `F.obj X.left ⟶ (𝟭 𝒟).obj X.right`, and `φ.w`
+mentions `(𝟭 𝒟).map φ.right`. These terms are definitionally equal to
+`X.right` and `φ.right`, so `exact` and `refine` accept them, but `rw` and `simp`
+match syntactically and may not. For the same reason, the statements below write
+`adj.homEquiv X.left X.right X.hom` in full. The notation `X.hom ♭[adj]` would
+infer its objects from the type of `X.hom` and pick up a `(𝟭 𝒟).obj`, and `rw`
+would then fail to match that term against a clean one. The infoview still prints
+the full form as `X.hom ♭[adj]`.
+
+Riehl's statement that the categories are isomorphic is stated here as a pair of
+functors whose two composites are equal to identity functors. It cannot be stated
+as an isomorphism in `Cat`, because `Comma F (𝟭 𝒟)` lies in
+`Type (max u₁ u₂ v₂)` and `Comma (𝟭 𝒞) G` lies in `Type (max u₁ u₂ v₁)`, so that
+the two categories are not objects of a single `Cat` unless `v₁` and `v₂` agree.
+-/
+section Exercise_4_1_v
+
+variable {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞}
+
+-- Warm-ups on objects of comma categories.
+
+example (c : 𝒞) (d : 𝒟) (f : F.obj c ⟶ d) : (⟨c, d, f⟩ : Comma F (𝟭 𝒟)).left = c := by
+  rfl
+
+example (c : 𝒞) (d : 𝒟) (f : F.obj c ⟶ d) : (⟨c, d, f⟩ : Comma F (𝟭 𝒟)).hom = f := by
+  rfl
+
+example (c : 𝒞) (d : 𝒟) (f' : c ⟶ G.obj d) : (⟨c, d, f'⟩ : Comma (𝟭 𝒞) G).hom = f' := by
+  rfl
+
+example (X : Comma F (𝟭 𝒟)) : (⟨X.left, X.right, X.hom⟩ : Comma F (𝟭 𝒟)) = X := by
+  rfl
+
+-- Two objects with the same `left` and `right` are equal if their morphisms are.
+example (c : 𝒞) (d : 𝒟) (f f₂ : F.obj c ⟶ d) (w : f = f₂) :
+    (⟨c, d, f⟩ : Comma F (𝟭 𝒟)) = ⟨c, d, f₂⟩ := by
+  simp
+  exact w
+
+/-
+Warm-ups on morphisms of comma categories. The first two say that a morphism of
+each comma category is a commutative square, and they are the place to practise
+the `.symm` described above. In the infoview, shift-click the goal and choose
+"CommSq diagram" to compare the square with the one in (4.1.4).
+-/
+
+example {X Y : Comma F (𝟭 𝒟)} (φ : X ⟶ Y) : CommSq X.hom (F.map φ.left) φ.right Y.hom := by
+  let cs : CommSq _ _ _ _ := ⟨φ.w.symm⟩
+  exact cs
+
+example {X Y : Comma (𝟭 𝒞) G} (φ : X ⟶ Y) : CommSq X.hom φ.left (G.map φ.right) Y.hom := by
+  let cs : CommSq _ _ _ _ := ⟨φ.w.symm⟩
+  exact cs
+
+/-
+Conversely, a commutative square is a morphism of each comma category. The names
+follow Exercises 1a and 1b, and `f'` and `g'` play the roles of the transposes of
+`f` and `g`. Each definition can be given with the `where` syntax, by supplying
+the fields `left`, `right` and `w`.
+-/
+
+def leftCommaHom {c c' : 𝒞} {d d' : 𝒟} {f : F.obj c ⟶ d} {g : F.obj c' ⟶ d'}
+    (h : c ⟶ c') (k : d ⟶ d') (sq : CommSq f (F.map h) k g) :
+    (⟨c, d, f⟩ : Comma F (𝟭 𝒟)) ⟶ ⟨c', d', g⟩ := by
+  refine ⟨h, k, ?_⟩
+  simp
+  exact sq.flip.w
+
+def rightCommaHom {c c' : 𝒞} {d d' : 𝒟} {f' : c ⟶ G.obj d} {g' : c' ⟶ G.obj d'}
+    (h : c ⟶ c') (k : d ⟶ d') (sq : CommSq f' h (G.map k) g') :
+    (⟨c, d, f'⟩ : Comma (𝟭 𝒞) G) ⟶ ⟨c', d', g'⟩ := by
+  refine ⟨h, k, ?_⟩
+  simp
+  exact sq.flip.w
+
+/-- Generalization -/
+def commaSqHom
+    {F: 𝒞 ⥤ ℰ}
+    {G: 𝒟 ⥤ ℰ}
+    {c c' : 𝒞}
+    {d d' : 𝒟}
+    {f : F.obj c ⟶ G.obj d}
+    {g : F.obj c' ⟶ G.obj d'}
+    (h : c ⟶ c')
+    (k : d ⟶ d')
+    (sq : CommSq f (F.map h) (G.map k) g)
+    : (⟨c, d, f⟩ : Comma F G) ⟶ ⟨c', d', g⟩ := by
+  exact ⟨h, k, sq.flip.w⟩
+
+
+
+/-
+Two morphisms of a comma category are equal if their `left` and `right` components
+are equal, which is the lemma `Comma.hom_ext`. The tactic `ext` applies it and
+leaves one goal for each component. Identities and composites are computed
+componentwise.
+-/
+
+example {X Y : Comma F (𝟭 𝒟)} (φ ψ : X ⟶ Y) (hl : φ.left = ψ.left) (hr : φ.right = ψ.right) :
+    φ = ψ := by
+  ext
+  · exact hl
+  · exact hr
+
+example {X Y Z : Comma F (𝟭 𝒟)} (φ : X ⟶ Y) (ψ : Y ⟶ Z) :
+    (φ ≫ ψ).left = φ.left ≫ ψ.left := by
+  simp
+
+example (X : Comma F (𝟭 𝒟)) : (𝟙 X : X ⟶ X).right = 𝟙 X.right := by
+  simp
+
+/-
+Warm-ups on `eqToHom`, which appears in the second goal of
+`CategoryTheory.Functor.ext`, as in the warm-up `codiscrete_functor_ext` of
+Exercise 4.1.ii. Given an equation `w : X = Y` between objects, `eqToHom w` is the
+corresponding morphism `X ⟶ Y`. The components of an `eqToHom` in a comma
+category are again `eqToHom`s, by the simp lemmas `Comma.eqToHom_left` and
+`Comma.eqToHom_right`.
+
+If the two sides of `w` are definitionally equal, then `eqToHom w` is
+definitionally equal to an identity morphism. In the second example below, `simp`
+can see this because the two sides of `w` are syntactically the same, but the
+point of the example is that `exact Category.id_comp p` also works. It is the
+`exact` that continues to work when the two sides of `w` are equal only by
+unfolding definitions.
+-/
+
+example {X Y : Comma F (𝟭 𝒟)} (w : X = Y) :
+    (eqToHom w).left = eqToHom (congrArg Comma.left w) := by
+  simp
+
+example {a b : 𝒞} (w : a = a) (p : a ⟶ b) : eqToHom w ≫ p = p := by
+  exact Category.id_comp p
+
+/-
+Exercise 4.1.v(a). Lemma 4.1.3 applied to the morphisms of the comma categories.
+Here `transposed_comma_square` is `transposed_square_of_square` with `c := X.left`,
+`c' := Y.left`, `d := X.right`, `d' := Y.right`, `h := φ.left`, `k := φ.right`,
+`f := X.hom` and `g := Y.hom`.
+
+In `untransposed_comma_square` the objects `X` and `Y` lie in `𝒞 ↓ G`, so `X.hom`
+and `Y.hom` play the roles of the transposes `f♭` and `g♭`, and the `f` and `g` of
+`square_of_transposed_square` are their inverse transposes. After applying that
+lemma, the hypothesis it asks for contains a transpose of an inverse transpose,
+which `Equiv.apply_symm_apply` removes.
+-/
+
+theorem transposed_comma_square (adj : F ⊣ G) {X Y : Comma F (𝟭 𝒟)} (φ : X ⟶ Y) :
+    CommSq (adj.homEquiv X.left X.right X.hom) φ.left (G.map φ.right)
+      (adj.homEquiv Y.left Y.right Y.hom) := by
+  -- I don't want to waste time mucking with our dumb version, here's
+  -- mathlib's
+  exact (CommSq.mk φ.w.symm).right_adjoint adj
+
+theorem untransposed_comma_square (adj : F ⊣ G) {X Y : Comma (𝟭 𝒞) G} (φ : X ⟶ Y) :
+    CommSq ((adj.homEquiv X.left X.right).symm X.hom) (F.map φ.left) φ.right
+      ((adj.homEquiv Y.left Y.right).symm Y.hom) := by
+  exact (CommSq.mk φ.w.symm).left_adjoint adj
+
+/-
+Exercise 4.1.v(b). The two functors. The functor `commaTranspose adj` sends
+`(c, d, f)` to `(c, d, f♭)`, and it sends a morphism `(h, k)` to the same pair
+`(h, k)`, now regarded as a morphism between the transposed objects. The functor
+`commaTransposeInv adj` does the same with the inverse transposes.
+
+Use the `where` syntax with the fields `obj` and `map`. For `obj`, write the
+transpose as `adj.homEquiv X.left X.right X.hom`, as explained above, and similarly
+for the inverse transpose. For `map`, use `rightCommaHom` and `leftCommaHom` with
+the results of Exercise 4.1.v(a). The fields `map_id` and `map_comp` can be omitted,
+since their default tactic proves them.
+-/
+
+def commaTranspose (adj : F ⊣ G) : Comma F (𝟭 𝒟) ⥤ Comma (𝟭 𝒞) G := by
+  constructor
+  case obj =>
+    intro cFG
+    exact ⟨cFG.left, cFG.right, cFG.hom♭[adj]⟩
+  case map =>
+    intro X Y m
+    apply commaSqHom
+    · exact (transposed_comma_square adj m)
+  case map_comp =>
+    cat_disch
+  case map_id =>
+    cat_disch
+
+def commaTransposeInv (adj : F ⊣ G) : Comma (𝟭 𝒞) G ⥤ Comma F (𝟭 𝒟) :=
+  sorry
+
+/-
+Exercise 4.1.v(c). The two functors are inverse to each other. Start each proof
+with `fapply CategoryTheory.Functor.ext`, which leaves a goal about objects and
+then a goal about morphisms.
+
+The goal about objects follows from `Equiv.symm_apply_apply` or
+`Equiv.apply_symm_apply`, and `simp [commaTranspose, commaTransposeInv]` closes it.
+
+The goal about morphisms needs more care, and the order of the steps matters.
+Introduce the variables with `intro X Y φ`, and use `ext` to reduce to one goal for
+each component. Then call `simp` without unfolding anything, so that the lemmas
+`Comma.eqToHom_left` and `Comma.eqToHom_right` can fire. These lemmas match
+syntactically, and they stop matching if `commaTranspose` is unfolded first, since
+the objects in the goal then no longer have the form the lemmas expect. Next, unfold
+the definitions with `simp [commaTranspose, commaTransposeInv, leftCommaHom,
+rightCommaHom]`. The goal that remains has the form `φ.left = eqToHom _ ≫ φ.left`
+or the same with `right`. Here the two sides of the equation inside `eqToHom`
+are definitionally equal but not syntactically so, which is the situation of the
+second `eqToHom` warm-up: `simp` cannot remove it, but
+`exact (Category.id_comp _).symm` closes the goal.
+-/
+
+theorem commaTranspose_comp_inv (adj : F ⊣ G) :
+    commaTranspose adj ⋙ commaTransposeInv adj = 𝟭 _ := by
+  sorry
+
+theorem commaTransposeInv_comp (adj : F ⊣ G) :
+    commaTransposeInv adj ⋙ commaTranspose adj = 𝟭 _ := by
+  sorry
+
+/-
+Exercise 4.1.v(d). The isomorphism commutes with the forgetful functors to
+`𝒞 × 𝒟`. The projection functors `dom` and `cod` of Exercise 1.3.vi are
+`Comma.fst` and `Comma.snd` in Mathlib, and the forgetful functor to the product
+is their pairing, formed with `Functor.prod'`. It sends `(c, d, f)` to the pair
+`(c, d)` and a morphism to the pair `(h, k)`.
+
+Neither `commaTranspose` nor `commaTransposeInv` changes `c`, `d`, `h` or `k`, so
+both sides of each equation below are built from the same data, and the proof
+should need very little.
+-/
+
+abbrev leftForget (F : 𝒞 ⥤ 𝒟) : Comma F (𝟭 𝒟) ⥤ 𝒞 × 𝒟 :=
+  (Comma.fst F (𝟭 𝒟)).prod' (Comma.snd F (𝟭 𝒟))
+
+abbrev rightForget (G : 𝒟 ⥤ 𝒞) : Comma (𝟭 𝒞) G ⥤ 𝒞 × 𝒟 :=
+  (Comma.fst (𝟭 𝒞) G).prod' (Comma.snd (𝟭 𝒞) G)
+
+theorem commaTranspose_forget (adj : F ⊣ G) :
+    commaTranspose adj ⋙ rightForget G = leftForget F := by
+  sorry
+
+theorem commaTransposeInv_forget (adj : F ⊣ G) :
+    commaTransposeInv adj ⋙ leftForget F = rightForget G := by
+  sorry
+
+end Exercise_4_1_v
