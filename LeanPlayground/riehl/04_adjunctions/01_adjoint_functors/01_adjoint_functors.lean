@@ -8,6 +8,7 @@ import Mathlib.CategoryTheory.Category.Cat.Adjunction
 import Mathlib.CategoryTheory.Category.Quiv
 import Mathlib.CategoryTheory.CodiscreteCategory
 import Mathlib.CategoryTheory.Comma.Basic
+import Mathlib.CategoryTheory.IsoCat
 import Mathlib.CategoryTheory.LiftingProperties.Adjunction
 import Mathlib.CategoryTheory.Products.Basic
 import Mathlib.CategoryTheory.Types.Basic
@@ -1176,11 +1177,14 @@ infer its objects from the type of `X.hom` and pick up a `(𝟭 𝒟).obj`, and 
 would then fail to match that term against a clean one. The infoview still prints
 the full form as `X.hom ♭[adj]`.
 
-Riehl's statement that the categories are isomorphic is stated here as a pair of
-functors whose two composites are equal to identity functors. It cannot be stated
-as an isomorphism in `Cat`, because `Comma F (𝟭 𝒟)` lies in
-`Type (max u₁ u₂ v₂)` and `Comma (𝟭 𝒞) G` lies in `Type (max u₁ u₂ v₁)`, so that
-the two categories are not objects of a single `Cat` unless `v₁` and `v₂` agree.
+Riehl's statement that the categories are isomorphic is stated in Exercise 4.1.v(e)
+with Mathlib's structure `IsoCat`, which packages a pair of functors whose two
+composites are equal to identity functors. It cannot be stated as an isomorphism in
+`Cat`, because `Comma F (𝟭 𝒟)` lies in `Type (max u₁ u₂ v₂)` and `Comma (𝟭 𝒞) G`
+lies in `Type (max u₁ u₂ v₁)`, so that the two categories are not objects of a
+single `Cat` unless `v₁` and `v₂` agree. The structure `IsoCat` avoids this problem,
+because `IsoCat C D` is defined for any two categories `C` and `D`, whatever their
+universes.
 -/
 section Exercise_4_1_v
 
@@ -1451,5 +1455,158 @@ theorem commaTransposeInv_forget (adj : F ⊣ G) :
     intro X Y φ
     simp [commaTransposeInv]
     exact ⟨rfl, rfl⟩
+
+/-
+Exercise 4.1.v(e). Riehl asks for an isomorphism of categories, which is a functor
+with a strict two-sided inverse. The two composites must be equal to identity
+functors, and it is not enough for them to be naturally isomorphic to identity
+functors. Exercise 4.1.v(c) proved these two equations for `commaTranspose adj` and
+`commaTransposeInv adj`, but as two separate theorems. This exercise assembles the
+functors and the theorems into a single term that expresses Riehl's claim directly.
+
+Mathlib's name for an isomorphism of categories is `IsoCat`. For categories `C` and
+`D`, a term `e : IsoCat C D` is a structure with four fields:
+
+- `e.functor : C ⥤ D` is the forward functor.
+- `e.inverse : D ⥤ C` is the inverse functor.
+- `e.unit_eq : 𝟭 C = e.functor ⋙ e.inverse` says that the composite on `C` is the
+  identity functor.
+- `e.counit_eq : e.inverse ⋙ e.functor = 𝟭 D` says that the composite on `D` is the
+  identity functor.
+
+The two equations are not oriented alike. The identity functor stands on the left of
+`unit_eq` and on the right of `counit_eq`.
+
+The structure `IsoCat C D` should be distinguished from an equivalence of categories
+`C ≌ D`. The composites of an equivalence are only naturally isomorphic to identity
+functors, whereas the composites of an `IsoCat` are equal to identity functors.
+Isomorphism is therefore the stricter notion.
+
+The three warm-ups below use `IsoCat` by itself, before any comma category appears.
+
+The first warm-up constructs the identity isomorphism on `𝒞`. The composite
+`𝟭 𝒞 ⋙ 𝟭 𝒞` is definitionally equal to `𝟭 𝒞`, so prove each of the two equations
+with `rfl`.
+-/
+
+example : IsoCat 𝒞 𝒞 where
+  functor := 𝟭 𝒞
+  inverse := 𝟭 𝒞
+  unit_eq := sorry
+  counit_eq := sorry
+
+/-
+The second warm-up extracts an equation between objects from `unit_eq`. This requires
+a Mathlib lemma that has not appeared in this file. If `h : H = K` is an equation
+between functors and `x` is an object, then `Functor.congr_obj h x` is the equation
+`H.obj x = K.obj x`. Apply `Functor.congr_obj` to `e.unit_eq` and `c`. The result is
+the equation `(𝟭 𝒞).obj c = e.inverse.obj (e.functor.obj c)`, which is the goal with
+its two sides exchanged, so finish with `.symm`.
+-/
+
+example (e : IsoCat 𝒞 𝒟) (c : 𝒞) : e.inverse.obj (e.functor.obj c) = c := by
+  sorry
+
+/-
+The third warm-up introduces `IsoCat.objEquiv`. Every isomorphism of categories
+restricts to a bijection between the objects of the two categories, and for
+`e : IsoCat C D` this bijection is the term `e.objEquiv : C ≃ D`. Its forward function
+is `e.functor.obj` and its inverse function is `e.inverse.obj`. The statement below
+records the first of these facts, which holds by definition, so prove it with `rfl`.
+-/
+
+example (e : IsoCat 𝒞 𝒟) (c : 𝒞) : e.objEquiv c = e.functor.obj c := by
+  sorry
+
+/-
+The next definition is the isomorphism that Riehl asks for. Replace `:= sorry` with
+the `where` syntax and supply the four fields of `IsoCat` as follows:
+
+- For `functor`, use `commaTranspose adj`.
+- For `inverse`, use `commaTransposeInv adj`.
+- For `unit_eq`, use `(commaTranspose_comp_inv adj).symm`. The `.symm` is needed
+  because `commaTranspose_comp_inv` has the identity functor on the right, whereas
+  `unit_eq` has the identity functor on the left.
+- For `counit_eq`, use `commaTransposeInv_comp adj`, which already has the required
+  orientation.
+-/
+
+def commaIsoCat (adj : F ⊣ G) : IsoCat (Comma F (𝟭 𝒟)) (Comma (𝟭 𝒞) G) :=
+  sorry
+
+/-
+Riehl also requires the isomorphism to commute with the forgetful functors to
+`𝒞 × 𝒟`, and the three theorems below address this requirement.
+
+The theorem `commaIsoCat_forget` states the requirement for the forward functor of
+`commaIsoCat adj`. Prove `commaIsoCat_forget` with `exact commaTranspose_forget adj`.
+Lean accepts this term because `(commaIsoCat adj).functor` unfolds to
+`commaTranspose adj`.
+
+Exercise 4.1.v(d) proved a corresponding equation for the inverse functor, namely
+`commaTransposeInv_forget`, by a separate argument. That separate argument was not
+necessary, because an isomorphism of categories that commutes with two functors in
+the forward direction also commutes with them in the inverse direction. The theorem
+`inverse_forget_of_functor_forget` states this fact for an arbitrary `IsoCat`, with no
+mention of comma categories. Prove `inverse_forget_of_functor_forget` by rewriting
+the goal in four steps, in this order:
+
+1. Use `rw [← h]` to replace `P` by `e.functor ⋙ Q`.
+2. Use `rw [← Functor.assoc]` to regroup the goal, so that the composite
+   `e.inverse ⋙ e.functor` appears.
+3. Use `rw [e.counit_eq]` to replace that composite by the identity functor.
+4. Use `rw [Functor.id_comp]` to remove the identity functor. The lemma
+   `Functor.id_comp` states that composing a functor with an identity functor on the
+   left leaves that functor unchanged. After this step, `rw` closes the goal.
+
+The theorem `commaIsoCat_inverse_forget` is the special case for comma categories.
+Prove `commaIsoCat_inverse_forget` by applying `inverse_forget_of_functor_forget` to
+`commaIsoCat adj` and `commaIsoCat_forget adj`. This proof does not use
+`commaTransposeInv_forget`.
+-/
+
+theorem commaIsoCat_forget (adj : F ⊣ G) :
+    (commaIsoCat adj).functor ⋙ commaForget (𝟭 𝒞) G = commaForget F (𝟭 𝒟) := by
+  sorry
+
+theorem inverse_forget_of_functor_forget (e : IsoCat 𝒞 𝒟) {P : 𝒞 ⥤ ℰ} {Q : 𝒟 ⥤ ℰ}
+    (h : e.functor ⋙ Q = P) : e.inverse ⋙ P = Q := by
+  sorry
+
+theorem commaIsoCat_inverse_forget (adj : F ⊣ G) :
+    (commaIsoCat adj).inverse ⋙ commaForget F (𝟭 𝒟) = commaForget (𝟭 𝒞) G := by
+  sorry
+
+/-
+The last three statements collect consequences of having a single term
+`commaIsoCat adj`, and each statement has a one-line proof.
+
+The theorem `commaIsoCat_objEquiv` says that the bijection on objects induced by
+`commaIsoCat adj` sends a triple `(c, d, f)` to the triple whose third component is
+the transpose of `f`. The isomorphism of categories therefore recovers the bijection
+(4.1.2). Prove `commaIsoCat_objEquiv` with `rfl`.
+
+The first example uses `Functor.IsIso`, a Mathlib class that has not appeared in this
+file. For a functor `H : C ⥤ D`, the proposition `H.IsIso` says that `H` is full,
+faithful and bijective on objects, which is the characterization of the functors that
+underlie an isomorphism of categories. Mathlib registers the instance
+`IsoCat.isIso_functor`, which provides `e.functor.IsIso` for every `e : IsoCat C D`.
+Prove the first example with `infer_instance`.
+
+The second example uses `IsoCat.toEquivalence`, which is also new to this file. For
+`e : IsoCat C D`, the term `e.toEquivalence : C ≌ D` is the equivalence underlying
+the isomorphism. Prove the second example by applying `IsoCat.toEquivalence` to
+`commaIsoCat adj`.
+-/
+
+theorem commaIsoCat_objEquiv (adj : F ⊣ G) (X : Comma F (𝟭 𝒟)) :
+    (commaIsoCat adj).objEquiv X = ⟨X.left, X.right, adj.homEquiv X.left X.right X.hom⟩ := by
+  sorry
+
+example (adj : F ⊣ G) : (commaIsoCat adj).functor.IsIso := by
+  sorry
+
+example (adj : F ⊣ G) : Comma F (𝟭 𝒟) ≌ Comma (𝟭 𝒞) G :=
+  sorry
 
 end Exercise_4_1_v
