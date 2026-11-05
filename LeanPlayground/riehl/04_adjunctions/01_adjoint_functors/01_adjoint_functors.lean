@@ -1423,18 +1423,33 @@ both sides of each equation below are built from the same data, and the proof
 should need very little.
 -/
 
-abbrev leftForget (F : 𝒞 ⥤ 𝒟) : Comma F (𝟭 𝒟) ⥤ 𝒞 × 𝒟 :=
-  (Comma.fst F (𝟭 𝒟)).prod' (Comma.snd F (𝟭 𝒟))
+abbrev commaForget (F: 𝒞 ⥤ ℰ) (G: 𝒟 ⥤ ℰ) : Comma F G ⥤ 𝒞 × 𝒟 :=
+  (Comma.fst F G).prod' (Comma.snd F G)
 
-abbrev rightForget (G : 𝒟 ⥤ 𝒞) : Comma (𝟭 𝒞) G ⥤ 𝒞 × 𝒟 :=
-  (Comma.fst (𝟭 𝒞) G).prod' (Comma.snd (𝟭 𝒞) G)
+  -- abbrev leftForget (F : 𝒞 ⥤ 𝒟) : Comma F (𝟭 𝒟) ⥤ 𝒞 × 𝒟 :=
+  --   (Comma.fst F (𝟭 𝒟)).prod' (Comma.snd F (𝟭 𝒟))
+
+  -- abbrev rightForget (G : 𝒟 ⥤ 𝒞) : Comma (𝟭 𝒞) G ⥤ 𝒞 × 𝒟 :=
+  --   (Comma.fst (𝟭 𝒞) G).prod' (Comma.snd (𝟭 𝒞) G)
 
 theorem commaTranspose_forget (adj : F ⊣ G) :
-    commaTranspose adj ⋙ rightForget G = leftForget F := by
-  sorry
+    commaTranspose adj ⋙ commaForget (𝟭 𝒞) G = commaForget F (𝟭 𝒟) := by
+  fapply CategoryTheory.Functor.ext
+  case h_obj =>
+    simp [commaTranspose]
+  case h_map =>
+    intro X Y φ
+    simp [commaTranspose]
+    exact ⟨rfl, rfl⟩
 
 theorem commaTransposeInv_forget (adj : F ⊣ G) :
-    commaTransposeInv adj ⋙ leftForget F = rightForget G := by
-  sorry
+    commaTransposeInv adj ⋙ commaForget F (𝟭 𝒟) = commaForget (𝟭 𝒞) G := by
+  fapply CategoryTheory.Functor.ext
+  case h_obj =>
+    simp [commaTransposeInv]
+  case h_map =>
+    intro X Y φ
+    simp [commaTransposeInv]
+    exact ⟨rfl, rfl⟩
 
 end Exercise_4_1_v
