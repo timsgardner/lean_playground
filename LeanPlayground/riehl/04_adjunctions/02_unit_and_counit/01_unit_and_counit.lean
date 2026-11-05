@@ -9,7 +9,7 @@ of an adjunction, and most of this file is devoted to proving the equivalences a
 
 The file follows the section in order.
 
-* Part 0 introduces notation for the components of the unit and counit.
+* Part 0 recalls the notation for the components of the unit and counit.
 * Part 1 constructs the unit and counit from a hom-set bijection (Lemmas 4.2.2 and 4.2.3).
 * Part 2 computes them for free groups (Example 4.2.4).
 * Part 3 states the triangle identities (Definition 4.2.5 and Remark 4.2.6).
@@ -66,56 +66,13 @@ variable {ℰ : Type u₃} [Category.{v₃} ℰ]
 /-
 ## Part 0: Components of the unit and counit
 
-The §4.1 file treated the fields `unit` and `counit` of `Adjunction` as a black box. This
-file opens the box, so it is worth recording what the fields are. For `adj : F ⊣ G`, the
-field `adj.unit` is a natural transformation `𝟭 𝒞 ⟶ F ⋙ G`, and the field `adj.counit` is a
-natural transformation `G ⋙ F ⟶ 𝟭 𝒟`. Riehl writes `η` and `ε` for these transformations.
-
-The component `adj.unit.app c` has the type `(𝟭 𝒞).obj c ⟶ (F ⋙ G).obj c`. That type is
-definitionally equal to `c ⟶ G.obj (F.obj c)`, but it is a different expression, and the
-difference has a practical consequence. The composition `≫` and the functor application
-`F.map` carry the domain and codomain of their arguments as hidden implicit arguments.
-When a statement mentions `F.map (adj.unit.app c)`, the hidden domain is the expression
-`(𝟭 𝒞).obj c`. Mathlib's lemmas about adjunctions are stated with the hidden domain `c`.
-The two terms are printed identically in the infoview, and `exact` accepts one for the
-other, but `rw` compares them syntactically and reports that it cannot find the pattern.
-
-The two definitions below remove the problem at its source. The term `adj.η c` is the
-component of the unit at `c`, and its stated type is exactly `c ⟶ G.obj (F.obj c)`. The term
-`adj.ε d` is the component of the counit at `d`. The keyword `abbrev` declares a definition
-that Lean unfolds freely, so that `adj.η c` and `adj.unit.app c` are interchangeable for
-`exact`, and Mathlib's lemmas can rewrite a term that is stated with `adj.η`. The statements
-in this file use `adj.η` and `adj.ε` throughout, and they read very much like Riehl's.
-
-One asymmetry remains. The tactic `rw` locates a pattern by its head symbol, so a rewrite
-whose left-hand side is literally `adj.η c` will not find an occurrence of `adj.unit.app c`.
-The lemmas `flat_eq` and `sharp_eq` below are therefore versions of Mathlib's
-`Adjunction.homEquiv_unit` and `Adjunction.homEquiv_counit` whose right-hand sides are
-written with `adj.η` and `adj.ε`, so that a goal stays in one form after they are applied.
-Because the lemmas live in the namespace `CategoryTheory.Adjunction`, they can be called
-with dot notation, as `adj.flat_eq f` and `adj.sharp_eq g`.
+The §4.1 file treated the fields `unit` and `counit` of `Adjunction` as a black box, and this
+file opens the box. The statements below use the terms `adj.η c` and `adj.ε d` for the components
+of the unit and the counit, together with the lemmas `adj.flat_eq` and `adj.sharp_eq`, which
+express transposes through those components. These declarations live in `riehl/common.lean`.
+The note above them in that file explains why `adj.η c` is preferable to `adj.unit.app c`, with
+a worked example of a rewrite that fails on the latter.
 -/
-namespace CategoryTheory.Adjunction
-
-/-- Riehl's `η_c`, the component of the unit at `c`. -/
-abbrev η {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) (c : 𝒞) : c ⟶ G.obj (F.obj c) :=
-  adj.unit.app c
-
-/-- Riehl's `ε_d`, the component of the counit at `d`. -/
-abbrev ε {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) (d : 𝒟) : F.obj (G.obj d) ⟶ d :=
-  adj.counit.app d
-
-/-- Formula (4.2.8): the transpose of `f : F c ⟶ d` is `η_c` followed by `G f`. -/
-theorem flat_eq {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c : 𝒞} {d : 𝒟} (f : F.obj c ⟶ d) :
-    f ♭[adj] = adj.η c ≫ G.map f :=
-  adj.homEquiv_unit c d f
-
-/-- Formula (4.2.9): the transpose of `g : c ⟶ G d` is `F g` followed by `ε_d`. -/
-theorem sharp_eq {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) {c : 𝒞} {d : 𝒟} (g : c ⟶ G.obj d) :
-    g ♯[adj] = F.map g ≫ adj.ε d :=
-  adj.homEquiv_counit c d g
-
-end CategoryTheory.Adjunction
 
 section Components
 
@@ -391,8 +348,8 @@ Mathlib's structure `Adjunction` is exactly Definition 4.2.5. Its four fields ar
 `counit`, `left_triangle_components` and `right_triangle_components`. The last two fields are
 stated at objects, and the prefix `dsimp%` in their source code runs `dsimp` on the statement,
 which removes occurrences of `𝟭` and `⋙` from the hidden arguments. That simplification is the
-reason `rw [adj.left_triangle_components]` works on a goal written with `adj.η`, as Part 0
-explained.
+reason `rw [adj.left_triangle_components]` works on a goal written with `adj.η`, as the note in
+`riehl/common.lean` explains.
 
 Riehl's identities are equations between natural transformations, and they are written with
 the whiskered transformations `F η`, `ε F`, `η G` and `G ε`. Lean's names for whiskering are
