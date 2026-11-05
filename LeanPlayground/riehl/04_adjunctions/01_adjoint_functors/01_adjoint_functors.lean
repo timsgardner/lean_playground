@@ -1492,8 +1492,8 @@ with `rfl`.
 example : IsoCat 𝒞 𝒞 where
   functor := 𝟭 𝒞
   inverse := 𝟭 𝒞
-  unit_eq := sorry
-  counit_eq := sorry
+  unit_eq := rfl
+  counit_eq := rfl
 
 /-
 The second warm-up extracts an equation between objects from `unit_eq`. This requires
@@ -1505,7 +1505,7 @@ its two sides exchanged, so finish with `.symm`.
 -/
 
 example (e : IsoCat 𝒞 𝒟) (c : 𝒞) : e.inverse.obj (e.functor.obj c) = c := by
-  sorry
+  exact Functor.congr_obj e.unit_eq.symm c
 
 /-
 The third warm-up introduces `IsoCat.objEquiv`. Every isomorphism of categories
@@ -1516,7 +1516,7 @@ records the first of these facts, which holds by definition, so prove it with `r
 -/
 
 example (e : IsoCat 𝒞 𝒟) (c : 𝒞) : e.objEquiv c = e.functor.obj c := by
-  sorry
+  rfl
 
 /-
 The next definition is the isomorphism that Riehl asks for. Replace `:= sorry` with
@@ -1531,8 +1531,11 @@ the `where` syntax and supply the four fields of `IsoCat` as follows:
   orientation.
 -/
 
-def commaIsoCat (adj : F ⊣ G) : IsoCat (Comma F (𝟭 𝒟)) (Comma (𝟭 𝒞) G) :=
-  sorry
+def commaIsoCat (adj : F ⊣ G) : IsoCat (Comma F (𝟭 𝒟)) (Comma (𝟭 𝒞) G) where
+  functor := commaTranspose adj
+  inverse := commaTransposeInv adj
+  unit_eq := (commaTranspose_comp_inv adj).symm
+  counit_eq := commaTransposeInv_comp adj
 
 /-
 Riehl also requires the isomorphism to commute with the forgetful functors to
@@ -1571,7 +1574,9 @@ theorem commaIsoCat_forget (adj : F ⊣ G) :
 
 theorem inverse_forget_of_functor_forget (e : IsoCat 𝒞 𝒟) {P : 𝒞 ⥤ ℰ} {Q : 𝒟 ⥤ ℰ}
     (h : e.functor ⋙ Q = P) : e.inverse ⋙ P = Q := by
-  sorry
+  rw [←h, ←Functor.assoc, e.counit_eq]
+  rfl
+
 
 theorem commaIsoCat_inverse_forget (adj : F ⊣ G) :
     (commaIsoCat adj).inverse ⋙ commaForget F (𝟭 𝒟) = commaForget (𝟭 𝒞) G := by
