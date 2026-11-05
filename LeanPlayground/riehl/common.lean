@@ -85,6 +85,30 @@ left-hand side is literally `adj.η c` will not find an occurrence of `adj.unit.
 a goal stays in one form after they are applied. Because the lemmas live in the namespace
 `CategoryTheory.Adjunction`, they can be called with dot notation, as `adj.flat_eq f` and
 `adj.sharp_eq g`.
+
+The names `adj.η` and `adj.ε` need one caution, because they differ from Riehl's usage. In the
+book, `η` is the natural transformation and `η_c` is its component at `c`. In Lean, `adj.η` is
+the family of components, a function that sends an object `c` to the morphism `adj.η c`. Thus
+`adj.η c` corresponds to Riehl's `η_c`, but `adj.η` by itself does not correspond to Riehl's `η`.
+The natural transformations remain `adj.unit` and `adj.counit`, and these abbreviations take
+nothing away from them. Whiskering, vertical composition and any other operation on natural
+transformations apply to `adj.unit` and `adj.counit`, and to those terms alone, because `adj.η`
+and `adj.ε` do not have the type of a natural transformation. A file may also bind a variable
+`η : 𝟭 𝒞 ⟶ F ⋙ G`, and such an `η` is a natural transformation whose components are `η.app c`.
+The symbol therefore has a different meaning in `adj.η c` and in `η.app c`. We do this in the
+file for Riehl section 4.2, for example.
+
+Naturality belongs to the transformations, so it is stated in the raw form. The equation
+`adj.unit.naturality h`, for `h : c ⟶ c'`, reads as follows.
+
+    (𝟭 𝒞).map h ≫ adj.unit.app c' = adj.unit.app c ≫ (F ⋙ G).map h
+
+On a goal written with `adj.η`, such as `h ≫ adj.η c' = adj.η c ≫ G.map (F.map h)`, the term
+`adj.unit.naturality h` is accepted by `exact`, and `rw [adj.unit.naturality h]` fails in either
+direction. Two methods convert the equation into a form that `rw` can use. The first is
+`have w := adj.unit.naturality h` followed by `dsimp at w`. The second is a `have` that states
+the clean equation and takes `adj.unit.naturality h` as its proof, which succeeds because the
+proof is checked up to definitional equality. The same remarks apply to `adj.counit.naturality`.
 -/
 section UnitCounitComponents
 
@@ -95,11 +119,19 @@ variable {𝒟 : Type u₂} [CategoryTheory.Category.{v₂} 𝒟]
 
 namespace CategoryTheory.Adjunction
 
-/-- Riehl's `η_c`, the component of the unit at `c`. -/
+/-- Riehl's `η_c`, the component of the unit at `c`, with the type `c ⟶ G.obj (F.obj c)`.
+
+The term `adj.η` is the family of components. It is not a natural transformation, and Riehl's
+natural transformation `η` is `adj.unit`. Naturality is `adj.unit.naturality`, which is stated in
+the raw form, so it works with `exact` and needs cleaning before `rw`. See the note above. -/
 abbrev η {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) (c : 𝒞) : c ⟶ G.obj (F.obj c) :=
   adj.unit.app c
 
-/-- Riehl's `ε_d`, the component of the counit at `d`. -/
+/-- Riehl's `ε_d`, the component of the counit at `d`, with the type `F.obj (G.obj d) ⟶ d`.
+
+The term `adj.ε` is the family of components. It is not a natural transformation, and Riehl's
+natural transformation `ε` is `adj.counit`. Naturality is `adj.counit.naturality`, which is stated
+in the raw form, so it works with `exact` and needs cleaning before `rw`. See the note above. -/
 abbrev ε {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G) (d : 𝒟) : F.obj (G.obj d) ⟶ d :=
   adj.counit.app d
 
