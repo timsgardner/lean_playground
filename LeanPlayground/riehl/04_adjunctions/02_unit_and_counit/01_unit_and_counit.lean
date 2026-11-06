@@ -171,6 +171,27 @@ example (c : 𝒞): True := by
       have h2 := adj.homEquiv_naturality_right (𝟙 (F.obj c₁)) (F.map m)
       rw [← h, ← h2]
       simp
+
+  -- There's a sneaky yoneda-style bit in there though. Let's try
+  -- using Yoneda:
+  -- `α c₁ : 𝒟(F c₁, -) ⟶ 𝒞(c₁, G -)`, the nat trans of the note above with `c₁` fixed.
+  let α (c₁ : 𝒞) : leftf c₁ ⟶ rightf c₁ := adj.compCoyonedaIso.hom.app (op c₁)
+  let η2 : (𝟭 𝒞) ⟶ F ⋙ G := by
+    constructor
+    case app =>
+      intro c₁
+      -- follow `α c₁` across the bijection (1)
+      exact coyonedaEquiv (α c₁)
+    case naturality =>
+      intro c₁ c₂ m
+      -- naturality of `α` in `c`, as an equation of nat trans `𝒟(F c₂, -) ⟶ 𝒞(c₁, G -)`
+      have nat : coyoneda.map (F.map m).op ≫ α c₁
+          = α c₂ ≫ Functor.whiskerLeft G (coyoneda.map m.op) :=
+        adj.compCoyonedaIso.hom.naturality m.op
+      -- send both sides across the bijection (1)
+      have key := congrArg coyonedaEquiv nat
+      rw [← coyonedaEquiv_naturality, coyonedaEquiv_comp] at key
+      exact key.symm
   trivial
 
 end scratchum
