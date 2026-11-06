@@ -105,10 +105,11 @@ Application of Yoneda:
 
 Start with the def of Yoneda on (first edition) p. 57:
 
-`Nat(𝒞(c, -), F) ≅ F c`
+`Nat(𝒞(c₀, -), F₀) ≅ F₀ c₀`
 
-Set `c ↦ F c` and `F ↦ 𝒞(c, G -)` (reuse of `F` and `c` is annoying, but
-matches Riehl, and is par for the course in our world of limited letters).
+Set `c₀ ↦ F c` and `F₀ ↦ 𝒞(c, G -)`. Here `c₀` and `F₀` are Yoneda's object and
+functor, which Riehl calls `c` and `F`, while `c` and `F` are the object of `𝒞`
+and the left adjoint from the adjunction below.
 Get:
 
 `Nat(𝒟(F c, -), 𝒞(c, G -)) ≅ 𝒞(c, G F c)` (1)
@@ -121,7 +122,8 @@ in `c ∈ 𝒞` and `d ∈ 𝒟`:
 
 `Φ c d : 𝒟(F c, d) ≅ 𝒞(c, G d)` (2)
 
-(a bijection of hom-sets).
+(a bijection of hom-sets). Note that `Φ` is essentially `adj.homEquiv` for this
+`adj : F ⊣ G`.
 
 Fixing `c` and letting `d` vary in (2), we get the *natural isomorphism*
 
@@ -135,9 +137,43 @@ so we can follow it across the bijection to its corresponding element `η_c` in 
 η_c : 𝒞(c, G F c) := α (F c) (𝟙 (F c))
                   = Φ c (F c) (𝟙 (F c))
 
-
-
 -/
+
+section scratchum
+
+variable {𝒟 : Type u₂} [Category.{v₁} 𝒟]
+variable {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (adj : F ⊣ G)
+
+example (c : 𝒞): True := by
+  -- 𝒟(F c, -)
+  let leftf c : 𝒟 ⥤ Type v₁ := coyoneda.obj (op (F.obj c))
+  -- 𝒞(c, G -)
+  let rightf c : 𝒟 ⥤ Type v₁ := G ⋙ coyoneda.obj (op c)
+  -- yoneda gives us a natural iso
+  #check coyonedaEquiv
+  #check coyonedaEquiv (C := 𝒟) (X := F.obj c) (F := rightf c)
+  --(coyoneda.obj (op (F.obj c)) ⟶ rightf c) ≃ (rightf c).obj (F.obj c)
+  -- ie,
+  -- Nat(𝒟(F c, -), 𝒞(c, G -)) ≃ 𝒞(c, G (F c))
+
+  -- build η (a nat trans) (not nec a nat iso)
+  let η : (𝟭 𝒞) ⟶ F ⋙ G := by
+    constructor
+    case app =>
+      intro c₁
+      simp
+      #check adj.homEquiv c₁ (F.obj c₁)
+      exact adj.homEquiv c₁ (F.obj c₁) (𝟙 (F.obj c₁))
+    case naturality =>
+      simp
+      intro c₁ c₂ m
+      have h := adj.homEquiv_naturality_left m (𝟙 (F.obj c₂))
+      have h2 := adj.homEquiv_naturality_right (𝟙 (F.obj c₁)) (F.map m)
+      rw [← h, ← h2]
+      simp
+  trivial
+
+end scratchum
 
 /-
 ## Part 1: The unit and counit of a hom-set bijection
