@@ -100,6 +100,46 @@ theorem sharp_id (d : 𝒟) : (𝟙 (G.obj d)) ♯[adj] = adj.ε d := by
 end Components
 
 /-
+
+Application of Yoneda:
+
+Start with the def of Yoneda on (first edition) p. 57:
+
+`Nat(𝒞(c, -), F) ≅ F c`
+
+Set `c ↦ F c` and `F ↦ 𝒞(c, G -)` (reuse of `F` and `c` is annoying, but
+matches Riehl, and is par for the course in our world of limited letters).
+Get:
+
+`Nat(𝒟(F c, -), 𝒞(c, G -)) ≅ 𝒞(c, G F c)` (1)
+
+(a bijection between the *set of* natural transformations `𝒟(F c, -) ⟶ 𝒞(c, G -)`
+and the *hom set* `𝒞(c, G F c)`).
+
+Say `F ⊣ G`. Now by the definition of adjunction, we have the isomorphism natural
+in `c ∈ 𝒞` and `d ∈ 𝒟`:
+
+`Φ c d : 𝒟(F c, d) ≅ 𝒞(c, G d)` (2)
+
+(a bijection of hom-sets).
+
+Fixing `c` and letting `d` vary in (2), we get the *natural isomorphism*
+
+`α - : 𝒟(F c, -) ≅ 𝒞(c, G -) := Φ c`
+
+(a nat trans `𝒟(F c, -) ⟶ 𝒞(c, G -)`, that moreover is a nat iso).
+
+As a nat trans `𝒟(F c, -) ⟶ 𝒞(c, G -)`, `α` is an element of the left side of (1),
+so we can follow it across the bijection to its corresponding element `η_c` in `𝒞(c, G F c)`:
+
+η_c : 𝒞(c, G F c) := α (F c) (𝟙 (F c))
+                  = Φ c (F c) (𝟙 (F c))
+
+
+
+-/
+
+/-
 ## Part 1: The unit and counit of a hom-set bijection
 
 Riehl begins with an adjunction in the sense of Definition 4.1.1, which provides a natural
@@ -137,6 +177,8 @@ statement for `adj`, and the proof here is the same proof.
 [Diagram](assets/transposed_squares.svg)
 -/
 section HomSets
+
+#exit
 
 variable {F : 𝒞 ⥤ 𝒟} {G : 𝒟 ⥤ 𝒞} (e : Adjunction.CoreHomEquiv F G)
 
