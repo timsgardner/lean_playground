@@ -98,135 +98,17 @@ theorem sandwich_heq {X X' Y Y' : C} (p : X = X') (q : Y = Y') (f : X ⟶ Y) :
 
 end Sandwich
 
-/-! # Natural transformations as functors into a comma category -/
-
-section CommaVersion
-
-/-- Gives a functor from `Comma L R` to pairs of its first and second
-(left and right) projections. -/
-def commaProjProd (L R : 𝒞 ⥤ 𝒟) : Comma L R ⥤ 𝒞 × 𝒞 :=
-  (Comma.fst L R).prod' (Comma.snd L R)
-
-def NatTransFunctor (L R: 𝒞 ⥤ 𝒟) :=
-  {F : 𝒞 ⥤ Comma L R // F ⋙ commaProjProd L R = Functor.diag 𝒞}
-
-/-! ## Lifts of `Δ` through `P` and the natural transformations they determine
-
-Here `P = commaProjProd L R : Comma L R ⥤ 𝒞 × 𝒞` and `Δ = Functor.diag 𝒞`. A lift of
-`Δ` through `P` is a functor `F : 𝒞 ⥤ Comma L R` with `F ⋙ P = Δ`; these are the
-elements of `NatTransFunctor L R`. -/
-
-namespace NatTransFunctor
-
-variable {L R : 𝒞 ⥤ 𝒟}
-
-def fromNatTrans (α : L ⟶ R) : NatTransFunctor L R :=
-  ⟨{obj := fun c => ⟨c, c, α.app c⟩,
-    map := fun f => ⟨f, f, by cat_disch⟩},
-  by cat_disch⟩
-
-theorem obj_left_eq (F : NatTransFunctor L R) (c : 𝒞) : (F.val.obj c).left = c := by
-  have h := congrArg (fun G => (G.obj c).1) F.property
-  simpa [commaProjProd] using h
-
-theorem obj_right_eq (F : NatTransFunctor L R) (c : 𝒞) : (F.val.obj c).right = c := by
-  have h := congrArg (fun G => (G.obj c).2) F.property
-  simpa [commaProjProd] using h
-
-/-- The component at `c` of the natural transformation that `F` determines: the
-morphism `(F c).hom : L (F c).left ⟶ R (F c).right`, retyped along
-`(F c).left = c` and `(F c).right = c`. -/
-def component (F : NatTransFunctor L R) (c : 𝒞) : L.obj c ⟶ R.obj c :=
-  sandwich (congrArg L.obj (obj_left_eq F c)) (congrArg R.obj (obj_right_eq F c))
-    (F.val.obj c).hom
-
-/-- Since `F ⋙ P = Δ`, the left leg of the comma morphism `F m` is `m`, retyped. -/
-theorem map_left_eq (F : NatTransFunctor L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
-    m = sandwich (obj_left_eq F c₁) (obj_left_eq F c₂) (F.val.map m).left := by
-  -- Stating the type explicitly gives `eqToHom`s whose endpoints are written as
-  -- `(F c).left`, not through `⋙`, so that `simp` can merge them below.
-  have h : (F.val.map m).left
-      = eqToHom (obj_left_eq F c₁) ≫ m ≫ eqToHom (obj_left_eq F c₂).symm := by
-    simpa [commaProjProd] using
-      Functor.congr_hom (congrArg (· ⋙ CategoryTheory.Prod.fst 𝒞 𝒞) F.property) m
-  simp [sandwich, h]
-
-/-- Since `F ⋙ P = Δ`, the right leg of the comma morphism `F m` is `m`, retyped. -/
-theorem map_right_eq (F : NatTransFunctor L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
-    m = sandwich (obj_right_eq F c₁) (obj_right_eq F c₂) (F.val.map m).right := by
-  -- Stating the type explicitly gives `eqToHom`s whose endpoints are written as
-  -- `(F c).right`, not through `⋙`, so that `simp` can merge them below.
-  have h : (F.val.map m).right
-      = eqToHom (obj_right_eq F c₁) ≫ m ≫ eqToHom (obj_right_eq F c₂).symm := by
-    simpa [commaProjProd] using
-      Functor.congr_hom (congrArg (· ⋙ CategoryTheory.Prod.snd 𝒞 𝒞) F.property) m
-  simp [sandwich, h]
-
-def toNatTrans (F : NatTransFunctor L R) : L ⟶ R where
-  app := F.component
-  naturality c₁ c₂ m := by
-    -- Write `m` as the left leg of `F m` on the left side of the goal, and as the
-    -- right leg on the right side.
-    conv_lhs => rw [F.map_left_eq m]
-    conv_rhs => rw [F.map_right_eq m]
-    -- Each side is now one sandwich of a composite in `𝒟`, and those two
-    -- composites are the two sides of the commuting square of `F m`.
-    simp only [component, map_sandwich, sandwich_comp, (F.val.map m).w]
-
-/-- An object of `Comma L R` is determined by its legs and its morphism: retyping
-`X.hom` along `X.left = a` and `X.right = b` gives back `X`. -/
-theorem comma_mk_sandwich (X : Comma L R) {a b : 𝒞} (hl : X.left = a) (hr : X.right = b) :
-    (⟨a, b, sandwich (congrArg L.obj hl) (congrArg R.obj hr) X.hom⟩ : Comma L R) = X := by
-  cases X
-  subst hl hr
-  simp
-
-/-- Going from `α` to a lift of `Δ` and back gives `α`. -/
-theorem toNatTrans_fromNatTrans (α : L ⟶ R) : toNatTrans (fromNatTrans α) = α := by
-  ext c
-  simp [toNatTrans, component, fromNatTrans, sandwich]
-
-/-- Going from a lift of `Δ` to `α` and back gives the lift. -/
-theorem fromNatTrans_toNatTrans (F : NatTransFunctor L R) :
-    fromNatTrans (toNatTrans F) = F := by
-  apply Subtype.ext
-  fapply CategoryTheory.Functor.ext
-  · intro c
-    exact comma_mk_sandwich (F.val.obj c) (obj_left_eq F c) (obj_right_eq F c)
-  · intro c₁ c₂ m
-    apply Comma.hom_ext
-    · rw [Comma.comp_left, Comma.comp_left]
-      erw [Comma.eqToHom_left, Comma.eqToHom_left]
-      exact F.map_left_eq m
-    · rw [Comma.comp_right, Comma.comp_right]
-      erw [Comma.eqToHom_right, Comma.eqToHom_right]
-      exact F.map_right_eq m
-
-end NatTransFunctor
-
-/-- Natural transformations `L ⟶ R` are in bijection with the functors
-`S : 𝒞 ⥤ Comma L R` such that `S ⋙ P = Δ`. -/
-def nat_trans_functor_bij {L R : 𝒞 ⥤ 𝒟} : (L ⟶ R) ≃ NatTransFunctor L R where
-  toFun := NatTransFunctor.fromNatTrans
-  invFun := NatTransFunctor.toNatTrans
-  left_inv := NatTransFunctor.toNatTrans_fromNatTrans
-  right_inv := NatTransFunctor.fromNatTrans_toNatTrans
-
-end CommaVersion
-
 /-! # Natural transformations as functors into the arrow category
 
-The same result, with the arrow category `Arrow 𝒟` in place of `Comma L R`. An object
-of `Arrow 𝒟` is a morphism of `𝒟`, and a morphism of `Arrow 𝒟` is a commuting square.
-The functors `Arrow.leftFunc` and `Arrow.rightFunc` send an arrow to its domain and its
-codomain. A natural transformation `α : L ⟶ R` is then a functor `𝒞 ⥤ Arrow 𝒟`, sending
-`c` to the arrow `α.app c` and `m` to the naturality square of `α` at `m`, whose
-composites with `leftFunc` and `rightFunc` are `L` and `R`.
+An object of the arrow category `Arrow 𝒟` is a morphism of `𝒟`, and a morphism of
+`Arrow 𝒟` is a commuting square. The functors `Arrow.leftFunc` and `Arrow.rightFunc`
+send an arrow to its domain and its codomain. A natural transformation `α : L ⟶ R` is
+then a functor `𝒞 ⥤ Arrow 𝒟`, sending `c` to the arrow `α.app c` and `m` to the
+naturality square of `α` at `m`, whose composites with `leftFunc` and `rightFunc` are
+`L` and `R`.
 
-Compared with the comma version, the equations now say that the ends of `S c` are
-`L c` and `R c` (objects of `𝒟`), rather than that the legs of `S c` are `c` (an object
-of `𝒞`). So the sandwiches retype along equations in `𝒟` directly, and no `congrArg
-L.obj` is needed. -/
+The equations say that the ends of `S c` are `L c` and `R c`, which are objects of `𝒟`,
+so the sandwiches retype along equations in `𝒟` directly. -/
 
 section ArrowVersion
 
@@ -311,6 +193,132 @@ def nat_trans_arrow_bij {L R : 𝒞 ⥤ 𝒟} : (L ⟶ R) ≃ ArrowLift L R wher
   right_inv := ArrowLift.fromNatTrans_toNatTrans
 
 end ArrowVersion
+
+/-! # Cancelling a functor that is injective on objects and faithful
+
+If `H` is injective on objects and faithful, then `F ⋙ H` determines `F`. This is the
+one place where the comma version below has to transport along equations of objects;
+it is a general fact, proved once here. -/
+
+theorem functor_eq_of_comp_eq {C D E : Type*} [Category C] [Category D] [Category E]
+    (H : D ⥤ E) [H.Faithful] (hH : Function.Injective H.obj) {F₁ F₂ : C ⥤ D}
+    (h : F₁ ⋙ H = F₂ ⋙ H) : F₁ = F₂ := by
+  fapply CategoryTheory.Functor.ext
+  · intro c
+    exact hH (congrArg (fun G => G.obj c) h)
+  · intro c₁ c₂ m
+    apply H.map_injective
+    simpa [eqToHom_map] using Functor.congr_hom h m
+
+/-! # Natural transformations as functors into a comma category, via the arrow category
+
+`commaToArrow L R : Comma L R ⥤ Arrow 𝒟` forgets the legs of an object `(a, b, f)` and
+keeps the arrow `f : L a ⟶ R b`. Composing with it turns a lift of `Δ` through `P` into
+an `ArrowLift L R`, and everything about the comma version is read off from the arrow
+version. The only extra input is that `commaToArrow` together with `P` loses no
+information, so that the cancellation lemma above applies. -/
+
+section CommaVersion
+
+/-- Gives a functor from `Comma L R` to pairs of its first and second
+(left and right) projections. -/
+def commaProjProd (L R : 𝒞 ⥤ 𝒟) : Comma L R ⥤ 𝒞 × 𝒞 :=
+  (Comma.fst L R).prod' (Comma.snd L R)
+
+def NatTransFunctor (L R : 𝒞 ⥤ 𝒟) :=
+  {F : 𝒞 ⥤ Comma L R // F ⋙ commaProjProd L R = Functor.diag 𝒞}
+
+/-- The arrow underlying an object of `Comma L R`. -/
+def commaToArrow (L R : 𝒞 ⥤ 𝒟) : Comma L R ⥤ Arrow 𝒟 where
+  obj X := Arrow.mk X.hom
+  map f := Arrow.homMk (L.map f.left) (R.map f.right) f.w
+
+/-- `commaToArrow` and `P` together: an object goes to its arrow and its legs. -/
+def commaToArrowProj (L R : 𝒞 ⥤ 𝒟) : Comma L R ⥤ Arrow 𝒟 × (𝒞 × 𝒞) :=
+  (commaToArrow L R).prod' (commaProjProd L R)
+
+/-- A comma morphism is determined by its legs. -/
+instance (L R : 𝒞 ⥤ 𝒟) : (commaToArrowProj L R).Faithful where
+  map_injective {_ _} f g h := by
+    -- The `𝒞 × 𝒞` component of `h` says the legs agree.
+    have h' := congrArg Prod.snd h
+    exact Comma.hom_ext f g (congrArg Prod.fst h') (congrArg Prod.snd h')
+
+/-- A comma object is determined by its arrow and its legs. -/
+theorem commaToArrowProj_injective (L R : 𝒞 ⥤ 𝒟) :
+    Function.Injective (commaToArrowProj L R).obj := by
+  rintro ⟨a, b, f⟩ ⟨a', b', f'⟩ h
+  simp only [commaToArrowProj, commaToArrow, commaProjProd, Functor.prod'_obj,
+    Comma.fst_obj, Comma.snd_obj, Prod.mk.injEq] at h
+  obtain ⟨hf, rfl, rfl⟩ := h
+  obtain ⟨_, _, hf⟩ := (Arrow.mk_eq_mk_iff f f').1 hf
+  simp only [eqToHom_refl, Category.id_comp, Category.comp_id] at hf
+  rw [hf]
+
+namespace NatTransFunctor
+
+variable {L R : 𝒞 ⥤ 𝒟}
+
+def fromNatTrans (α : L ⟶ R) : NatTransFunctor L R :=
+  ⟨{obj := fun c => ⟨c, c, α.app c⟩,
+    map := fun f => ⟨f, f, by cat_disch⟩},
+  by cat_disch⟩
+
+/-- A lift of `Δ`, composed with `commaToArrow`, is a functor into `Arrow 𝒟` over `L`
+and `R`. -/
+def toArrowLift (F : NatTransFunctor L R) : ArrowLift L R :=
+  ⟨F.val ⋙ commaToArrow L R, by
+    -- `F ⋙ fst` and `F ⋙ snd` are the two components of `F ⋙ P = Δ`.
+    have h₁ : F.val ⋙ Comma.fst L R = 𝟭 𝒞 :=
+      congrArg (· ⋙ CategoryTheory.Prod.fst 𝒞 𝒞) F.property
+    have h₂ : F.val ⋙ Comma.snd L R = 𝟭 𝒞 :=
+      congrArg (· ⋙ CategoryTheory.Prod.snd 𝒞 𝒞) F.property
+    -- `commaToArrow ⋙ leftFunc` is `fst ⋙ L` by definition, and likewise on the right.
+    exact ⟨show (F.val ⋙ Comma.fst L R) ⋙ L = L by rw [h₁]; rfl,
+      show (F.val ⋙ Comma.snd L R) ⋙ R = R by rw [h₂]; rfl⟩⟩
+
+def toNatTrans (F : NatTransFunctor L R) : L ⟶ R :=
+  F.toArrowLift.toNatTrans
+
+/-- The two `fromNatTrans` agree, by definition. -/
+theorem fromNatTrans_toArrowLift (α : L ⟶ R) :
+    (fromNatTrans α).toArrowLift = ArrowLift.fromNatTrans α :=
+  rfl
+
+/-- Going from `α` to a lift of `Δ` and back gives `α`. -/
+theorem toNatTrans_fromNatTrans (α : L ⟶ R) : toNatTrans (fromNatTrans α) = α := by
+  rw [toNatTrans, fromNatTrans_toArrowLift, ArrowLift.toNatTrans_fromNatTrans]
+
+/-- Going from a lift of `Δ` to `α` and back gives the lift. -/
+theorem fromNatTrans_toNatTrans (F : NatTransFunctor L R) :
+    fromNatTrans (toNatTrans F) = F := by
+  apply Subtype.ext
+  apply functor_eq_of_comp_eq _ (commaToArrowProj_injective L R)
+  -- After `commaToArrow`, this is the arrow version's round trip.
+  have hA : (fromNatTrans (toNatTrans F)).val ⋙ commaToArrow L R
+      = F.val ⋙ commaToArrow L R := by
+    have := ArrowLift.fromNatTrans_toNatTrans F.toArrowLift
+    rw [← fromNatTrans_toArrowLift] at this
+    exact congrArg Subtype.val this
+  -- After `P`, both sides are `Δ`.
+  have hP : (fromNatTrans (toNatTrans F)).val ⋙ commaProjProd L R
+      = F.val ⋙ commaProjProd L R :=
+    (fromNatTrans (toNatTrans F)).property.trans F.property.symm
+  change ((_ ⋙ commaToArrow L R).prod' (_ ⋙ commaProjProd L R))
+    = ((F.val ⋙ commaToArrow L R).prod' (F.val ⋙ commaProjProd L R))
+  rw [hA, hP]
+
+end NatTransFunctor
+
+/-- Natural transformations `L ⟶ R` are in bijection with the functors
+`S : 𝒞 ⥤ Comma L R` such that `S ⋙ P = Δ`. -/
+def nat_trans_functor_bij {L R : 𝒞 ⥤ 𝒟} : (L ⟶ R) ≃ NatTransFunctor L R where
+  toFun := NatTransFunctor.fromNatTrans
+  invFun := NatTransFunctor.toNatTrans
+  left_inv := NatTransFunctor.toNatTrans_fromNatTrans
+  right_inv := NatTransFunctor.fromNatTrans_toNatTrans
+
+end CommaVersion
 
 
 end
