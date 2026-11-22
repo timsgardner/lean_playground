@@ -11,6 +11,7 @@ import LeanPlayground.Scratch.category_kindergarten.check_diagrams
 import LeanPlayground.Scratch.category_kindergarten.common_tools
 import LeanPlayground.Scratch.category_kindergarten.diagram_tools
 import LeanPlayground.diagrams.widget
+import LeanPlayground.Scratch.actual_category_scratch.scratch_4.sandwiches
 
 set_option pp.proofs.withType true
 
@@ -30,6 +31,8 @@ set_option pp.proofs.withType true
     check_diagrams         our infoview diagrams: `#check` draws squares/triangles; with
                            the selection panel below, shift-click a goal or hypothesis
                            (equations `f ≫ g = i ≫ h`, `CommSq`, `comm_diagram`) to draw it
+    sandwiches             `sandwich p q f` (a morphism retyped along equations of objects)
+                           and its lemmas, from the sibling file
 -/
 
 open CategoryTheory
@@ -52,51 +55,6 @@ variable {𝒟 : Type u₄} [Category.{v₄} 𝒟]
 example (F : 𝒞 ⥤ 𝒟) [F.Faithful] {X Y : 𝒞} :
     Function.Injective (F.map : (X ⟶ Y) → (F.obj X ⟶ F.obj Y)) :=
   F.map_injective
-
-/-! ## Sandwiches
-
-`sandwich p q f` is the morphism `f : X ⟶ Y` retyped as a morphism `X' ⟶ Y'`, along
-equations `p : X = X'` and `q : Y = Y'`. It is `eqToHom p.symm ≫ f ≫ eqToHom q`, but
-naming it lets us state how such transported morphisms compose and map, once, instead
-of pushing individual `eqToHom`s around in every proof. -/
-
-def sandwich {C : Type*} [Category C] {X X' Y Y' : C} (p : X = X') (q : Y = Y')
-    (f : X ⟶ Y) : X' ⟶ Y' :=
-  eqToHom p.symm ≫ f ≫ eqToHom q
-
-section Sandwich
-
-variable {C : Type*} [Category C] {D : Type*} [Category D]
-
-/-- Transporting along reflexivity does nothing. -/
-@[simp]
-theorem sandwich_rfl {X Y : C} (f : X ⟶ Y) : sandwich rfl rfl f = f := by
-  simp [sandwich]
-
-/-- Two sandwiches that meet at the same object compose to the sandwich of the
-composite. -/
-theorem sandwich_comp {X X' Y Y' Z Z' : C} (p : X = X') (q : Y = Y') (r : Z = Z')
-    (f : X ⟶ Y) (g : Y ⟶ Z) :
-    sandwich p q f ≫ sandwich q r g = sandwich p r (f ≫ g) := by
-  simp [sandwich]
-
-/-- A functor carries a sandwich to the sandwich of the image. -/
-theorem map_sandwich (G : C ⥤ D) {X X' Y Y' : C} (p : X = X') (q : Y = Y')
-    (f : X ⟶ Y) :
-    G.map (sandwich p q f) = sandwich (congrArg G.obj p) (congrArg G.obj q) (G.map f) := by
-  simp [sandwich, eqToHom_map]
-
-/-- Remark: a sandwich "is" `f`, but only up to heterogeneous equality, since
-`sandwich p q f : X' ⟶ Y'` and `f : X ⟶ Y` have different types and so cannot be
-compared with `=`. This is Mathlib's `conj_eqToHom_iff_heq` in sandwich form. `HEq`
-cannot be used with `rw`, so the lemmas above are the ones to compute with. -/
-theorem sandwich_heq {X X' Y Y' : C} (p : X = X') (q : Y = Y') (f : X ⟶ Y) :
-    sandwich p q f ≍ f := by
-  cases p
-  cases q
-  simp [sandwich]
-
-end Sandwich
 
 /-! # Natural transformations as functors into the arrow category
 
