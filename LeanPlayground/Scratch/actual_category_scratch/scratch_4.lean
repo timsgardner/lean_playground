@@ -136,28 +136,17 @@ theorem obj_right_eq (S : ArrowLift L R) (c : 𝒞) : (S.val.obj c).right = R.ob
 def component (S : ArrowLift L R) (c : 𝒞) : L.obj c ⟶ R.obj c :=
   sandwich (obj_left_eq S c) (obj_right_eq S c) (S.val.obj c).hom
 
-/-- Since `S ⋙ leftFunc = L`, the left side of the square `S m` is `L m`, retyped. -/
-theorem map_left_eq (S : ArrowLift L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
-    L.map m = sandwich (obj_left_eq S c₁) (obj_left_eq S c₂) (S.val.map m).left := by
-  have h : (S.val.map m).left
-      = eqToHom (obj_left_eq S c₁) ≫ L.map m ≫ eqToHom (obj_left_eq S c₂).symm := by
-    simpa using Functor.congr_hom S.property.1 m
-  simp [sandwich, h]
-
-/-- Since `S ⋙ rightFunc = R`, the right side of the square `S m` is `R m`, retyped. -/
-theorem map_right_eq (S : ArrowLift L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
-    R.map m = sandwich (obj_right_eq S c₁) (obj_right_eq S c₂) (S.val.map m).right := by
-  have h : (S.val.map m).right
-      = eqToHom (obj_right_eq S c₁) ≫ R.map m ≫ eqToHom (obj_right_eq S c₂).symm := by
-    simpa using Functor.congr_hom S.property.2 m
-  simp [sandwich, h]
+/-! In this version the equations are `S ⋙ leftFunc = L` and `S ⋙ rightFunc = R`, and
+`L` and `R` are variables. So in a proof about an arbitrary `S`, both equations can be
+substituted away with `obtain ⟨S, rfl, rfl⟩ := S`. After that, every sandwich is
+`sandwich rfl rfl`, which `sandwich_rfl` removes, and no transport is left. -/
 
 def toNatTrans (S : ArrowLift L R) : L ⟶ R where
   app := S.component
   naturality c₁ c₂ m := by
-    conv_lhs => rw [S.map_left_eq m]
-    conv_rhs => rw [S.map_right_eq m]
-    simp only [component, sandwich_comp, Arrow.w]
+    obtain ⟨S, rfl, rfl⟩ := S
+    -- With `L = S ⋙ leftFunc` and `R = S ⋙ rightFunc`, this is the square `S m`.
+    simp [component, Arrow.w]
 
 /-- Going from `α` to a functor into `Arrow 𝒟` and back gives `α`. -/
 theorem toNatTrans_fromNatTrans (α : L ⟶ R) : toNatTrans (fromNatTrans α) = α := by
@@ -167,20 +156,12 @@ theorem toNatTrans_fromNatTrans (α : L ⟶ R) : toNatTrans (fromNatTrans α) = 
 /-- Going from a functor into `Arrow 𝒟` to `α` and back gives the functor. -/
 theorem fromNatTrans_toNatTrans (S : ArrowLift L R) :
     fromNatTrans (toNatTrans S) = S := by
-  apply Subtype.ext
-  fapply CategoryTheory.Functor.ext
-  · intro c
-    -- The new arrow is `sandwich _ _ (S c).hom`, which is by definition the
-    -- `eqToHom` sandwich that `Arrow.ext` asks for.
-    exact Arrow.ext (obj_left_eq S c).symm (obj_right_eq S c).symm rfl
-  · intro c₁ c₂ m
-    apply Arrow.hom_ext
-    · rw [Arrow.comp_left, Arrow.comp_left]
-      rw [Arrow.eqToHom_left, Arrow.eqToHom_left]
-      exact S.map_left_eq m
-    · rw [Arrow.comp_right, Arrow.comp_right]
-      rw [Arrow.eqToHom_right, Arrow.eqToHom_right]
-      exact S.map_right_eq m
+  obtain ⟨S, rfl, rfl⟩ := S
+  unfold toNatTrans component
+  simp only [sandwich_rfl]
+  -- What is left is `Arrow.mk (S c).hom = S c` and its analogue on morphisms,
+  -- which hold by structure eta.
+  rfl
 
 end ArrowLift
 
