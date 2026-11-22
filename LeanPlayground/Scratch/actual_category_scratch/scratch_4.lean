@@ -4,6 +4,7 @@ import Mathlib.CategoryTheory.NatTrans
 import Mathlib.CategoryTheory.Functor.Category
 import Mathlib.CategoryTheory.Functor.FullyFaithful
 import Mathlib.CategoryTheory.Comma.Basic
+import Mathlib.CategoryTheory.Comma.Arrow
 import Mathlib.Logic.Function.Basic
 import Mathlib.CategoryTheory.Products.Basic
 import LeanPlayground.Scratch.category_kindergarten.check_diagrams
@@ -96,6 +97,10 @@ theorem sandwich_heq {X X' Y Y' : C} (p : X = X') (q : Y = Y') (f : X ⟶ Y) :
   simp [sandwich]
 
 end Sandwich
+
+/-! # Natural transformations as functors into a comma category -/
+
+section CommaVersion
 
 /-- Gives a functor from `Comma L R` to pairs of its first and second
 (left and right) projections. -/
@@ -206,6 +211,106 @@ def nat_trans_functor_bij {L R : 𝒞 ⥤ 𝒟} : (L ⟶ R) ≃ NatTransFunctor 
   invFun := NatTransFunctor.toNatTrans
   left_inv := NatTransFunctor.toNatTrans_fromNatTrans
   right_inv := NatTransFunctor.fromNatTrans_toNatTrans
+
+end CommaVersion
+
+/-! # Natural transformations as functors into the arrow category
+
+The same result, with the arrow category `Arrow 𝒟` in place of `Comma L R`. An object
+of `Arrow 𝒟` is a morphism of `𝒟`, and a morphism of `Arrow 𝒟` is a commuting square.
+The functors `Arrow.leftFunc` and `Arrow.rightFunc` send an arrow to its domain and its
+codomain. A natural transformation `α : L ⟶ R` is then a functor `𝒞 ⥤ Arrow 𝒟`, sending
+`c` to the arrow `α.app c` and `m` to the naturality square of `α` at `m`, whose
+composites with `leftFunc` and `rightFunc` are `L` and `R`.
+
+Compared with the comma version, the equations now say that the ends of `S c` are
+`L c` and `R c` (objects of `𝒟`), rather than that the legs of `S c` are `c` (an object
+of `𝒞`). So the sandwiches retype along equations in `𝒟` directly, and no `congrArg
+L.obj` is needed. -/
+
+section ArrowVersion
+
+/-- Functors `𝒞 ⥤ Arrow 𝒟` whose domain part is `L` and whose codomain part is `R`. -/
+def ArrowLift (L R : 𝒞 ⥤ 𝒟) :=
+  {S : 𝒞 ⥤ Arrow 𝒟 // S ⋙ Arrow.leftFunc = L ∧ S ⋙ Arrow.rightFunc = R}
+
+namespace ArrowLift
+
+variable {L R : 𝒞 ⥤ 𝒟}
+
+def fromNatTrans (α : L ⟶ R) : ArrowLift L R :=
+  ⟨{obj := fun c => Arrow.mk (α.app c),
+    map := fun m => Arrow.homMk (L.map m) (R.map m)},
+  by constructor <;> cat_disch⟩
+
+theorem obj_left_eq (S : ArrowLift L R) (c : 𝒞) : (S.val.obj c).left = L.obj c :=
+  congrArg (fun G => G.obj c) S.property.1
+
+theorem obj_right_eq (S : ArrowLift L R) (c : 𝒞) : (S.val.obj c).right = R.obj c :=
+  congrArg (fun G => G.obj c) S.property.2
+
+/-- The component at `c`: the arrow `S c`, retyped along `(S c).left = L c` and
+`(S c).right = R c`. -/
+def component (S : ArrowLift L R) (c : 𝒞) : L.obj c ⟶ R.obj c :=
+  sandwich (obj_left_eq S c) (obj_right_eq S c) (S.val.obj c).hom
+
+/-- Since `S ⋙ leftFunc = L`, the left side of the square `S m` is `L m`, retyped. -/
+theorem map_left_eq (S : ArrowLift L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
+    L.map m = sandwich (obj_left_eq S c₁) (obj_left_eq S c₂) (S.val.map m).left := by
+  have h : (S.val.map m).left
+      = eqToHom (obj_left_eq S c₁) ≫ L.map m ≫ eqToHom (obj_left_eq S c₂).symm := by
+    simpa using Functor.congr_hom S.property.1 m
+  simp [sandwich, h]
+
+/-- Since `S ⋙ rightFunc = R`, the right side of the square `S m` is `R m`, retyped. -/
+theorem map_right_eq (S : ArrowLift L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
+    R.map m = sandwich (obj_right_eq S c₁) (obj_right_eq S c₂) (S.val.map m).right := by
+  have h : (S.val.map m).right
+      = eqToHom (obj_right_eq S c₁) ≫ R.map m ≫ eqToHom (obj_right_eq S c₂).symm := by
+    simpa using Functor.congr_hom S.property.2 m
+  simp [sandwich, h]
+
+def toNatTrans (S : ArrowLift L R) : L ⟶ R where
+  app := S.component
+  naturality c₁ c₂ m := by
+    conv_lhs => rw [S.map_left_eq m]
+    conv_rhs => rw [S.map_right_eq m]
+    simp only [component, sandwich_comp, Arrow.w]
+
+/-- Going from `α` to a functor into `Arrow 𝒟` and back gives `α`. -/
+theorem toNatTrans_fromNatTrans (α : L ⟶ R) : toNatTrans (fromNatTrans α) = α := by
+  ext c
+  simp [toNatTrans, component, fromNatTrans, sandwich]
+
+/-- Going from a functor into `Arrow 𝒟` to `α` and back gives the functor. -/
+theorem fromNatTrans_toNatTrans (S : ArrowLift L R) :
+    fromNatTrans (toNatTrans S) = S := by
+  apply Subtype.ext
+  fapply CategoryTheory.Functor.ext
+  · intro c
+    -- The new arrow is `sandwich _ _ (S c).hom`, which is by definition the
+    -- `eqToHom` sandwich that `Arrow.ext` asks for.
+    exact Arrow.ext (obj_left_eq S c).symm (obj_right_eq S c).symm rfl
+  · intro c₁ c₂ m
+    apply Arrow.hom_ext
+    · rw [Arrow.comp_left, Arrow.comp_left]
+      rw [Arrow.eqToHom_left, Arrow.eqToHom_left]
+      exact S.map_left_eq m
+    · rw [Arrow.comp_right, Arrow.comp_right]
+      rw [Arrow.eqToHom_right, Arrow.eqToHom_right]
+      exact S.map_right_eq m
+
+end ArrowLift
+
+/-- Natural transformations `L ⟶ R` are in bijection with the functors
+`S : 𝒞 ⥤ Arrow 𝒟` such that `S ⋙ Arrow.leftFunc = L` and `S ⋙ Arrow.rightFunc = R`. -/
+def nat_trans_arrow_bij {L R : 𝒞 ⥤ 𝒟} : (L ⟶ R) ≃ ArrowLift L R where
+  toFun := ArrowLift.fromNatTrans
+  invFun := ArrowLift.toNatTrans
+  left_inv := ArrowLift.toNatTrans_fromNatTrans
+  right_inv := ArrowLift.fromNatTrans_toNatTrans
+
+end ArrowVersion
 
 
 end
