@@ -42,6 +42,12 @@ theorem sandwich_comp {X X' Y Y' Z Z' : C} (p : X = X') (q : Y = Y') (r : Z = Z'
 theorem sandwich_id {X X' : C} (p : X = X') : sandwich p p (𝟙 X) = 𝟙 X' := by
   simp [sandwich]
 
+/-- Retyping twice is retyping along the composite equations. -/
+theorem sandwich_sandwich {X X' X'' Y Y' Y'' : C} (p : X = X') (q : Y = Y')
+    (p' : X' = X'') (q' : Y' = Y'') (f : X ⟶ Y) :
+    sandwich p' q' (sandwich p q f) = sandwich (p.trans p') (q.trans q') f := by
+  simp [sandwich]
+
 /-- A functor carries a sandwich to the sandwich of the image. -/
 theorem map_sandwich (G : C ⥤ D) {X X' Y Y' : C} (p : X = X') (q : Y = Y')
     (f : X ⟶ Y) :
