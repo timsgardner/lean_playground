@@ -95,7 +95,11 @@ def commaProjProd (L R : 𝒞 ⥤ 𝒟) : Comma L R ⥤ 𝒞 × 𝒞 :=
 def NatTransFunctor (L R: 𝒞 ⥤ 𝒟) :=
   {F : 𝒞 ⥤ Comma L R // F ⋙ commaProjProd L R = Functor.diag 𝒞}
 
-/-! ## Sections of `P` and the natural transformations they determine -/
+/-! ## Lifts of `Δ` through `P` and the natural transformations they determine
+
+Here `P = commaProjProd L R : Comma L R ⥤ 𝒞 × 𝒞` and `Δ = Functor.diag 𝒞`. A lift of
+`Δ` through `P` is a functor `F : 𝒞 ⥤ Comma L R` with `F ⋙ P = Δ`; these are the
+elements of `NatTransFunctor L R`. -/
 
 namespace NatTransFunctor
 
@@ -162,12 +166,12 @@ theorem comma_mk_sandwich (X : Comma L R) {a b : 𝒞} (hl : X.left = a) (hr : X
   subst hl hr
   simp
 
-/-- Going from `α` to a section and back gives `α`. -/
+/-- Going from `α` to a lift of `Δ` and back gives `α`. -/
 theorem toNatTrans_fromNatTrans (α : L ⟶ R) : toNatTrans (fromNatTrans α) = α := by
   ext c
   simp [toNatTrans, component, fromNatTrans, sandwich]
 
-/-- Going from a section to `α` and back gives the section. -/
+/-- Going from a lift of `Δ` to `α` and back gives the lift. -/
 theorem fromNatTrans_toNatTrans (F : NatTransFunctor L R) :
     fromNatTrans (toNatTrans F) = F := by
   apply Subtype.ext
