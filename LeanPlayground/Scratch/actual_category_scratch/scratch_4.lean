@@ -85,6 +85,16 @@ theorem map_sandwich (G : C ⥤ D) {X X' Y Y' : C} (p : X = X') (q : Y = Y')
     G.map (sandwich p q f) = sandwich (congrArg G.obj p) (congrArg G.obj q) (G.map f) := by
   simp [sandwich, eqToHom_map]
 
+/-- Remark: a sandwich "is" `f`, but only up to heterogeneous equality, since
+`sandwich p q f : X' ⟶ Y'` and `f : X ⟶ Y` have different types and so cannot be
+compared with `=`. This is Mathlib's `conj_eqToHom_iff_heq` in sandwich form. `HEq`
+cannot be used with `rw`, so the lemmas above are the ones to compute with. -/
+theorem sandwich_heq {X X' Y Y' : C} (p : X = X') (q : Y = Y') (f : X ⟶ Y) :
+    sandwich p q f ≍ f := by
+  cases p
+  cases q
+  simp [sandwich]
+
 end Sandwich
 
 /-- Gives a functor from `Comma L R` to pairs of its first and second
