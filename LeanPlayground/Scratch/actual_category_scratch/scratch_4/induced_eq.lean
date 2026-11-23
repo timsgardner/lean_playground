@@ -22,12 +22,12 @@ its morphisms `i ⟶ k` are morphisms `a i ⟶ a k` of `C`, wrapped in a structu
 single field `hom`. Mathlib provides the functor `inducedFunctor a`, which sends `i` to
 `a i` and a morphism to its `hom`. This file adds what the family `e` gives:
 
-* `bottom e f : b i ⟶ b k` for a morphism `f : i ⟶ k`: its `hom`, retyped along `e i` and
+* `transportHom e f : b i ⟶ b k` for a morphism `f : i ⟶ k`: its `hom`, retyped along `e i` and
   `e k`. The indices `i` and `k` come from the type of `f`.
-* `cod e : InducedCategory C a ⥤ C`, sending `i` to `b i` and `f` to `bottom e f`. That it
+* `cod e : InducedCategory C a ⥤ C`, sending `i` to `b i` and `f` to `transportHom e f`. That it
   is a functor is `sandwich_id` and `sandwich_comp`, used once, here.
 * `domIsoCod e : inducedFunctor a ≅ cod e`, with components `eqToIso (e i)`. Its
-  naturality squares are the squares `f.hom ≫ eqToHom (e k) = eqToHom (e i) ≫ bottom e f`.
+  naturality squares are the squares `f.hom ≫ eqToHom (e k) = eqToHom (e i) ≫ transportHom e f`.
 
 Compared with `ObjEq`, the morphisms here are between indices, not between equations, so
 a statement about morphisms never has to mention which equations it is transported
@@ -39,40 +39,41 @@ namespace InducedEq
 
 variable {I : Type*} {C : Type*} [Category C] {a b : I → C}
 
-/-- The bottom side of the square of `f : i ⟶ k`: its `hom`, retyped along `e i` and
+/-- The morphism `f : i ⟶ k`, transported along the family: its `hom`, retyped along `e i` and
 `e k`. -/
-def bottom (e : ∀ i, a i = b i) {i k : InducedCategory C a} (f : i ⟶ k) : b i ⟶ b k :=
+def transportHom (e : ∀ i, a i = b i) {i k : InducedCategory C a} (f : i ⟶ k) : b i ⟶ b k :=
   sandwich (e i) (e k) f.hom
 
 variable (e : ∀ i, a i = b i)
 
 /-- The square of `f` commutes. -/
 theorem square {i k : InducedCategory C a} (f : i ⟶ k) :
-    f.hom ≫ eqToHom (e k) = eqToHom (e i) ≫ bottom e f := by
-  simp [bottom, sandwich]
+    f.hom ≫ eqToHom (e k) = eqToHom (e i) ≫ transportHom e f := by
+  simp [transportHom, sandwich]
 
-@[simp] theorem bottom_id (i : InducedCategory C a) : bottom e (𝟙 i) = 𝟙 (b i) :=
+@[simp] theorem transportHom_id (i : InducedCategory C a) : transportHom e (𝟙 i) = 𝟙 (b i) :=
   sandwich_id (e i)
 
-@[simp] theorem bottom_comp {i k l : InducedCategory C a} (f : i ⟶ k) (g : k ⟶ l) :
-    bottom e (f ≫ g) = bottom e f ≫ bottom e g :=
+@[simp] theorem transportHom_comp {i k l : InducedCategory C a} (f : i ⟶ k) (g : k ⟶ l) :
+    transportHom e (f ≫ g) = transportHom e f ≫ transportHom e g :=
   (sandwich_comp (e i) (e k) (e l) f.hom g.hom).symm
 
-/-- Send `i` to `b i`, and a morphism to its bottom side. -/
+/-- Send `i` to `b i`, and each morphism to its transport `transportHom e f`. -/
 @[simps]
 def cod : InducedCategory C a ⥤ C where
   obj i := b i
-  map f := bottom e f
+  map f := transportHom e f
 
 /-- The family of equations, as a natural isomorphism. -/
 def domIsoCod : inducedFunctor a ≅ cod e :=
   NatIso.ofComponents (fun i => eqToIso (e i)) fun f => square e f
 
-/-- A functor `G : C ⥤ D` carries the bottom side of `f` to `G.map f.hom`, retyped along
+/-- A functor `G : C ⥤ D` carries `transportHom e f` to `G.map f.hom`, retyped along
 the images of the equations. This is `map_sandwich`. -/
-theorem map_bottom {D : Type*} [Category D] (G : C ⥤ D) {i k : InducedCategory C a}
+theorem map_transportHom {D : Type*} [Category D] (G : C ⥤ D) {i k : InducedCategory C a}
     (f : i ⟶ k) :
-    G.map (bottom e f) = sandwich (congrArg G.obj (e i)) (congrArg G.obj (e k)) (G.map f.hom) :=
+    G.map (transportHom e f)
+      = sandwich (congrArg G.obj (e i)) (congrArg G.obj (e k)) (G.map f.hom) :=
   map_sandwich G (e i) (e k) f.hom
 
 /-! ## Transport as a functor
@@ -85,14 +86,14 @@ objects. A functor into `InducedCategory C a` and its transport into
 `InducedCategory C b` therefore have the same object function, so they can be compared
 without any `eqToHom`. -/
 
-/-- Transport along the family `e`: the identity on objects, and `bottom e` on
+/-- Transport along the family `e`: the identity on objects, and `transportHom e` on
 morphisms. -/
 @[simps]
 def transport : InducedCategory C a ⥤ InducedCategory C b where
   obj i := i
-  map f := InducedCategory.homMk (bottom e f)
-  map_id i := InducedCategory.hom_ext (bottom_id e i)
-  map_comp f g := InducedCategory.hom_ext (bottom_comp e f g)
+  map f := InducedCategory.homMk (transportHom e f)
+  map_id i := InducedCategory.hom_ext (transportHom_id e i)
+  map_comp f g := InducedCategory.hom_ext (transportHom_comp e f g)
 
 /-- `cod e` is transport followed by the forgetful functor of the target. -/
 theorem transport_comp_inducedFunctor : transport e ⋙ inducedFunctor b = cod e := rfl
@@ -106,7 +107,7 @@ theorem transport_rfl : transport (fun i => (rfl : a i = a i)) = 𝟭 (InducedCa
 theorem transport_comp_transport_symm :
     transport e ⋙ transport (fun i => (e i).symm) = 𝟭 (InducedCategory C a) :=
   Functor.hext (fun _ => rfl) fun i k f =>
-    heq_of_eq (InducedCategory.hom_ext (by simp [bottom, sandwich]))
+    heq_of_eq (InducedCategory.hom_ext (by simp [transportHom, sandwich]))
 
 /-! ## Copying a functor, by transport
 

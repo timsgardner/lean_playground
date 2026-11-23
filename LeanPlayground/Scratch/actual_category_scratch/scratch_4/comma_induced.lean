@@ -14,7 +14,7 @@ be removed by `subst`, because the other side is `c` itself rather than a variab
 
 The left legs of the comma morphisms `F m` form a functor `legsL F` from `𝒞` into the
 induced category over `c ↦ (F c).left`. The one fact that uses `F ⋙ P = Δ` on morphisms is
-`bottom_legsL`: the bottom side of `(legsL F).map m` is `m`. -/
+`transportHom_legsL`: `(legsL F).map m`, transported, is `m`. -/
 
 open CategoryTheory InducedEq
 
@@ -52,11 +52,12 @@ theorem sandwich_eqToHom_cancel {C : Type*} [Category C] {X X' Y Y' : C}
   cases q
   simp [sandwich]
 
-/-- Since `F ⋙ P = Δ`, the bottom side of the left leg of `F m` is `m`. The endpoints
+/-- Since `F ⋙ P = Δ`, the left leg of `F m`, transported, is `m`. The endpoints
 `c₁` and `c₂` are given explicitly, so that they are written as `c₁` and `c₂` rather than
 as `(legsL F).obj c₁` and `(legsL F).obj c₂`. -/
-theorem bottom_left_leg (F : NatTransFunctor L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
-    bottom (i := c₁) (k := c₂) (obj_left_eq F) (InducedCategory.homMk (F.val.map m).left) = m := by
+theorem transportHom_left_leg (F : NatTransFunctor L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
+    transportHom (i := c₁) (k := c₂) (obj_left_eq F)
+      (InducedCategory.homMk (F.val.map m).left) = m := by
   have h : (F.val.map m).left
       = eqToHom (obj_left_eq F c₁) ≫ m ≫ eqToHom (obj_left_eq F c₂).symm := by
     simpa [commaProjProd] using
@@ -65,9 +66,9 @@ theorem bottom_left_leg (F : NatTransFunctor L R) {c₁ c₂ : 𝒞} (m : c₁ �
   rw [h]
   exact sandwich_eqToHom_cancel _ _ m
 
-/-- Since `F ⋙ P = Δ`, the bottom side of the right leg of `F m` is `m`. -/
-theorem bottom_right_leg (F : NatTransFunctor L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
-    bottom (i := c₁) (k := c₂) (obj_right_eq F) (InducedCategory.homMk (F.val.map m).right)
+/-- Since `F ⋙ P = Δ`, the right leg of `F m`, transported, is `m`. -/
+theorem transportHom_right_leg (F : NatTransFunctor L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
+    transportHom (i := c₁) (k := c₂) (obj_right_eq F) (InducedCategory.homMk (F.val.map m).right)
       = m := by
   have h : (F.val.map m).right
       = eqToHom (obj_right_eq F c₁) ≫ m ≫ eqToHom (obj_right_eq F c₂).symm := by
@@ -79,14 +80,14 @@ theorem bottom_right_leg (F : NatTransFunctor L R) {c₁ c₂ : 𝒞} (m : c₁ 
 
 /-- The same fact, stated with the functor of left legs: `legsL F ⋙ cod` is the identity
 on morphisms. -/
-theorem bottom_legsL (F : NatTransFunctor L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
-    bottom (obj_left_eq F) ((legsL F).map m) = m :=
-  bottom_left_leg F m
+theorem transportHom_legsL (F : NatTransFunctor L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
+    transportHom (obj_left_eq F) ((legsL F).map m) = m :=
+  transportHom_left_leg F m
 
 /-- Likewise for the right legs. -/
-theorem bottom_legsR (F : NatTransFunctor L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
-    bottom (obj_right_eq F) ((legsR F).map m) = m :=
-  bottom_right_leg F m
+theorem transportHom_legsR (F : NatTransFunctor L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
+    transportHom (obj_right_eq F) ((legsR F).map m) = m :=
+  transportHom_right_leg F m
 
 /-- The component at `c`: `(F c).hom`, retyped along the images of the two equations. -/
 def component (F : NatTransFunctor L R) (c : 𝒞) : L.obj c ⟶ R.obj c :=
@@ -96,11 +97,11 @@ def component (F : NatTransFunctor L R) (c : 𝒞) : L.obj c ⟶ R.obj c :=
 def toNatTrans (F : NatTransFunctor L R) : L ⟶ R where
   app := component F
   naturality c₁ c₂ m := by
-    -- Write `m` as the bottom side of its left leg on the left, and of its right leg on
+    -- Write `m` as its left leg, transported, on the left, and as its right leg, transported, on
     -- the right; then both sides are one sandwich, of the two sides of the square `F m`.
-    conv_lhs => rw [← bottom_left_leg F m]
-    conv_rhs => rw [← bottom_right_leg F m]
-    simp only [component, bottom, InducedCategory.homMk_hom, map_sandwich, sandwich_comp]
+    conv_lhs => rw [← transportHom_left_leg F m]
+    conv_rhs => rw [← transportHom_right_leg F m]
+    simp only [component, transportHom, InducedCategory.homMk_hom, map_sandwich, sandwich_comp]
     exact congrArg _ (F.val.map m).w
 
 theorem toNatTrans_fromNatTrans (α : L ⟶ R) :

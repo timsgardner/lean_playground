@@ -21,11 +21,11 @@ def legsL (F : Lift L R) : 𝒞 ⥤ InducedCategory 𝒞 (fun c => (F.val.obj c)
 
 -- the naive proof: unfold, normalize endpoints with dsimp, then rewrite with h
 example (F : Lift L R) {c₁ c₂ : 𝒞} (m : c₁ ⟶ c₂) :
-    bottom (obj_left_eq F) ((legsL F).map m) = m := by
+    transportHom (obj_left_eq F) ((legsL F).map m) = m := by
   have h : (F.val.map m).left
       = eqToHom (obj_left_eq F c₁) ≫ m ≫ eqToHom (obj_left_eq F c₂).symm := by
     simpa [commaProjProd] using
       Functor.congr_hom (congrArg (· ⋙ CategoryTheory.Prod.fst 𝒞 𝒞) F.property) m
-  dsimp only [bottom, sandwich, legsL_obj, legsL_map, InducedCategory.homMk_hom]
+  dsimp only [transportHom, sandwich, legsL_obj, legsL_map, InducedCategory.homMk_hom]
   simp [h]
 end ProbeC_plain
