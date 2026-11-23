@@ -28,6 +28,8 @@ Here it is built from `ObjEq` instead of directly:
 
 open CategoryTheory
 
+#check rfl
+
 namespace CopyObjEq
 
 variable {J : Type*} [Category J] {C : Type*} [Category C]
