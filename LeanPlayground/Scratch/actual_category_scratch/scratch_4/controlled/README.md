@@ -35,6 +35,15 @@ default target imports only `LeanPlayground.Basic`.)
 | A | naturality ends with `simp only [..., (F.val.map m).w]` instead of `simp only [...]; exact congrArg _ (F.val.map m).w` | fails | fails |
 | B | the direct proof uses `rw` instead of `erw` for `Comma.eqToHom_left`/`_right` | fails | fails |
 | C | the naive `InducedEq` proof of `bottom (obj_left_eq F) ((legsL F).map m) = m`: unfold, normalize endpoints with `dsimp`, then `simp [h]` | fails | works |
+| D | the direct proof without Mathlib's `Comma.eqToHom_left`/`_right`: each leg is restated as the image under `Comma.fst`/`Comma.snd` (`← Comma.fst_map`), and the `eqToHom`s are pushed through with `Functor.map_comp` and the general `eqToHom_map` | works | not run |
+
+Probe D answers a fairness question: does the direct approach depend on comma-specific
+tools for `eqToHom`, which other categories might not have? It does not. With the general
+`eqToHom_map` in place of `Comma.eqToHom_left`, the proof has the same length and still
+needs `erw`. What both approaches need from the context is a projection functor for each
+component of a morphism, its `@[simps]` `map` lemma, and an extensionality lemma for
+morphisms (`Comma.hom_ext`), which any category whose morphisms are tuples of components
+has.
 
 For probe C the two setup factors were also separated:
 

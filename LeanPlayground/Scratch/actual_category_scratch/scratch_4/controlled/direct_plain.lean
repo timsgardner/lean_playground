@@ -11,6 +11,8 @@ all their text except the setup lines and the proof of the hard round trip
 * Setup (plain): `Lift` is a plain `def`, and `backward.defeqAttrib.useBackward` is off.
 * Approach (direct): the hard round trip uses `Functor.ext`, whose `eqToHom`s are pushed through the comma projections with `Comma.eqToHom_left` and `_right`. -/
 
+set_option pp.proofs.withType true
+
 open CategoryTheory
 
 namespace Controlled.DirectPlain
